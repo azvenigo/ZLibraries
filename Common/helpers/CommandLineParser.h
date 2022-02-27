@@ -1,15 +1,10 @@
 #pragma once
-#include <stdint.h>
-#include <stdlib.h>
-#include <cstdio>
 #include <string>
 #include <map>
 #include <vector>
 #include <iostream>
 
 using namespace std;
-
-typedef map<string, string> tKeyToValueMap;
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // CommandlineParser 
@@ -138,5 +133,5 @@ protected:
     void        OutputFixed(int32_t nWidth, const char* format, ...);
     void        OutputLines(int32_t nWidth, const string& sMultiLineString);
     string      Int64ToString(int64_t n);
-    void        RepeatOut(char c, int32_t nCount);
+    void        RepeatOut(char c, int32_t nCount, bool bNewLine = false);
 };
