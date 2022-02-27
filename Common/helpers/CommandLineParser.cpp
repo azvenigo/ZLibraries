@@ -73,6 +73,7 @@ int64_t IntFromUserReadable(string sReadable)
 
 CommandLineParser::CommandLineParser()
 {
+    mnRequiredUnnamed = 0;
     mUnnamedParameterDescriptors.reserve(16);
 }
 
@@ -206,6 +207,11 @@ bool CommandLineParser::Parse(int argc, char* argv[], bool bVerbose)
     int64_t nUnnamedParametersFound = 0;        
 
     bool bError = false;
+    if (argc < 2)
+    {
+        bError = true;
+        goto errorprompt;
+    }
 
     for (int i = 1; i < argc; i++)
     {
@@ -384,6 +390,8 @@ bool CommandLineParser::Parse(int argc, char* argv[], bool bVerbose)
         }
     }
 
+errorprompt:
+
     if (bError)
     {
         string sUsageString = GetUsageString();
@@ -396,24 +404,17 @@ bool CommandLineParser::Parse(int argc, char* argv[], bool bVerbose)
         nWidth += 6;
 
         cout << "\n";
-        RepeatOut('*', nWidth);
-        cout << "\n";
-        OutputFixed(nWidth, "Description:");
+        RepeatOut('*', nWidth, true);
 
-
-
-        OutputLines(nWidth, msDescription);
-
-        RepeatOut('*', nWidth);
-        cout << "\n";
-
+        if (!msDescription.empty())
+        {
+            OutputFixed(nWidth, "Description:");
+            OutputLines(nWidth, msDescription);
+            RepeatOut('*', nWidth, true);
+        }
         OutputFixed(nWidth, "Usage:");
-
-
         OutputFixed(nWidth, sUsageString.c_str());
-
-        RepeatOut('*', nWidth);
-        cout << "\n";
+        RepeatOut('*', nWidth, true);
         return false;
     }
 
@@ -506,10 +507,13 @@ int32_t CommandLineParser::LongestDescriptionLine()
     return nLongest;
 }
 
-void CommandLineParser::RepeatOut(char c, int32_t nCount)
+void CommandLineParser::RepeatOut(char c, int32_t nCount, bool bNewLine)
 {
     while (nCount-->0)
         cout << c;
+
+    if (bNewLine)
+        cout << '\n';
 }
 
 void CommandLineParser::OutputFixed(int32_t nWidth, const char* format, ...)
@@ -522,8 +526,6 @@ void CommandLineParser::OutputFixed(int32_t nWidth, const char* format, ...)
     vsnprintf(pBuf, nRequiredLength + 1, format, args);
 
     va_end(args);
-
-//    std::string sReturn(pBuf, nRequiredLength);
 
     int32_t nPadding = nWidth-nRequiredLength-6;    // "** " and " **" on the ends is six chars
 
