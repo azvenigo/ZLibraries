@@ -1,69 +1,38 @@
 #include "FileHelpers.h"
+#include <filesystem>
 
-#if defined(WIN32) || defined(WIN64)
-#include <Windows.h>
-#endif
 
 using namespace std;
+namespace fs=std::filesystem;
 
-bool FileExists(const string& sPath)
+bool ScanFolder(string sFolder, list<string>& fileListResults, bool bRecursive)
 {
-    HANDLE hFile = CreateFileA(sPath.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
-    if (hFile == INVALID_HANDLE_VALUE)
-        return false;
+    if (bRecursive)
+    {
+        for (auto const& dir_entry : fs::recursive_directory_iterator(sFolder))
+        {
+            if (dir_entry.is_regular_file())
+            {
+                fs::path p = dir_entry.path();
+                p.make_preferred();
 
-    CloseHandle(hFile);
+                fileListResults.push_back(p.lexically_normal().string());
+            }
+        }
+    }
+    else
+    {
+        for (auto const& dir_entry : fs::directory_iterator(sFolder))
+        {
+            if (dir_entry.is_regular_file())
+            {
+                fs::path p = dir_entry.path();
+                p.make_preferred();
+                fileListResults.push_back(p.lexically_normal().string());
+            }
+        }
+    }
+
     return true;
 }
 
-bool EnsurePath(string sPath)
-{
-//	cout << "Ensuring path:" << sPath << std::endl;
-	
-    // If path passed in does not end in '/' or '\\' add it
-    
-    char sTail = *(sPath.rbegin());
-    if (sTail != '\\' && sTail != '/')
-    {
-        sPath += '/';
-    }
-
-	for (string::iterator it = sPath.begin(); it != sPath.end(); it++)
-	{
-		if (*it == '\\')
-			*it = '/';
-	}
-
-	size_t nIndex = sPath.find_first_of('/', 1); // skip leading '/'
-	do
-	{
-		string sSubPath = sPath.substr(0, nIndex);
-
-//		cout << "Making path:" << sSubPath << std::endl;
-
-    // Windows implementation
-
-        bool bExists = GetFileAttributesA(sSubPath.c_str()) != INVALID_FILE_ATTRIBUTES;
-
-        if (!bExists)
-        {
-            BOOL bResult = CreateDirectoryA(sSubPath.c_str(), NULL);
-            if (bResult != TRUE)
-            {
-                cout << "ERROR CreateDirectory(\"" << sSubPath << "\"); nResult:" << std::dec << GetLastError() << "\n";
-                return false;
-            }
-        }
-
-		nIndex = sPath.find_first_of('/', nIndex+1);	// next directory separator
-	} while (nIndex != string::npos);
-
-	return true;
-}
-
-
-bool CopyFile(string sInputFilename, string sOutputFilename)
-{
-    // windows implementation
-    return false;
-}
