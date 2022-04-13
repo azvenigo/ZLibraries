@@ -17,14 +17,14 @@ using namespace std;
 // 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Details:
-// Unnamed parameters have to be in order, but not necessarily together
+// Positional parameters have to be in order, but not necessarily together
 // > Example: "copy c:\sample.txt c:\sample2.txt"
 // 
 // Named parameters start with '-' and map a key to a value separated by a ':'
 // simple flags such as "-run" is treated as a boolean.
 // > Example: "-threads:4"  "-verbose" 
 //
-// Named parameters can be anywhere on the command line, in any order, including before, between or after unnamed parameters
+// Named parameters can be anywhere on the command line, in any order, including before, between or after positional parameters
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // > Examples:
 // app.exe compare file1.txt file2.txt -nocase -width:16 -P -blocksize:128KiB
@@ -35,7 +35,7 @@ using namespace std;
 // Usage:
 // 1) Instantiate an instance of ComandLineMap
 // 2) Provide an optional description for what this application does.
-// 3) Specify the required number of unnamed parameters
+// 3) Specify the required number of positional parameters
 // 4) Register your variables that will receive the results of parsing
 // 5) Parse
 //
@@ -49,46 +49,77 @@ using namespace std;
 // 
 //   CommandLineParser parser;
 //   parser.RegisterDescription("Searches the source file for lines that include searchString and copies those lines to the destination file.");
-//   parser.SetRequiredNumberOfUnnamedParameters(2);
-//   parser.RegisterUnnamedString("SOURCE", &sourcePath);
-//   parser.RegisterUnnamedString("DESTINATION", &destPath);
-//   parser.RegisterUnnamedString("SEARCH", &searchString);
+//   parser.SetRequiredNumberOfPositionalParameters(2);
+//   parser.RegisterPositionalString("SOURCE", &sourcePath);
+//   parser.RegisterPositionalString("DESTINATION", &destPath);
+//   parser.RegisterPositionalString("SEARCH", &searchString);
 //   parser.RegisterNamedInt64("threads", &nThreads, false, true, 1, 128);
 //   parser.RegisterNamedBool("casesensitive", &bCaseSensitive);
 //   
 //   parser.Parse(argc, argv, false);
 
 
-class ParameterDescriptor
+class ParamDesc
 {
 public:
-    enum eParamType
+    friend class CommandLineParser;
+
+    enum eKeyType
     {
-        kUnknown = 0,
-        kInt64  = 1,
-        kBool   = 2,
-        kString = 3
+        kPositional = 1,
+        kNamed = 2
     };
 
-    ParameterDescriptor() : mnPosition(-1), mType(kUnknown), mbRequired(false), mpValue(nullptr), mbRangeRestricted(false), mnMinValue(0), mnMaxValue(0), mbFound(false) {}
-    
+    enum eRequired
+    {
+        kOptional = 0,
+        kRequired = 1
+    };
+
+
+    //ParameterDescriptor() : mnPosition(-1), mKeyType(eParamType::kUnknown), mValueType(eParamType::kUnknown), mbRequired(false), mpValue(nullptr), mbRangeRestricted(false), mnMinValue(0), mnMaxValue(0), mbFound(false) {}
+
+    // named string
+    ParamDesc(eKeyType type, eRequired bRequired, const string& sName, string* pString, const string& sUsage = "");
+    ParamDesc(eKeyType type, eRequired bRequired, const string& sName, bool* pBool, const string& sUsage = "");
+    ParamDesc(eKeyType type, eRequired bRequired, const string& sName, int64_t* pInt, bool bRangeRestricted = false, int64_t nMin = 0, int64_t nMax = 0, const string& sUsage = "");
+
+    string      GetExampleString();
+
+private:
+
+    enum eInternalParamType
+    {
+        // kValue Types
+        kUnknown = 0,
+        kInt64 = 1,
+        kBool = 2,
+        kString = 3,
+
+
+    };
+
+
+
     string      msName;         // named parameters like "-count:12" or "-verbose"
-    int64_t     mnPosition;     // unnamed parameter index (0 is the app name, etc.)
+    int64_t     mnPosition;     // positional parameter index (0 is the app name, etc.)
 
-    eParamType  mType;
-    bool        mbRequired;
-    void*       mpValue;
+    void*       mpValue;        // Memory location of value to be filled in
 
-    bool        mbRangeRestricted;
+    eKeyType    mKeyType;  // Positional or named
+    eInternalParamType  mValueType;
+    bool        mbRequired;     // If param is required, parse will return false when missing
+
+    bool        mbRangeRestricted;  // If restricted mnMinValue and mnMaxValue should be set
     int64_t     mnMinValue;
     int64_t     mnMaxValue;
+
+    string      msUsage;        // Optional explanation for help text
 
     // Tracking
     bool        mbFound;   // For checking whether all required parameters were found
 
 };
-
-typedef map<string, ParameterDescriptor> tKeyToParamDescriptorMap;
 
 class CommandLineParser
 {
@@ -96,42 +127,42 @@ public:
     CommandLineParser();
     ~CommandLineParser();
 
-    void    SetRequiredNumberOfUnnamedParameters(int64_t nRequired);
-
     bool    Parse(int argc, char* argv[], bool bVerbose=false);
 
-    // Accessors
-    bool    GetNamedDescriptor(const string& sKey, ParameterDescriptor** pDescriptorOut = nullptr);     // Gets the descriptor or just returns whether one exists if no pointer is passed in
-    bool    GetUnnamedDescriptor(int64_t nIndex, ParameterDescriptor** pDescriptorOut = nullptr);       // Gets the descriptor or just returns whether one exists if no pointer is passed in
-    string  GetUsageString();  // dynamically built from registered parameters
+    void    OutputUsage();  // dynamically built from registered parameters
 
     // Registration Functions
-    void    RegisterDescription(const string& sDescription);
+    void    RegisterAppDescription(const string& sDescription);
 
-    bool    RegisterNamedString(const string& sKey, string* pRegisteredString, bool bRequired = false);
-    bool    RegisterNamedInt64(const string& sKey, int64_t* pRegisteredInt64, bool bRequired = false, bool bRangeRestricted=false, int64_t nMinValue=0, int64_t nMaxValue=0);
-    bool    RegisterNamedBool(const string& sKey, bool* pRegisteredBool, bool bRequired = false);
+    bool    RegisterParam(ParamDesc param);
 
-    bool    RegisterUnnamedString(const string& sDisplayName, string* pRegisteredString);
-    bool    RegisterUnnamedInt64(const string& sDisplayName, int64_t* pRegisteredInt64, bool bRangeRestricted = false, int64_t nMinValue = 0, int64_t nMaxValue = 0);
-    bool    RegisterUnnamedBool(const string& sDisplayName, bool* pRegisteredBool);
+/*    bool    RegisterNamedString(const string& sKey, string* pRegisteredString, bool bRequired = false, const string& sUsage = "");
+    bool    RegisterNamedInt64(const string& sKey, int64_t* pRegisteredInt64, bool bRequired = false, bool bRangeRestricted=false, int64_t nMinValue=0, int64_t nMaxValue=0, const string& sUsage = "");
+    bool    RegisterNamedBool(const string& sKey, bool* pRegisteredBool, bool bRequired = false, const string& sUsage = "");
 
+    bool    RegisterPositionalString(const string& sDisplayName, string* pRegisteredString, bool bRequired = false, const string& sUsage = "");
+    bool    RegisterPositionalInt64(const string& sDisplayName, int64_t* pRegisteredInt64, bool bRequired = false, bool bRangeRestricted = false, int64_t nMinValue = 0, int64_t nMaxValue = 0, const string& sUsage = "");
+    bool    RegisterPositionalBool(const string& sDisplayName, bool* pRegisteredBool, bool bRequired = false, const string& sUsage = "");
+*/
 protected:
-    string                      msAppPath;
-    string                      msDescription;
+    // Accessors
+    bool    GetNamedDescriptor(const string& sKey, ParamDesc** pDescriptorOut = nullptr);     // Gets the descriptor or just returns whether one exists if no pointer is passed in
+    bool    GetPositionalDescriptor(int64_t nIndex, ParamDesc** pDescriptorOut = nullptr);       // Gets the descriptor or just returns whether one exists if no pointer is passed in
 
-    // Named parameters
-    tKeyToParamDescriptorMap    mNamedParameterDescriptors;
+    string  msAppPath;          // full path to the app.exe
+    string  msAppName;          // just the app.exe
+    string  msAppDescription;
 
-    // Unnamed parameters
-    int64_t                     mnRequiredUnnamed;
-    vector<ParameterDescriptor> mUnnamedParameterDescriptors;
+    // Positional parameters
+    int64_t                     mnRegisteredPositional;
+
+    vector<ParamDesc> mParameterDescriptors;
 
 protected:
     // helper funcitons for neat formatting
-    int32_t     LongestDescriptionLine();
+    void        AddSpacesToEnsureWidth(string& sText, int64_t nWidth);
+    int32_t     LongestLine(const string& sText);
     void        OutputFixed(int32_t nWidth, const char* format, ...);
     void        OutputLines(int32_t nWidth, const string& sMultiLineString);
-    string      Int64ToString(int64_t n);
     void        RepeatOut(char c, int32_t nCount, bool bNewLine = false);
 };

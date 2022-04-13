@@ -9,7 +9,7 @@
     <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <LocalDebuggerCommandArguments>c:/temp/dupe_scanner_temp/source.bin c:/temp/dupe_scanner_temp/source.bin -blocksize:512kib -threads:3</LocalDebuggerCommandArguments>
+    <LocalDebuggerCommandArguments>h c:/temp/dupe_scanner_temp/source.bin c:/temp/dupe_scanner_temp/source.bin -blocksize:512kib -threads:3</LocalDebuggerCommandArguments>
     <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">

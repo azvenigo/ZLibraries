@@ -31,11 +31,13 @@ bool ParseCommands(int argc, char* argv[])
 {
     CommandLineParser parser;
 
-    parser.RegisterUnnamedString("SOURCE_PATH", &sSourcePath);
-    parser.RegisterUnnamedString("SCAN_PATH", &sScanPath);
-    parser.RegisterNamedInt64("threads", &nThreads);
-    parser.RegisterNamedInt64("blocksize", &nBlockSize);
-    parser.RegisterDescription("Indexes source file by blocks and scans for those blocks in scan file.\nIf SCAN_PATH ends in a '/' or '\\' it is assumed to be a folder and all files are scanned at that path recursively.\nIf blocksize is >= the size of the source file, the entirety of the source file is searched for. ");
+    parser.RegisterParam(ParamDesc(ParamDesc::kPositional,  ParamDesc::kRequired, "SOURCE_PATH", &sSourcePath, "File/folder to index by blocks."));
+    parser.RegisterParam(ParamDesc(ParamDesc::kPositional,  ParamDesc::kRequired, "SCAN_PATH", &sScanPath, "File/folder to scan at byte granularity."));
+    parser.RegisterParam(ParamDesc(ParamDesc::kNamed,       ParamDesc::kOptional, "threads", &nThreads, true, 1, 256, "Number of threads to spawn."));
+    parser.RegisterParam(ParamDesc(ParamDesc::kNamed,       ParamDesc::kOptional, "blocksize", &nBlockSize, true, 16, 1LL*1024*1024*1024, "Granularity of blocks to use for scanning."));
+
+
+    parser.RegisterAppDescription("Indexes source file(s) by blocks and scans for those blocks in scan file.\nIf either PATH ends in a '/' or '\\' it is assumed to be a folder and all files are scanned at that path recursively.\nIf blocksize is >= the size of the source file, the entirety of the source file is searched for. ");
     if (!parser.Parse(argc, argv))
         return false;
 
@@ -52,7 +54,7 @@ int _tmain(int argc, char* argv[])
     }
 
     if (!scanner.Scan(sSourcePath, sScanPath, nBlockSize, nThreads))
-        return 1;
+        return -1;
 
     DWORD nReportTime = ::GetTickCount();
     const DWORD kReportPeriod = 1000;
@@ -67,7 +69,7 @@ int _tmain(int argc, char* argv[])
             wcout << L"BlockScanner - Error - \"" << scanner.msError.c_str() << "\"";
 
             bDone = true;
-            return 0;
+            return -1;
         }
 
         if (scanner.mnStatus == BlockScanner::kFinished)
@@ -79,7 +81,7 @@ int _tmain(int argc, char* argv[])
         if (scanner.mnStatus == BlockScanner::kCancelled)
         {
             wcout << L"cancelled.";
-            return 0;
+            return -1;
         }
 
         if (nCurrentTime - nReportTime > kReportPeriod)

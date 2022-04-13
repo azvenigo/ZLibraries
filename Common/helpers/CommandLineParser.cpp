@@ -10,28 +10,133 @@
 
 using namespace std;
 
-struct sPowersEntry
+struct sSizeEntry
 {
     const char* label;
     int64_t     value;
 };
 
-static const sPowersEntry powerEntryTable[] =
+static const sSizeEntry sizeEntryTable[] =
 {
     { "B"     , 1 },
+
+    { "K"     , 1 * 1000LL},
     { "KB"    , 1 * 1000LL},
     { "KIB"   , 1 * 1024LL},
+
+    { "M"     , 1 * 1000LL * 1000LL},
     { "MB"    , 1 * 1000LL * 1000LL},
     { "MIB"   , 1 * 1024LL * 1024LL},
+
+    { "G"     , 1 * 1000LL * 1000LL * 1000LL},
     { "GB"    , 1 * 1000LL * 1000LL * 1000LL},
     { "GIB"   , 1 * 1024LL * 1024LL * 1024LL},
+
+    { "T"     , 1 * 1000LL * 1000LL * 1000LL * 1000LL},
     { "TB"    , 1 * 1000LL * 1000LL * 1000LL * 1000LL},
     { "TIB"   , 1 * 1024LL * 1024LL * 1024LL * 1024LL},
+
+    { "P"     , 1 * 1000LL * 1000LL * 1000LL * 1000LL * 1000LL},
     { "PB"    , 1 * 1000LL * 1000LL * 1000LL * 1000LL * 1000LL},
     { "PIB"   , 1 * 1024LL * 1024LL * 1024LL * 1024LL * 1024LL}
 };
 
-static const int powerEntryTableSize = sizeof(powerEntryTable) / sizeof(sPowersEntry);
+static const int sizeEntryTableSize = sizeof(sizeEntryTable) / sizeof(sSizeEntry);
+
+
+string Int64ToString(int64_t n)
+{
+    char buf[16];
+    sprintf_s(buf, "%lld", n);
+    return string(buf);
+}
+
+
+ParamDesc::ParamDesc(eKeyType type, eRequired required, const string& sName, string* pString, const string& sUsage)
+{
+    mKeyType = type;
+    mValueType = kString;
+    msName = sName;
+    mpValue = (void*)pString;
+    mbRequired = (required == kRequired);
+    msUsage = sUsage;
+}
+
+ParamDesc::ParamDesc(eKeyType type, eRequired required, const string& sName, bool* pBool, const string& sUsage)
+{
+    mKeyType = type;
+    mValueType = kBool;
+    msName = sName;
+    mpValue = (void*)pBool;
+    mbRequired = (required == kRequired);
+    msUsage = sUsage;
+}
+
+ParamDesc::ParamDesc(eKeyType type, eRequired required, const string& sName, int64_t* pInt, bool bRangeRestricted, int64_t nMin, int64_t nMax, const string& sUsage)
+{
+    mKeyType = type;
+    mValueType = kInt64;
+    msName = sName;
+    mpValue = (void*)pInt;
+    mbRequired = (required == kRequired);
+    msUsage = sUsage;
+    mbRangeRestricted = bRangeRestricted;
+    mnMinValue = nMin;
+    mnMaxValue = nMax;
+}
+
+
+string ParamDesc::GetExampleString()
+{
+    // for unrequired params, surround with brackets
+    string sCommandExample = " ";
+    if (!mbRequired)
+        sCommandExample += "[";
+
+    if (mKeyType == kNamed)
+    {
+        sCommandExample += "-";
+        switch (mValueType)
+        {
+        case ParamDesc::kString:
+            sCommandExample += msName + ":STRING";
+            break;
+        case ParamDesc::kInt64:
+            sCommandExample += msName + ":";
+            if (mbRangeRestricted)
+                sCommandExample += "(" + Int64ToString(mnMinValue) + "-" + Int64ToString(mnMaxValue) + ")";
+            else
+                sCommandExample += "NUMBER";
+
+            break;
+        case ParamDesc::kBool:
+            sCommandExample += msName;
+        }
+    }
+    else // kPositional
+    {
+        switch (mValueType)
+        {
+        case ParamDesc::kString:
+            sCommandExample += msName + " (STRING)";
+            break;
+        case ParamDesc::kInt64:
+            if (mbRangeRestricted)
+                sCommandExample += msName + "(" + Int64ToString(mnMinValue) + "-" + Int64ToString(mnMaxValue) + ")";
+            else
+                sCommandExample += msName + " (NUMBER)";
+
+            break;
+        case ParamDesc::kBool:
+            sCommandExample += msName + "(BOOL)";
+        }
+    }
+
+    if (!mbRequired)
+        sCommandExample += "]";
+
+    return sCommandExample;
+}
 
 
 int64_t IntFromUserReadable(string sReadable)
@@ -54,10 +159,9 @@ int64_t IntFromUserReadable(string sReadable)
         nLabelChars++;
     }
 
-    for (int i = 0; i < powerEntryTableSize; i++)
+    for (int i = 0; i < sizeEntryTableSize; i++)
     {
-
-        const sPowersEntry& entry = powerEntryTable[i];
+        const sSizeEntry& entry = sizeEntryTable[i];
 
         if (sReadable.substr(nReadableLength-nLabelChars).compare(entry.label)==0)
         {
@@ -73,26 +177,31 @@ int64_t IntFromUserReadable(string sReadable)
 
 CommandLineParser::CommandLineParser()
 {
-    mnRequiredUnnamed = 0;
-    mUnnamedParameterDescriptors.reserve(16);
+    mnRegisteredPositional = 0;
 }
 
 CommandLineParser::~CommandLineParser()
 {
 }
 
-void CommandLineParser::RegisterDescription(const string& sDescription) 
+void CommandLineParser::RegisterAppDescription(const string& sDescription) 
 { 
-    msDescription = sDescription;
+    msAppDescription = sDescription;
 }
 
-void CommandLineParser::SetRequiredNumberOfUnnamedParameters(int64_t nRequired) 
-{ 
-    mnRequiredUnnamed = nRequired; 
+bool CommandLineParser::RegisterParam(ParamDesc param)
+{
+    // Assign positional index based on how many have been registered
+    if (param.mKeyType == ParamDesc::kPositional)
+        param.mnPosition = mnRegisteredPositional++;
+
+    mParameterDescriptors.emplace_back(param);
+
+    return true;
 }
 
-
-bool CommandLineParser::RegisterNamedString(const string& sKey, string* pRegisteredString, bool bRequired)
+/*
+bool CommandLineParser::RegisterNamedString(const string& sKey, string* pRegisteredString, bool bRequired, const string& sUsage)
 {
     if (GetNamedDescriptor(sKey))
     {
@@ -101,16 +210,18 @@ bool CommandLineParser::RegisterNamedString(const string& sKey, string* pRegiste
     }
 
     ParameterDescriptor desc;
+    desc.mKeyType = ParameterDescriptor::eParamType::kNamed;
     desc.msName = sKey;
     desc.mpValue = (void*)pRegisteredString;
     desc.mbRequired = bRequired;
-    desc.mType = ParameterDescriptor::kString;
-    mNamedParameterDescriptors[sKey] = desc;
+    desc.mValueType = ParameterDescriptor::kString;
+    desc.msUsage = sUsage;
+    mParameterDescriptors.emplace_back(desc);
 
     return true;
 }
 
-bool CommandLineParser::RegisterNamedInt64(const string& sKey, int64_t* pRegisteredInt64, bool bRequired, bool bRangeRestricted, int64_t nMinValue, int64_t nMaxValue)
+bool CommandLineParser::RegisterNamedInt64(const string& sKey, int64_t* pRegisteredInt64, bool bRequired, bool bRangeRestricted, int64_t nMinValue, int64_t nMaxValue, const string& sUsage)
 {
     if (GetNamedDescriptor(sKey))
     {
@@ -119,19 +230,21 @@ bool CommandLineParser::RegisterNamedInt64(const string& sKey, int64_t* pRegiste
     }
 
     ParameterDescriptor desc;
+    desc.mKeyType = ParameterDescriptor::eParamType::kNamed;
     desc.msName = sKey;
     desc.mpValue = (void*)pRegisteredInt64;
     desc.mbRequired = bRequired;
-    desc.mType = ParameterDescriptor::kInt64;
+    desc.mValueType = ParameterDescriptor::kInt64;
     desc.mbRangeRestricted = bRangeRestricted;
     desc.mnMinValue = nMinValue;
     desc.mnMaxValue = nMaxValue;
-    mNamedParameterDescriptors[sKey] = desc;
+    desc.msUsage = sUsage;
+    mParameterDescriptors.emplace_back(desc);
 
     return true;
 }
 
-bool CommandLineParser::RegisterNamedBool(const string& sKey, bool* pRegisteredBool, bool bRequired)
+bool CommandLineParser::RegisterNamedBool(const string& sKey, bool* pRegisteredBool, bool bRequired, const string& sUsage)
 {
     if (GetNamedDescriptor(sKey))
     {
@@ -140,71 +253,98 @@ bool CommandLineParser::RegisterNamedBool(const string& sKey, bool* pRegisteredB
     }
 
     ParameterDescriptor desc;
+    desc.mKeyType = ParameterDescriptor::eParamType::kNamed;
     desc.msName = sKey;
     desc.mpValue = (void*)pRegisteredBool;
     desc.mbRequired = bRequired;
-    desc.mType = ParameterDescriptor::kBool;
-    mNamedParameterDescriptors[sKey] = desc;
+    desc.mValueType = ParameterDescriptor::kBool;
+    desc.msUsage = sUsage;
+    mParameterDescriptors.emplace_back(desc);
 
     return true;
 }
 
-bool CommandLineParser::RegisterUnnamedString(const string& sDisplayName, string* pRegisteredString)
+bool CommandLineParser::RegisterPositionalString(const string& sDisplayName, string* pRegisteredString, bool bRequired, const string& sUsage)
 {
-    int64_t nIndex = mUnnamedParameterDescriptors.size();
-
-    mUnnamedParameterDescriptors.resize(nIndex+1);
-
     ParameterDescriptor desc;
     desc.msName = sDisplayName;
-    desc.mnPosition = nIndex;
+    desc.mKeyType = ParameterDescriptor::eParamType::kPositional;
+    desc.mnPosition = mnRegisteredPositional;
+    desc.mbRequired = bRequired;
     desc.mpValue = (void*)pRegisteredString;
-    desc.mType = ParameterDescriptor::kString;
-    mUnnamedParameterDescriptors[nIndex] = desc;
+    desc.mValueType = ParameterDescriptor::kString;
+    desc.msUsage = sUsage;
+    mParameterDescriptors.emplace_back(desc);
+
+    mnRegisteredPositional++;
 
     return true;
 }
 
-bool CommandLineParser::RegisterUnnamedInt64(const string& sDisplayName, int64_t* pRegisteredInt64, bool bRangeRestricted, int64_t nMinValue, int64_t nMaxValue)
+bool CommandLineParser::RegisterPositionalInt64(const string& sDisplayName, int64_t* pRegisteredInt64, bool bRequired, bool bRangeRestricted, int64_t nMinValue, int64_t nMaxValue, const string& sUsage)
 {
-    int64_t nIndex = mUnnamedParameterDescriptors.size();
-    mUnnamedParameterDescriptors.resize(nIndex + 1);
-
     ParameterDescriptor desc;
     desc.msName = sDisplayName;
-    desc.mnPosition = nIndex;
+    desc.mKeyType = ParameterDescriptor::eParamType::kPositional;
+    desc.mnPosition = mnRegisteredPositional;
+    desc.mbRequired = bRequired;
     desc.mpValue = (void*)pRegisteredInt64;
-    desc.mType = ParameterDescriptor::kInt64;
+    desc.mValueType = ParameterDescriptor::kInt64;
     desc.mbRangeRestricted = bRangeRestricted;
     desc.mnMinValue = nMinValue;
     desc.mnMaxValue = nMaxValue;
-    mUnnamedParameterDescriptors[nIndex] = desc;
+    desc.msUsage = sUsage;
+    mParameterDescriptors.emplace_back(desc);
+
+    mnRegisteredPositional++;
 
     return true;
 }
 
-bool CommandLineParser::RegisterUnnamedBool(const string& sDisplayName, bool* pRegisteredBool)
+bool CommandLineParser::RegisterPositionalBool(const string& sDisplayName, bool* pRegisteredBool, bool bRequired, const string& sUsage)
 {
-    int64_t nIndex = mUnnamedParameterDescriptors.size();
-    mUnnamedParameterDescriptors.resize(nIndex + 1);
-
     ParameterDescriptor desc;
     desc.msName = sDisplayName;
-    desc.mnPosition = nIndex;
+    desc.mKeyType = ParameterDescriptor::eParamType::kPositional;
+    desc.mnPosition = mnRegisteredPositional;
+    desc.mbRequired = bRequired;
     desc.mpValue = (void*)pRegisteredBool;
-    desc.mType = ParameterDescriptor::kBool;
-    mUnnamedParameterDescriptors[nIndex] = desc;
+    desc.mValueType = ParameterDescriptor::kBool;
+    desc.msUsage = sUsage;
+    mParameterDescriptors.emplace_back(desc);
+
+    mnRegisteredPositional++;
 
     return true;
 }
-
+*/
 
 
 
 bool CommandLineParser::Parse(int argc, char* argv[], bool bVerbose)
 {
     msAppPath = argv[0];
-    int64_t nUnnamedParametersFound = 0;        
+
+    // Ensure the msAppPath extension includes ".exe" since it can be launched without
+    int32_t nLastDot = (int32_t)msAppPath.find_last_of('.');
+    string sExtension(msAppPath.substr(nLastDot));
+    std::transform(sExtension.begin(), sExtension.end(), sExtension.begin(), std::tolower);
+    if (sExtension != ".exe")
+        msAppPath += ".exe";
+
+    // Extract  application name
+    int32_t nLastSlash = (int32_t)msAppPath.find_last_of('/');
+    int32_t nLastBackSlash = (int32_t)msAppPath.find_last_of('\\');
+    nLastSlash = (nLastSlash > nLastBackSlash) ? nLastSlash : nLastBackSlash;
+
+    if (nLastSlash > 0)
+        msAppName = msAppPath.substr(nLastSlash + 1);
+    else
+        msAppName = msAppPath;
+
+
+
+    int64_t nPositionalParametersFound = 0;
 
     bool bError = false;
     if (argc < 2)
@@ -239,7 +379,7 @@ bool CommandLineParser::Parse(int argc, char* argv[], bool bVerbose)
                     sValue = "true";
                 }
 
-                ParameterDescriptor* pDesc = nullptr;
+                ParamDesc* pDesc = nullptr;
                 if (!GetNamedDescriptor(sKey, &pDesc))
                 {
                     cerr << "Error: Unknown parameter \"" << sParam << "\"\n";
@@ -247,9 +387,9 @@ bool CommandLineParser::Parse(int argc, char* argv[], bool bVerbose)
                     continue;
                 }
 
-                switch (pDesc->mType)
+                switch (pDesc->mValueType)
                 {
-                case ParameterDescriptor::kBool:
+                case ParamDesc::kBool:
                 {
                     // if sValue is any of the following, it is considered TRUE
                     std::transform(sValue.begin(), sValue.end(), sValue.begin(), std::tolower);
@@ -266,7 +406,7 @@ bool CommandLineParser::Parse(int argc, char* argv[], bool bVerbose)
                         cout << "Set " << sKey << " = " << sValue << "\n";
                 }
                 break;
-                case ParameterDescriptor::kInt64:
+                case ParamDesc::kInt64:
                 {
                     int64_t nValue = IntFromUserReadable(sValue);
                     if (pDesc->mbRangeRestricted)
@@ -285,7 +425,7 @@ bool CommandLineParser::Parse(int argc, char* argv[], bool bVerbose)
                         cout << "Set " << sKey << " = " << nValue << "\n";
                 }
                 break;
-                case ParameterDescriptor::kString:
+                case ParamDesc::kString:
                 {
                     *((string*)pDesc->mpValue) = sValue;     // set the registered string
                     pDesc->mbFound = true;
@@ -303,23 +443,23 @@ bool CommandLineParser::Parse(int argc, char* argv[], bool bVerbose)
             else
             {
                 ////////////////////////////////////////////
-                // Unnamed parameter processing
-                ParameterDescriptor* pUnnamedDesc = nullptr;
-                if (!GetUnnamedDescriptor(nUnnamedParametersFound, &pUnnamedDesc))
+                // Positional parameter processing
+                ParamDesc* pPositionalDesc = nullptr;
+                if (!GetPositionalDescriptor(nPositionalParametersFound, &pPositionalDesc))
                 {
-                    cerr << "Error: Too many parameters! Max is:" << mUnnamedParameterDescriptors.size() << "parameter:" << sParam << "\n";
+                    cerr << "Error: Too many parameters! Max is:" << mnRegisteredPositional << "parameter:" << sParam << "\n";
                     bError = true;
                     continue;
                 }
                 else
                 {
-                    switch (pUnnamedDesc->mType)
+                    switch (pPositionalDesc->mValueType)
                     {
-                    case ParameterDescriptor::kBool:
+                    case ParamDesc::kBool:
                     {
-                        pUnnamedDesc->mbFound = true;
+                        pPositionalDesc->mbFound = true;
 
-                        // if sUnnamedParameter is any of the following, it is considered TRUE
+                        // if sPositionalParameter is any of the following, it is considered TRUE
                         std::transform(sParam.begin(), sParam.end(), sParam.begin(), std::tolower);
                         bool bTrue = sParam == "1" ||
                             sParam == "t" ||
@@ -328,61 +468,51 @@ bool CommandLineParser::Parse(int argc, char* argv[], bool bVerbose)
                             sParam == "yes" ||
                             sParam == "on";
 
-                        *((bool*)pUnnamedDesc->mpValue) = bTrue;    // set the registered bool
+                        *((bool*)pPositionalDesc->mpValue) = bTrue;    // set the registered bool
                         if (bVerbose)
-                            cout << "Set " << pUnnamedDesc->msName << " = " << sParam << "\n";
+                            cout << "Set " << pPositionalDesc->msName << " = " << sParam << "\n";
                     }
                     break;
-                    case ParameterDescriptor::kInt64:
+                    case ParamDesc::kInt64:
                     {
-                        pUnnamedDesc->mbFound = true;
+                        pPositionalDesc->mbFound = true;
                         int64_t nValue = IntFromUserReadable(sParam);
-                        if (pUnnamedDesc->mbRangeRestricted)
+                        if (pPositionalDesc->mbRangeRestricted)
                         {
-                            if (nValue < pUnnamedDesc->mnMinValue || nValue > pUnnamedDesc->mnMaxValue)
+                            if (nValue < pPositionalDesc->mnMinValue || nValue > pPositionalDesc->mnMaxValue)
                             {
                                 bError = true;
-                                cerr << "Error: Value for parameter \"" << sParam << "\" is:" << nValue << ". Allowed values from min:" << pUnnamedDesc->mnMinValue << " to max:" << pUnnamedDesc->mnMaxValue << "\n";
+                                cerr << "Error: Value for parameter \"" << sParam << "\" is:" << nValue << ". Allowed values from min:" << pPositionalDesc->mnMinValue << " to max:" << pPositionalDesc->mnMaxValue << "\n";
                                 continue;
                             }
                         }
 
-                        *((int64_t*)pUnnamedDesc->mpValue) = nValue;    // set the registered int
+                        *((int64_t*)pPositionalDesc->mpValue) = nValue;    // set the registered int
                         if (bVerbose)
-                            cout << "Set " << pUnnamedDesc->msName << " = " << nValue << "\n";
+                            cout << "Set " << pPositionalDesc->msName << " = " << nValue << "\n";
                     }
                     break;
-                    case ParameterDescriptor::kString:
+                    case ParamDesc::kString:
                     {
-                        pUnnamedDesc->mbFound = true;
-                        *((string*)pUnnamedDesc->mpValue) = sParam;     // set the registered string
+                        pPositionalDesc->mbFound = true;
+                        *((string*)pPositionalDesc->mpValue) = sParam;     // set the registered string
                         if (bVerbose)
-                            cout << "Set " << pUnnamedDesc->msName << " = " << sParam << "\n";
+                            cout << "Set " << pPositionalDesc->msName << " = " << sParam << "\n";
                     }
                     break;
                     default:
-                        cerr << "Error: Unknown parameter type at index:" << nUnnamedParametersFound << "registered \"" << sParam << "\"\n";
+                        cerr << "Error: Unknown parameter type at index:" << nPositionalParametersFound << "registered \"" << sParam << "\"\n";
                         bError = true;
                         break;
                     }
                 }
-                nUnnamedParametersFound++;
+                nPositionalParametersFound++;
             }
         }
     }
 
-    if (mnRequiredUnnamed > 0)
+    for (auto desc : mParameterDescriptors)
     {
-        if (nUnnamedParametersFound < mnRequiredUnnamed)
-        {
-            cerr << "Error: Missing Parameters! Minimum required:" << mnRequiredUnnamed << "\n";
-            bError = true;
-        }
-    }
-
-    for (auto it = mNamedParameterDescriptors.begin(); it != mNamedParameterDescriptors.end(); it++)
-    {
-        ParameterDescriptor& desc = (*it).second;
         if (desc.mbRequired && !desc.mbFound)
         {
             cerr << "Error: Required parameter not found:" << desc.msName << "\n";
@@ -394,109 +524,150 @@ errorprompt:
 
     if (bError)
     {
-        string sUsageString = GetUsageString();
-
-        int32_t nWidth = LongestDescriptionLine();
-        if (sUsageString.length() > nWidth)
-            nWidth = (int32_t) sUsageString.length();
-        if (nWidth < 80)
-            nWidth = 80;
-        nWidth += 6;
-
-        cout << "\n";
-        RepeatOut('*', nWidth, true);
-
-        if (!msDescription.empty())
-        {
-            OutputFixed(nWidth, "Description:");
-            OutputLines(nWidth, msDescription);
-            RepeatOut('*', nWidth, true);
-        }
-        OutputFixed(nWidth, "Usage:");
-        OutputFixed(nWidth, sUsageString.c_str());
-        RepeatOut('*', nWidth, true);
+        OutputUsage();
         return false;
     }
 
     return true;
 }
 
-bool CommandLineParser::GetNamedDescriptor(const string& sKey, ParameterDescriptor** pDescriptorOut)
+bool CommandLineParser::GetNamedDescriptor(const string& sKey, ParamDesc** pDescriptorOut)
 {
 //    cout << "retrieving named desciptor for:" << sKey << "size:" << mNamedParameterDescriptors.size() << "\n";
-    tKeyToParamDescriptorMap::iterator it = mNamedParameterDescriptors.find(sKey);
-    if (it == mNamedParameterDescriptors.end())
+    for (auto& desc : mParameterDescriptors)
     {
-        return false;
-    }
-
-    if (pDescriptorOut)
-    {
-        *pDescriptorOut = &(*it).second;       // copy it out
-    }
-
-    return true;
-}
-
-bool CommandLineParser::GetUnnamedDescriptor(int64_t nIndex, ParameterDescriptor** pDescriptorOut)
-{
-    if ((int64_t) mUnnamedParameterDescriptors.size() <= nIndex)
-        return false;
-
-    if (pDescriptorOut)
-        *pDescriptorOut = &mUnnamedParameterDescriptors[nIndex];       // copy it out
-
-    return true;
-}
-
-
-string CommandLineParser::GetUsageString()
-{
-    string sUsage = msAppPath;
-    for (auto unnamed : mUnnamedParameterDescriptors)
-    {
-        sUsage += "  " + unnamed.msName;
-        //            cerr << "  " << unnamed.msName;
-    }
-
-    for (auto it = mNamedParameterDescriptors.begin(); it != mNamedParameterDescriptors.end(); it++)
-    {
-        ParameterDescriptor& desc = (*it).second;
-
-        // for unrequired params, surround with brackets
-        sUsage += "  ";
-        if (!desc.mbRequired)
-            sUsage += "[";
-
-        sUsage += "-";
-        switch (desc.mType)
+        if (desc.mKeyType == ParamDesc::kNamed && desc.msName == sKey)
         {
-        case ParameterDescriptor::kString:
-            sUsage += desc.msName + ":XXX";
-            break;
-        case ParameterDescriptor::kInt64:
-            sUsage += desc.msName + ":";
-            if (desc.mbRangeRestricted)
-                sUsage += "(" + Int64ToString(desc.mnMinValue) + "-" + Int64ToString(desc.mnMaxValue) + ")";
-            else
-                sUsage += "###";
+            if (pDescriptorOut)
+            {
+                *pDescriptorOut = &desc;       // copy it out
+            }
 
-            break;
-        case ParameterDescriptor::kBool:
-            sUsage += desc.msName + ":BOOL";
+            return true;
         }
-        if (!desc.mbRequired)
-            sUsage += "]";
     }
-    return sUsage;
+
+    return false;
+}
+
+bool CommandLineParser::GetPositionalDescriptor(int64_t nIndex, ParamDesc** pDescriptorOut)
+{
+    for (auto& desc : mParameterDescriptors)
+    {
+        if (desc.mKeyType == ParamDesc::kPositional && desc.mnPosition == nIndex)
+        {
+            if (pDescriptorOut)
+            {
+                *pDescriptorOut = &desc;       // copy it out
+            }
+
+            return true;
+        }
+    }
+
+    return false;
+
+    return true;
 }
 
 
-int32_t CommandLineParser::LongestDescriptionLine()
+void CommandLineParser::OutputUsage()
+{
+    string sCommandLineExample = msAppName;
+
+    // create example command line with positional params first followed by named
+    for (auto& desc : mParameterDescriptors)
+    {
+        if (desc.mKeyType == ParamDesc::kPositional)
+            sCommandLineExample += " " + desc.GetExampleString();
+    }
+    for (auto& desc : mParameterDescriptors)
+    {
+        if (desc.mKeyType == ParamDesc::kNamed)
+            sCommandLineExample += " " + desc.GetExampleString();
+    }
+
+
+    // Create table of params and usages
+    
+    // parameters to be output in even columns
+    // example:
+    // PATH         - The file to process.
+    // PROCESS_SIZE - Number of bytes to process. (Range: 1-1TiB)
+
+    vector<string> leftColumn;
+    vector<string> rightColumn;
+
+
+    for (auto& desc : mParameterDescriptors)
+    {
+        leftColumn.push_back(desc.GetExampleString());
+        rightColumn.push_back(desc.msUsage);
+    }
+
+    // Compute column widths
+    int32_t nLeftColumnWidth = 0;
+    for (auto entry : leftColumn)
+    {
+        if (entry.length() > nLeftColumnWidth)
+            nLeftColumnWidth = (int32_t) entry.length();
+    }
+
+    int32_t nRightColumnWidth = 0;
+    for (auto entry : rightColumn)
+    {
+        int32_t nWidth = LongestLine(entry);
+        if (nWidth > nRightColumnWidth)
+            nRightColumnWidth = nWidth;
+    }
+
+    // Compute longest line from app description
+    int32_t nWidth = LongestLine(msAppDescription);
+    if (sCommandLineExample.length() > nWidth)
+        nWidth = (int32_t)sCommandLineExample.length();
+
+    if (nWidth < nLeftColumnWidth + nRightColumnWidth)
+        nWidth = nLeftColumnWidth + nRightColumnWidth;
+
+    if (nWidth < 80)
+        nWidth = 80;
+    nWidth += 6;
+
+    cout << "\n";
+    RepeatOut('*', nWidth, true);
+    RepeatOut('*', nWidth, true);
+
+    if (!msAppDescription.empty())
+    {
+        OutputFixed(nWidth, "Description:");
+        OutputLines(nWidth, msAppDescription);
+        RepeatOut('*', nWidth, true);
+    }
+    OutputFixed(nWidth, "Usage:     ([] == optional parameters)");
+    OutputFixed(nWidth, sCommandLineExample.c_str());
+    OutputFixed(nWidth, " ");
+
+    for (int32_t i = 0; i < leftColumn.size(); i++)
+    {
+        string sLeft = leftColumn[i];
+        AddSpacesToEnsureWidth(sLeft, nLeftColumnWidth);
+
+        string sRight = rightColumn[i];
+
+        string sLine = sLeft + " - " + sRight;
+        OutputFixed(nWidth, sLine.c_str());
+    }
+
+    RepeatOut('*', nWidth, true);
+    RepeatOut('*', nWidth, true);
+}
+
+
+int32_t CommandLineParser::LongestLine(const string& sText)
 {
     int nLongest = 0;
     int nCount = 0;
-    for (auto c : msDescription)
+    for (auto c : sText)
     {
         nCount++;
         if (c == '\r' || c == '\n')
@@ -535,13 +706,12 @@ void CommandLineParser::OutputFixed(int32_t nWidth, const char* format, ...)
     free(pBuf);
 }
 
-string CommandLineParser::Int64ToString(int64_t n)
+void CommandLineParser::AddSpacesToEnsureWidth(string& sText, int64_t nWidth)
 {
-    char buf[16];
-    sprintf_s(buf, "%lld", n);
-    return string(buf);
+    int64_t nSpaces = nWidth - sText.length();
+    while (nSpaces-- > 0)
+        sText += ' ';
 }
-
 
 void CommandLineParser::OutputLines(int32_t nWidth, const string& sMultiLineString)
 {

@@ -112,7 +112,7 @@
       <WarningLevel>Level3</WarningLevel>
     </ClCompile>
     <PostBuildEvent>
-      <Command>copy $(TargetPath) $(SolutionDir)\..\common\tools\</Command>
+      <Command>copy $(TargetPath) $(SolutionDir)..\common\tools\</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
