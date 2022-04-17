@@ -8,6 +8,7 @@
 InlineFormatter gFormatter;
 
 namespace fs = std::filesystem;
+using namespace CLP;
 
 
 bool bVerbose = false;
@@ -149,15 +150,15 @@ int main(int argc, char* argv[])
 
     CommandLineParser parser;
     parser.RegisterAppDescription(sDescription);
-    parser.RegisterParam(ParamDesc(ParamDesc::kPositional,  ParamDesc::kRequired, "FILE_SIZE",    &nFileSize,  false, 0, 0, "Size of file(s) to create."));
-    parser.RegisterParam(ParamDesc(ParamDesc::kNamed,       ParamDesc::kOptional, "dest",         &sDestPath, "base path to where to create data files. defaults to working directory"));
-    parser.RegisterParam(ParamDesc(ParamDesc::kNamed,       ParamDesc::kOptional, "filename",     &sFilename, "Name of file to create. Multiple files in a folder will have numbers included."));
-    parser.RegisterParam(ParamDesc(ParamDesc::kNamed,       ParamDesc::kOptional, "folders",      &nFolders, false, 0, 0, "number of folders to generate. default is 0"));
-    parser.RegisterParam(ParamDesc(ParamDesc::kNamed,       ParamDesc::kOptional, "files",        &nFilesPerFolder, false, 0, 0, "number of files in each folder. default is 1"));
-    parser.RegisterParam(ParamDesc(ParamDesc::kNamed,       ParamDesc::kOptional, "skipexisting", &bSkipExistingFiles, "skips overwriting destination file (even with different values or size) if it already exists."));
-    parser.RegisterParam(ParamDesc(ParamDesc::kNamed,       ParamDesc::kOptional, "rand",         &bRandomFill, "fill the file with randomized (incompressible) data."));
-    parser.RegisterParam(ParamDesc(ParamDesc::kNamed,       ParamDesc::kOptional, "fillvalue",    &nFillValue, false, 0, 0, "fill the file with specific value."));
-    parser.RegisterParam(ParamDesc(ParamDesc::kNamed,       ParamDesc::kOptional, "verbose",      &bVerbose, "hear all the gritty details about everthing that's happening. (Can slow down operation due to command line output.)"));
+    parser.RegisterParam(ParamDesc("FILE_SIZE",    &nFileSize,          CLP::kPositional | CLP::kRequired,  "Size of file(s) to create."));
+    parser.RegisterParam(ParamDesc("dest",         &sDestPath,          CLP::kNamed | CLP::kOptional,       "base path to where to create data files. defaults to working directory"));
+    parser.RegisterParam(ParamDesc("filename",     &sFilename,          CLP::kNamed | CLP::kOptional,       "Name of file to create. Multiple files in a folder will have numbers included."));
+    parser.RegisterParam(ParamDesc("folders",      &nFolders,           CLP::kNamed | CLP::kOptional,       "number of folders to generate. default is 0"));
+    parser.RegisterParam(ParamDesc("files",        &nFilesPerFolder,    CLP::kNamed | CLP::kOptional,       "number of files in each folder. default is 1"));
+    parser.RegisterParam(ParamDesc("skipexisting", &bSkipExistingFiles, CLP::kNamed | CLP::kOptional,       "skips overwriting destination file (even with different values or size) if it already exists."));
+    parser.RegisterParam(ParamDesc("rand",         &bRandomFill,        CLP::kNamed | CLP::kOptional,       "fill the file with randomized (incompressible) data."));
+    parser.RegisterParam(ParamDesc("fillvalue",    &nFillValue,         CLP::kNamed | CLP::kOptional,       "fill the file with specific value."));
+    parser.RegisterParam(ParamDesc("verbose",      &bVerbose,           CLP::kNamed | CLP::kOptional,       "hear all the gritty details about everthing that's happening. (Can slow down operation due to command line output.)"));
 
     if (!parser.Parse(argc, argv, true))
     {

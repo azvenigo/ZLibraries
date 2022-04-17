@@ -10,6 +10,7 @@
 #include "BlockScanner.h"
 #include "helpers\CommandLineParser.h"
 using namespace std;
+using namespace CLP;
 
 std::string sSourcePath;
 std::string sScanPath;
@@ -31,10 +32,10 @@ bool ParseCommands(int argc, char* argv[])
 {
     CommandLineParser parser;
 
-    parser.RegisterParam(ParamDesc(ParamDesc::kPositional,  ParamDesc::kRequired, "SOURCE_PATH", &sSourcePath, "File/folder to index by blocks."));
-    parser.RegisterParam(ParamDesc(ParamDesc::kPositional,  ParamDesc::kRequired, "SCAN_PATH", &sScanPath, "File/folder to scan at byte granularity."));
-    parser.RegisterParam(ParamDesc(ParamDesc::kNamed,       ParamDesc::kOptional, "threads", &nThreads, true, 1, 256, "Number of threads to spawn."));
-    parser.RegisterParam(ParamDesc(ParamDesc::kNamed,       ParamDesc::kOptional, "blocksize", &nBlockSize, true, 16, 1LL*1024*1024*1024, "Granularity of blocks to use for scanning."));
+    parser.RegisterParam(ParamDesc("SOURCE_PATH",   &sSourcePath,   CLP::kPositional | CLP::kRequired, "File/folder to index by blocks."));
+    parser.RegisterParam(ParamDesc("SCAN_PATH",     &sScanPath,     CLP::kPositional | CLP::kRequired, "File/folder to scan at byte granularity."));
+    parser.RegisterParam(ParamDesc("threads",       &nThreads,      CLP::kNamed | CLP::kOptional | CLP::kRangeRestricted, "Number of threads to spawn.", 1, 256));
+    parser.RegisterParam(ParamDesc("blocksize",     &nBlockSize,    CLP::kNamed | CLP::kOptional | CLP::kRangeRestricted, "Granularity of blocks to use for scanning.", 16, /*1024 * 1024 * 1024*/32*1024*1024));
 
 
     parser.RegisterAppDescription("Indexes source file(s) by blocks and scans for those blocks in scan file.\nIf either PATH ends in a '/' or '\\' it is assumed to be a folder and all files are scanned at that path recursively.\nIf blocksize is >= the size of the source file, the entirety of the source file is searched for. ");

@@ -8,6 +8,7 @@
 #include <fstream>
 
 using namespace std;
+using namespace CLP;
 
 std::string sSourcePath;
 std::string sDestPath;
@@ -20,11 +21,11 @@ int64_t nBytes;
 bool ParseCommands(int argc, char* argv[])        // returns false if usage needs to be shown
 {
     CommandLineParser parser;
-    parser.RegisterParam(ParamDesc(ParamDesc::kPositional, ParamDesc::kRequired, "SOURCE_FILE",   &sSourcePath, "File to read from."));
-    parser.RegisterParam(ParamDesc(ParamDesc::kPositional, ParamDesc::kRequired, "DEST_FILE",     &sDestPath, "File to write to."));
-    parser.RegisterParam(ParamDesc(ParamDesc::kPositional, ParamDesc::kRequired, "SOURCE_OFFSET", &nSourceOffset, false, 0, 0, "Source offset"));
-    parser.RegisterParam(ParamDesc(ParamDesc::kPositional, ParamDesc::kRequired, "DEST_OFFSET",   &nDestOffset, false, 0, 0, "Destination offset"));
-    parser.RegisterParam(ParamDesc(ParamDesc::kPositional, ParamDesc::kRequired, "BYTES",         &nBytes, false, 0, 0, "Number of bytes to copy."));
+    parser.RegisterParam(ParamDesc("SOURCE_FILE",   &sSourcePath,   CLP::kPositional| CLP::kRequired, "File to read from."));
+    parser.RegisterParam(ParamDesc("DEST_FILE",     &sDestPath,     CLP::kPositional| CLP::kRequired, "File to write to."));
+    parser.RegisterParam(ParamDesc("SOURCE_OFFSET", &nSourceOffset, CLP::kPositional| CLP::kRequired, "Source offset"));
+    parser.RegisterParam(ParamDesc("DEST_OFFSET",   &nDestOffset,   CLP::kPositional| CLP::kRequired, "Destination offset"));
+    parser.RegisterParam(ParamDesc("BYTES",         &nBytes,        CLP::kPositional| CLP::kRequired, "Number of bytes to copy."));
 
     parser.RegisterAppDescription("Copies bytes from a source file/offset into a destination file/offset.");
 
