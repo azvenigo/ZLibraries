@@ -26,5 +26,8 @@
     <ClInclude Include="..\..\Common\helpers\CommandLineParser.h">
       <Filter>Source Files</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\Common\helpers\LoggingHelpers.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

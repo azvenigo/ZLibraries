@@ -90,13 +90,13 @@ namespace CLP
         string      GetExampleString();
 
         // Behavior Accessors
-        bool        IsNamed()               const { return mBehaviorFlags | kNamed; }
+        bool        IsNamed()               const { return mBehaviorFlags & kNamed; }
         bool        IsPositional()          const { return !IsNamed(); }
 
-        bool        IsRequired()            const { return mBehaviorFlags | kRequired; }
+        bool        IsRequired()            const { return mBehaviorFlags & kRequired; }
         bool        IsOptional()            const { return !IsRequired(); }
 
-        bool        IsRangeRestricted()     const { return mBehaviorFlags | kRangeRestricted; }
+        bool        IsRangeRestricted()     const { return mBehaviorFlags & kRangeRestricted; }
         bool        IsRangeUnrestricted()   const { return !IsRangeRestricted(); }
 
         enum eParamValueType
