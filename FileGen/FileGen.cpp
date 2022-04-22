@@ -144,9 +144,7 @@ int main(int argc, char* argv[])
     bool bSkipExistingFiles = false;
 
     string sDescription = "Creates one or more files in one or more folders.\n"
-        "note: default fill is cyclical data. Each 32bit offset is equal to the 32bit value. This is highly compressible and easy to verify partially read data.\n"\
-        "note: NUM can also be specified with tags such as KB, KiB, MB, MiB, etc. (example: -filesize:1,024MiB)\n";
-
+        "note: default fill is cyclical data. Each 32bit offset is equal to the 32bit value. This is highly compressible and easy to verify partially read data.\n";
 
     CommandLineParser parser;
     parser.RegisterAppDescription(sDescription);

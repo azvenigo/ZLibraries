@@ -80,13 +80,26 @@ namespace CLP
             sValue == "on";
     }
 
-
+    // Converts user readable numbers into ints
+    // Supports hex (0x12345)
+    // Strips commas (1,000,000)
+    // Supports trailing scaling labels  (k, kb, kib, m, mb, mib, etc.)
     int64_t IntFromUserReadable(string sReadable)
     {
         std::transform(sReadable.begin(), sReadable.end(), sReadable.begin(), std::toupper);
 
         // strip any commas in case human readable string has those
         sReadable.erase(std::remove(sReadable.begin(), sReadable.end(), ','), sReadable.end());
+
+
+        // Determine if this is a hex value
+        int32_t nNumberBase = 10;
+        if (sReadable.substr(0, 2) == "0X")
+        {
+            nNumberBase = 16;
+            sReadable = sReadable.substr(2);
+        }
+
 
         int32_t nReadableLength = (int32_t)sReadable.length();
 
@@ -107,15 +120,18 @@ namespace CLP
 
             if (sReadable.substr(nReadableLength - nLabelChars).compare(entry.label) == 0)
             {
-                int64_t nOut = strtoll(sReadable.substr(0, nReadableLength - nLabelChars).c_str(), NULL, 10);
+                int64_t nOut = strtoll(sReadable.substr(0, nReadableLength - nLabelChars).c_str(), NULL, nNumberBase);
                 return nOut * entry.value;
             }
         }
 
-        int64_t nOut = strtoll(sReadable.c_str(), NULL, 10);
+        int64_t nOut = strtoll(sReadable.c_str(), NULL, nNumberBase);
         return nOut;
     }
 
+    // If the number is a power of two, converts to a more readable form
+    // example 32768   -> 32KiB
+    //         1048576 -> 1MiB
     string UserReadableFromInt(int64_t nValue)
     {
         char buf[128];
@@ -194,14 +210,14 @@ namespace CLP
             switch (mValueType)
             {
             case ParamDesc::kString:
-                sCommandExample += msName + ":STRING";
+                sCommandExample += msName + ":$$";
                 break;
             case ParamDesc::kInt64:
                 sCommandExample += msName + ":";
                 if (IsRangeRestricted())
                     sCommandExample += "(" + UserReadableFromInt(mnMinValue) + "-" + UserReadableFromInt(mnMaxValue) + ")";
                 else
-                    sCommandExample += "NUMBER";
+                    sCommandExample += "##";
 
                 break;
             case ParamDesc::kBool:
@@ -213,17 +229,17 @@ namespace CLP
             switch (mValueType)
             {
             case ParamDesc::kString:
-                sCommandExample += msName + " (STRING)";
+                sCommandExample += msName + " ($$)";
                 break;
             case ParamDesc::kInt64:
                 if (IsRangeRestricted())
                     sCommandExample += msName + "(" + UserReadableFromInt(mnMinValue) + "-" + UserReadableFromInt(mnMaxValue) + ")";
                 else
-                    sCommandExample += msName + " (NUMBER)";
+                    sCommandExample += msName + " (##)";
 
                 break;
             case ParamDesc::kBool:
-                sCommandExample += msName + "(BOOL)";
+                sCommandExample += msName + "(bool)";
             }
         }
 
@@ -278,10 +294,12 @@ namespace CLP
         nLastSlash = (nLastSlash > nLastBackSlash) ? nLastSlash : nLastBackSlash;
 
         if (nLastSlash > 0)
+        {
             msAppName = msAppPath.substr(nLastSlash + 1);
+            msAppPath = msAppPath.substr(0, nLastBackSlash);
+        }
         else
             msAppName = msAppPath;
-
 
 
         int64_t nPositionalParametersFound = 0;
@@ -564,7 +582,19 @@ namespace CLP
             OutputLines(nWidth, msAppDescription);
             RepeatOut('*', nWidth, true);
         }
-        OutputFixed(nWidth, "Usage:     ([] == optional parameters)");
+
+        OutputFixed(nWidth, "Keys:");
+        OutputFixed(nWidth, "       [] -> optional parameters");
+        OutputFixed(nWidth, "       -  -> named key:value pair. (-size:1KB  -verbose)");
+        OutputFixed(nWidth, "                    Can be anywhere on command line, in any order.");
+        OutputFixed(nWidth, "       ## -> NUMBER Can be hex (0x05) or decimal");
+        OutputFixed(nWidth, "                    Can include commas (1,000)");
+        OutputFixed(nWidth, "                    Can include scale labels (10k, 64KiB, etc.)");
+        OutputFixed(nWidth, "       $$ -> STRING");
+
+
+        RepeatOut('*', nWidth, true);
+        OutputFixed(nWidth, "Usage:");
         OutputFixed(nWidth, sCommandLineExample.c_str());
         OutputFixed(nWidth, " ");
 
