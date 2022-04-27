@@ -164,6 +164,8 @@ int main(int argc, char* argv[])
         return -1;
     }
 
+    bFillSpecificValue = parser.GetParamWasFound("fillvalue");
+
     size_t nLastDot = sFilename.find_last_of('.');
     if (nLastDot != string::npos)
     {

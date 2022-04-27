@@ -57,9 +57,9 @@ inline void DumpMemoryToCout(uint8_t* pBuf, uint32_t nBytes, uint32_t nBaseMemor
         while (nBytesOnLine++ < nColumns)
         {
             sAscii += ' ';
-            cout << "   ";
+            std::cout << "   ";
             if (nBytesOnLine % 4 == 0)
-                cout << " ";
+                std::cout << " ";
         }
         std::cout << " |" << sAscii << "|\n";
     }

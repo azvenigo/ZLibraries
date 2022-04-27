@@ -132,28 +132,30 @@ namespace CLP
         CommandLineParser();
         ~CommandLineParser();
 
+        // Registration Functions
+        void    RegisterAppDescription(const string& sDescription);
+        bool    RegisterParam(ParamDesc param);
+
         bool    Parse(int argc, char* argv[], bool bVerbose = false);
+        string  GetAppPath() { return msAppPath; }
+        string  GetAppName() { return msAppName; }
+        bool    GetParamWasFound(const string& sKey);   // returns true if the parameter was found when parsing
+        bool    GetParamWasFound(int64_t nIndex);       // returns true if the parameter was found when parsing
 
         void    OutputUsage();  // dynamically built from registered parameters
 
-        // Registration Functions
-        void    RegisterAppDescription(const string& sDescription);
-
-        bool    RegisterParam(ParamDesc param);
 
     protected:
-        // Accessors
-        bool    GetNamedDescriptor(const string& sKey, ParamDesc** pDescriptorOut = nullptr);     // Gets the descriptor or just returns whether one exists if no pointer is passed in
-        bool    GetPositionalDescriptor(int64_t nIndex, ParamDesc** pDescriptorOut = nullptr);       // Gets the descriptor or just returns whether one exists if no pointer is passed in
+        bool    GetDescriptor(const string& sKey, ParamDesc** pDescriptorOut);
+        bool    GetDescriptor(int64_t nIndex, ParamDesc** pDescriptorOut);
 
-        string  msAppPath;          // full path to the app.exe
-        string  msAppName;          // just the app.exe
-        string  msAppDescription;
+        string              msAppPath;          // full path to the app.exe
+        string              msAppName;          // just the app.exe
+        string              msAppDescription;
 
         // Positional parameters
-        int64_t                     mnRegisteredPositional;
-
-        vector<ParamDesc> mParameterDescriptors;
+        int64_t             mnRegisteredPositional;
+        vector<ParamDesc>   mParameterDescriptors;
 
     protected:
         // helper funcitons for neat formatting

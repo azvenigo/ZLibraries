@@ -338,7 +338,7 @@ namespace CLP
                     }
 
                     ParamDesc* pDesc = nullptr;
-                    if (!GetNamedDescriptor(sKey, &pDesc))
+                    if (!GetDescriptor(sKey, &pDesc))
                     {
                         cerr << "Error: Unknown parameter \"" << sParam << "\"\n";
                         bError = true;
@@ -394,7 +394,7 @@ namespace CLP
                     ////////////////////////////////////////////
                     // Positional parameter processing
                     ParamDesc* pPositionalDesc = nullptr;
-                    if (!GetPositionalDescriptor(nPositionalParametersFound, &pPositionalDesc))
+                    if (!GetDescriptor(nPositionalParametersFound, &pPositionalDesc))
                     {
                         cerr << "Error: Too many parameters! Max is:" << mnRegisteredPositional << "parameter:" << sParam << "\n";
                         bError = true;
@@ -470,7 +470,7 @@ namespace CLP
         return true;
     }
 
-    bool CommandLineParser::GetNamedDescriptor(const string& sKey, ParamDesc** pDescriptorOut)
+    bool CommandLineParser::GetDescriptor(const string& sKey, ParamDesc** pDescriptorOut)
     {
         //    cout << "retrieving named desciptor for:" << sKey << "size:" << mNamedParameterDescriptors.size() << "\n";
         for (auto& desc : mParameterDescriptors)
@@ -489,7 +489,7 @@ namespace CLP
         return false;
     }
 
-    bool CommandLineParser::GetPositionalDescriptor(int64_t nIndex, ParamDesc** pDescriptorOut)
+    bool CommandLineParser::GetDescriptor(int64_t nIndex, ParamDesc** pDescriptorOut)
     {
         for (auto& desc : mParameterDescriptors)
         {
@@ -505,10 +505,29 @@ namespace CLP
         }
 
         return false;
-
-        return true;
     }
 
+    bool CommandLineParser::GetParamWasFound(const string& sKey)
+    {
+        ParamDesc* pDesc = nullptr;
+        if (GetDescriptor(sKey, &pDesc))
+        {
+            return pDesc->mbFound;
+        }
+
+        return false;
+    }
+
+    bool CommandLineParser::GetParamWasFound(int64_t nIndex)
+    {
+        ParamDesc* pDesc = nullptr;
+        if (GetDescriptor(nIndex, &pDesc))
+        {
+            return pDesc->mbFound;
+        }
+
+        return false;
+    }
 
     void CommandLineParser::OutputUsage()
     {
