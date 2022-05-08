@@ -5,7 +5,7 @@ cmake_minimum_required(VERSION 3.7.1)
 
 ################################################################################
 
-project(FileGen)
+project(DupeScanner)
 
 ####################
 # CHECK IS 64BIT BUILD
@@ -17,10 +17,10 @@ endif()
 
 
 ####################
-# FileGen
+# DupeScanner
 
-set(FILEGEN_SOURCES BlockScanner.cpp DupeScanner.cpp sha256.cpp ../Common/helpers/CommandLineParser.cpp)
-set(FILEGEN_HEADERS BlockScanner.h sha256.h ../Common/helpers/CommandLineParser.h)
+set(DUPESCANNER_SOURCES BlockScanner.cpp DupeScanner.cpp sha256.cpp BlockScanner.h sha256.h)
+set(COMMON_FILES ../Common/helpers/CommandLineParser.cpp ../Common/helpers/CommandLineParser.h)
 
 
 ####################
@@ -36,15 +36,15 @@ list(APPEND INCLUDE_DIRS ../Common)
 ####################
 # source and include sets
 
-set(INCLUDES ${INCLUDES} ${FILEGEN_HEADERS} ${COMMON_HEADERS})
-set(SOURCES ${SOURCES} ${FILEGEN_SOURCES})
+set(INCLUDES ${INCLUDES} ${DUPESCANNER_HEADERS} ${COMMON_HEADERS})
+set(SOURCES ${DUPESCANNER_SOURCES} ${COMMON_FILES})
 
 
 ####################
 # GUI groups
 
-source_group(FileGen FILES ${FILEGEN_SOURCES} ${FILEGEN_HEADERS})
-source_group(common FILES ${COMMON_HEADERS})
+#source_group(DupeScanner FILES ${DUPESCANNER_SOURCES} ${DUPESCANNER_HEADERS})
+source_group(Common FILES ${COMMON_FILES})
 
 
 ####################
@@ -84,15 +84,6 @@ add_definitions("-DGIT_COMMIT_TAG_HASH=\"${GIT_COMMIT_TAG_HASH}\"")
 ####################
 # ADDITIONAL LIBRARIES
 
-if(MSVC)
-
-elseif(APPLE)
-
-else()
-	list(APPEND LINK_LIBS pthread)
-endif()
-
-
 ####################
 # PROJECT
 
@@ -104,5 +95,5 @@ target_link_libraries(DupeScanner ${LINK_LIBS})
 
 ################################################################################
 
-# copy at build time to propagate any changes
-#add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD COMMAND copy "$(ProjectDir)src\\example_source.txt" "$(TargetDir)" )
+# Copy build to tools folder if release
+add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD COMMAND cmd.exe /c if "$(Configuration)" == "Release" "${CMAKE_COMMAND}" -E copy_if_different  "$(TargetPath)" "$(SolutionDir)Common\\Tools\\" )

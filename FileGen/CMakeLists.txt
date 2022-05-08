@@ -19,8 +19,8 @@ endif()
 ####################
 # FileGen
 
-set(FILEGEN_SOURCES FileGen.cpp ../Common/helpers/CommandLineParser.cpp)
-set(FILEGEN_HEADERS ../Common/helpers/CommandLineParser.h)
+set(FILEGEN_SOURCES FileGen.cpp)
+set(COMMON_FILES ../Common/helpers/CommandLineParser.cpp ../Common/helpers/CommandLineParser.h)
 
 
 ####################
@@ -37,14 +37,14 @@ list(APPEND INCLUDE_DIRS ../Common)
 # source and include sets
 
 set(INCLUDES ${INCLUDES} ${FILEGEN_HEADERS} ${COMMON_HEADERS} )
-set(SOURCES ${SOURCES} ${FILEGEN_SOURCES} )
+set(SOURCES ${FILEGEN_SOURCES} ${COMMON_FILES} )
 
 
 ####################
 # GUI groups
 
-source_group(FileGen FILES ${FILEGEN_SOURCES} ${FILEGEN_HEADERS})
-source_group(common FILES ${COMMON_HEADERS})
+#source_group(FileGen FILES ${FILEGEN_SOURCES} ${FILEGEN_HEADERS} )
+source_group(Common FILES ${COMMON_FILES} )
 
 
 ####################
@@ -77,25 +77,14 @@ endif(USE_SANITIZER)
 
 ####################
 # GIT TAG AND HASH
-
 add_definitions("-DGIT_COMMIT_TAG_HASH=\"${GIT_COMMIT_TAG_HASH}\"")
 
 
 ####################
 # ADDITIONAL LIBRARIES
 
-if(MSVC)
-
-elseif(APPLE)
-
-else()
-	list(APPEND LINK_LIBS pthread)
-endif()
-
-
 ####################
 # PROJECT
-
 link_directories(${LINK_DIRS})
 include_directories(${INCLUDE_DIRS})
 
@@ -104,7 +93,5 @@ target_link_libraries(FileGen ${LINK_LIBS})
 
 ################################################################################
 
-if (CMAKE_BUILD_TYPE STREQUAL Release)
-    # copy at build time to propagate any changes
-    add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD COMMAND copy "$(TargetPath)" "$(SolutionDir)Common\\Tools\\" )
-endif()
+# Copy build to tools folder if release
+add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD COMMAND cmd.exe /c if "$(Configuration)" == "Release" "${CMAKE_COMMAND}" -E copy_if_different  "$(TargetPath)" "$(SolutionDir)Common\\Tools\\" )
