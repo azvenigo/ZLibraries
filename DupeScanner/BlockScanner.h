@@ -10,6 +10,7 @@
 #include <unordered_map>
 #include <mutex>
 #include <list>
+#include <future>
 
 using namespace std;
 
@@ -36,8 +37,12 @@ typedef std::unordered_map<int64_t, tBlockSet>   tChecksumToBlockMap;
 
 struct sMatchResult
 {
+    string          sourceFile;
     uint64_t        nSourceOffset;
+
+    string          destFile;
     uint64_t        nDestinationOffset;
+
     uint64_t        nMatchingBytes;
     int64_t         nChecksum;
     uint8_t         mSHA256[32];
@@ -54,7 +59,8 @@ struct sMatchResult
     bool IsAdjacent(const sMatchResult& rhs)
     {
         return (nSourceOffset + nMatchingBytes == rhs.nSourceOffset &&
-            nDestinationOffset + nMatchingBytes == rhs.nDestinationOffset);
+            nDestinationOffset + nMatchingBytes == rhs.nDestinationOffset &&
+            (sourceFile == rhs.sourceFile && destFile == rhs.destFile) );
     }
 
 };
@@ -63,7 +69,10 @@ struct compareMatchResult
 {
     bool operator() (const sMatchResult& lhs, const sMatchResult& rhs) const
     {
-        return lhs.nDestinationOffset < rhs.nDestinationOffset;
+        if (lhs.destFile == rhs.destFile)
+            return lhs.nDestinationOffset < rhs.nDestinationOffset;
+
+        return lhs.destFile < rhs.destFile;
     }
 };
 
@@ -74,39 +83,33 @@ typedef std::set<sMatchResult, compareMatchResult> tMatchResultList;
 
 
 class BlockScanner;
-class cJob
+
+class ComputeJobResult
 {
 public:
 
-    enum cJobState
-    {
-        kNone = 0,
-        kRunning = 1,
-        kDone = 2,
-        kError = 3
-    };
+//    ComputeJobResult() : mnTotalBytesScanned(0), mbError(false) {}
+    ComputeJobResult(uint64_t nTotalBytesScanned = 0, bool bError = false) : mnTotalBytesScanned(nTotalBytesScanned), mbError(bError) {}
 
-    cJob() : mState(kNone), pScanner(nullptr), nBlockSize(0), pDataToScan(nullptr), nDataLength(0), nStartOffset(0), nEndOffset(0), nSHAHashesChecked(0), nRollingHashesChecked(0), nOffsetProgress(0) {}
+    uint64_t        mnTotalBytesScanned;
+    bool            mbError;
+};
 
-    cJobState               mState;
 
-    BlockScanner*           pScanner;
+class SearchJobResult
+{
+public:
 
-    uint64_t                nBlockSize;
-
-    uint8_t*                pDataToScan;
-    uint64_t                nDataLength;
-
-    uint64_t                nStartOffset;
-    uint64_t                nEndOffset;
+    SearchJobResult(uint64_t nSHAHashesChecked = 0, uint64_t nRollingHashesChecked = 0, uint64_t nBytesScanned = 0, bool bError = false) :  mnSHAHashesChecked(nSHAHashesChecked), mnRollingHashesChecked(nRollingHashesChecked), mnBytesScanned(nBytesScanned), mbError(bError) {}
 
     tMatchResultList        matchResultList;
 
     // stats
-    uint64_t                nSHAHashesChecked;
-    uint64_t                nRollingHashesChecked;
+    uint64_t                mnSHAHashesChecked;
+    uint64_t                mnRollingHashesChecked;
+    uint64_t                mnBytesScanned;
 
-    uint64_t                nOffsetProgress;
+    bool                    mbError;
 };
 
 
@@ -128,7 +131,7 @@ public:
     BlockScanner();
     ~BlockScanner();
 
-    bool			        Scan(string sourcePath, string scanPath, uint64_t nBlockSize, int64_t nThreads=16);
+    bool			        Scan(string sourcePath, string scanPath, uint64_t nBlockSize, int64_t nThreads=16, bool bVerbose = false);
     void			        Cancel();								// Signals the thread to terminate and returns when thread has terminated
 
     const char*             UniquePath(const string& sPath);
@@ -139,18 +142,23 @@ public:
     int32_t			        mnStatus;				// Set by Scanner
     std::string	            msError;				// Set by Scanner
 
-    uint64_t                mnNumBlocks;
     uint64_t                mnTotalFiles;
     uint64_t                mnTotalFolders;
     uint64_t                mnTotalBytesProcessed;
 
 private:
-    tChecksumToBlockMap     mChecksumToBlockMap[256];        
+    tChecksumToBlockMap     mChecksumToBlockMap[256];       
+    std::mutex              mChecksumToBlockMapMutex;
+
+
     tStringSet              mAllPaths;
+    std::mutex              mAllPathsMutex;
 
-    void                    ComputeMetadata(bool bVerbose = false);
+    void                    ComputeMetadata();
 
-    static DWORD WINAPI		ScanProc(LPVOID lpParameter);
+    static SearchJobResult         SearchProc(const string& sSearchFilename, uint8_t* pDataToScan, uint64_t nDataLength, uint64_t nBlockSize, uint64_t nStartOffset, uint64_t nEndOffset, BlockScanner* pScanner);
+    static ComputeJobResult        ComputeMetadataProc(const string& sFilename, BlockScanner* pScanner);
+
     static void				FillError(BlockScanner* pScanner);
 
 
@@ -174,10 +182,12 @@ private:
     std::string             mScanPath;
     uint64_t                mnBlockSize;
     int64_t                 mThreads;
-    uint64_t                mnSourcePathSize;
+
+    std::atomic<uint64_t>   mnSourceDataSize;
 
     uint8_t*                mpScanFileData;     // read into ram before setting the scanning threads going
-    uint64_t                mnScanFileSize;
+    //uint64_t                mnScanFileSize;
 
+    bool                    mbVerbose;
     bool		            mbCancel;
 };

@@ -172,6 +172,7 @@ namespace CLP
         msName = sName;
         mpValue = (void*)pString;
         mBehaviorFlags = behavior;
+        mbFound = false;
         msUsage = sUsage;
     }
 
@@ -182,6 +183,7 @@ namespace CLP
         msName = sName;
         mpValue = (void*)pBool;
         mBehaviorFlags = behavior;
+        mbFound = false;
         msUsage = sUsage;
     }
 
@@ -191,9 +193,10 @@ namespace CLP
         msName = sName;
         mpValue = (void*)pInt;
         mBehaviorFlags = behavior;
-        msUsage = sUsage;
         mnMinValue = nRangeMin;
         mnMaxValue = nRangeMax;
+        mbFound = false;
+        msUsage = sUsage;
     }
 
 

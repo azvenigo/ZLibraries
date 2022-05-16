@@ -3,7 +3,7 @@
 
 #include <stdio.h>
 #include <iostream>
-#include <Windows.h>
+#include <filesystem>
 #include <tchar.h>
 #include <locale>
 #include <string>
@@ -14,87 +14,51 @@ using namespace CLP;
 
 std::string sSourcePath;
 std::string sScanPath;
+bool gbVerbose = false;
 BlockScanner scanner;
 uint32_t kDefaultBlockSize = 32*1024;
-int64_t nThreads = 16;
+int64_t nThreads = std::thread::hardware_concurrency();
 int64_t nBlockSize = kDefaultBlockSize;
 
-BOOL WINAPI ConsoleCtrlHandler(DWORD dwCtrlType)
-{
-    // Any event, stop the scanner
-    wcout << "Canceling\n";
-    scanner.Cancel();
 
-    return TRUE;
-}
-
-bool ParseCommands(int argc, char* argv[])
+int _tmain(int argc, char* argv[])
 {
     CommandLineParser parser;
 
-    parser.RegisterParam(ParamDesc("SOURCE_PATH",   &sSourcePath,   CLP::kPositional | CLP::kRequired, "File/folder to index by blocks."));
-    parser.RegisterParam(ParamDesc("SCAN_PATH",     &sScanPath,     CLP::kPositional | CLP::kRequired, "File/folder to scan at byte granularity."));
-    parser.RegisterParam(ParamDesc("threads",       &nThreads,      CLP::kNamed | CLP::kOptional | CLP::kRangeRestricted, "Number of threads to spawn.", 1, 256));
-    parser.RegisterParam(ParamDesc("blocksize",     &nBlockSize,    CLP::kNamed | CLP::kOptional | CLP::kRangeRestricted, "Granularity of blocks to use for scanning.", 16, /*1024 * 1024 * 1024*/32*1024*1024));
+    parser.RegisterParam(ParamDesc("SOURCE_PATH", &sSourcePath, CLP::kPositional | CLP::kRequired, "File/folder to index by blocks."));
+    parser.RegisterParam(ParamDesc("SCAN_PATH", &sScanPath, CLP::kPositional | CLP::kRequired, "File/folder to scan at byte granularity."));
+    parser.RegisterParam(ParamDesc("threads", &nThreads, CLP::kNamed | CLP::kOptional | CLP::kRangeRestricted, "Number of threads to spawn.", 1, 256));
+    parser.RegisterParam(ParamDesc("blocksize", &nBlockSize, CLP::kNamed | CLP::kOptional | CLP::kRangeRestricted, "Granularity of blocks to use for scanning.", 16, /*1024 * 1024 * 1024*/32 * 1024 * 1024));
+    parser.RegisterParam(ParamDesc("verbose", &gbVerbose, CLP::kNamed | CLP::kOptional, "Detailed output."));
 
 
     parser.RegisterAppDescription("Indexes source file(s) by blocks and scans for those blocks in scan file.\nIf either PATH ends in a '/' or '\\' it is assumed to be a folder and all files are scanned at that path recursively.\nIf blocksize is >= the size of the source file, the entirety of the source file is searched for. ");
     if (!parser.Parse(argc, argv))
         return false;
 
-    return true;
-}
-
-int _tmain(int argc, char* argv[])
-{
-    ParseCommands(argc, argv);
-
     if (sSourcePath.empty() || sScanPath.empty())
     {
+        parser.OutputUsage();
         return -1;
     }
 
-    if (!scanner.Scan(sSourcePath, sScanPath, nBlockSize, nThreads))
-        return -1;
+    std::replace(sSourcePath.begin(), sSourcePath.end(), '\\', '/');
+    std::replace(sScanPath.begin(), sScanPath.end(), '\\', '/');
 
-    DWORD nReportTime = ::GetTickCount();
-    const DWORD kReportPeriod = 1000;
-
-    bool bDone = false;
-    while (!bDone)
+    if (!std::filesystem::exists(sSourcePath))
     {
-        DWORD nCurrentTime = ::GetTickCount();
-
-        if (scanner.mnStatus == BlockScanner::kError)
-        {
-            wcout << L"BlockScanner - Error - \"" << scanner.msError.c_str() << "\"";
-
-            bDone = true;
-            return -1;
-        }
-
-        if (scanner.mnStatus == BlockScanner::kFinished)
-        {
-            wcout << L"done.\n";
-            return 0;
-        }
-
-        if (scanner.mnStatus == BlockScanner::kCancelled)
-        {
-            wcout << L"cancelled.";
-            return -1;
-        }
-
-        if (nCurrentTime - nReportTime > kReportPeriod)
-        {
-            nReportTime = nCurrentTime;
-//            cout << "Scanning... " << scanner.GetProgress().c_str() << "\n";
-        }
-
-
-
-        Sleep(100);
+        cerr << "Source Path:" << sSourcePath << " doesn't exist.\n";
+        return -1;
     }
+
+    if (!std::filesystem::exists(sScanPath))
+    {
+        cerr << "Scan Path:" << sSourcePath << " doesn't exist.\n";
+        return -1;
+    }
+
+    if (!scanner.Scan(sSourcePath, sScanPath, nBlockSize, nThreads, gbVerbose))
+        return -1;
 
 	return 0;
 }

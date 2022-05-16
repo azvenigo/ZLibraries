@@ -1,5 +1,7 @@
 #pragma once
 
+#pragma warning(disable : 4996)
+
 #include <vector>
 #include <queue>
 #include <memory>
@@ -12,11 +14,10 @@
 
 class ThreadPool {
 public:
-    ThreadPool(size_t);
+    ThreadPool(size_t thread = std::thread::hardware_concurrency());
     template<class F, class... Args>
     auto enqueue(F&& f, Args&&... args)
         ->std::future<typename std::result_of<F(Args...)>::type>;
-    void join();
     ~ThreadPool();
 private:
     // need to keep track of threads so we can join them
@@ -34,28 +35,28 @@ private:
 inline ThreadPool::ThreadPool(size_t threads)
     : stop(false)
 {
-    for (size_t i = 0; i<threads; ++i)
+    for (size_t i = 0; i < threads; ++i)
         workers.emplace_back(
             [this]
-    {
-        for (;;)
-        {
-            std::function<void()> task;
-
             {
-                std::unique_lock<std::mutex> lock(this->queue_mutex);
-                this->condition.wait(lock,
-                    [this] { return this->stop || !this->tasks.empty(); });
-                if (this->stop && this->tasks.empty())
-                    return;
-                task = std::move(this->tasks.front());
-                this->tasks.pop();
-            }
+                for (;;)
+                {
+                    std::function<void()> task;
 
-            task();
-        }
-    }
-    );
+                    {
+                        std::unique_lock<std::mutex> lock(this->queue_mutex);
+                        this->condition.wait(lock,
+                            [this] { return this->stop || !this->tasks.empty(); });
+                        if (this->stop && this->tasks.empty())
+                            return;
+                        task = std::move(this->tasks.front());
+                        this->tasks.pop();
+                    }
+
+                    task();
+                }
+            }
+            );
 }
 
 // add new work item to the pool
@@ -75,7 +76,7 @@ auto ThreadPool::enqueue(F&& f, Args&&... args)
 
         // don't allow enqueueing after stopping the pool
         if (stop)
-            return res;
+            throw std::runtime_error("enqueue on stopped ThreadPool");
 
         tasks.emplace([task]() { (*task)(); });
     }
@@ -83,19 +84,14 @@ auto ThreadPool::enqueue(F&& f, Args&&... args)
     return res;
 }
 
-inline void ThreadPool::join()
+// the destructor joins all threads
+inline ThreadPool::~ThreadPool()
 {
     {
         std::unique_lock<std::mutex> lock(queue_mutex);
         stop = true;
     }
     condition.notify_all();
-    for (std::thread &worker : workers)
+    for (std::thread& worker : workers)
         worker.join();
-}
-
-// the destructor joins all threads
-inline ThreadPool::~ThreadPool()
-{
-    join();
 }
