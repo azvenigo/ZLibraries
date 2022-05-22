@@ -7,6 +7,7 @@
 #include <tchar.h>
 #include <locale>
 #include <string>
+#include "helpers/LoggingHelpers.h"
 #include "BlockScanner.h"
 #include "helpers\CommandLineParser.h"
 using namespace std;
@@ -15,10 +16,12 @@ using namespace CLP;
 std::string sSourcePath;
 std::string sScanPath;
 bool gbVerbose = false;
-BlockScanner scanner;
 uint32_t kDefaultBlockSize = 32*1024;
 int64_t nThreads = std::thread::hardware_concurrency();
 int64_t nBlockSize = kDefaultBlockSize;
+
+
+
 
 
 int _tmain(int argc, char* argv[])
@@ -57,9 +60,12 @@ int _tmain(int argc, char* argv[])
         return -1;
     }
 
-    if (!scanner.Scan(sSourcePath, sScanPath, nBlockSize, nThreads, gbVerbose))
+    BlockScanner* pScanner = new BlockScanner();
+
+    if (!pScanner->Scan(sSourcePath, sScanPath, nBlockSize, nThreads, gbVerbose))
         return -1;
 
+    delete pScanner;
 	return 0;
 }
 

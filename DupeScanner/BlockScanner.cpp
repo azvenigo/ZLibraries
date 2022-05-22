@@ -7,8 +7,9 @@
 #include "sha256.h"
 #include <assert.h>
 #include <chrono>
-#include "helpers\InlineFormatter.h"
-#include "helpers\ThreadPool.h"
+#include "helpers/InlineFormatter.h"
+#include "helpers/ThreadPool.h"
+#include "helpers/LoggingHelpers.h"
 #include <filesystem>
 
 using namespace std;
@@ -39,10 +40,10 @@ BlockScanner::BlockScanner()
     mbCancel = false;
     mbVerbose = false;
 
-    mTimeTakenUS = 0;
     mTotalSHAHashesChecked = 0;
     mTotalRollingHashesChecked = 0;
     mTotalBlocksMatched = 0;
+    mpSharedMemPool = nullptr;
 
 
 
@@ -100,67 +101,10 @@ BlockScanner::~BlockScanner()
 
 
 
-
-
-// temp
-/*
-
-
-void SearchForPattern(string sPath)
-{
-    std::ifstream scanFile;
-    scanFile.open(sPath, ios::binary);
-    if (!scanFile)
-    {
-        cerr << "Failed to open scan file:" << sPath.c_str() << "\n";
-    }
-
-    scanFile.seekg(0, std::ios::end);
-    size_t nSize = (uint64_t)scanFile.tellg();
-    scanFile.seekg(0, std::ios::beg);
-
-
-
-    uint8_t* pScanFileData = new uint8_t[nSize];
-    //mpScanFileData = (uint8_t*)malloc(mnScanFileSize);
-
-    scanFile.read((char*)pScanFileData, (streamsize)nSize);
-
-
-    for (int i = 0; i < nSize - 8; i++)
-    {
-        if (
-            *(pScanFileData + i + 0) == 0x75 &&
-            *(pScanFileData + i + 2) == 0xa1 &&
-            *(pScanFileData + i + 4) == 0xf3 &&
-            *(pScanFileData + i + 6) == 0x49 &&
-            *(pScanFileData + i + 8) == 0x27)
-        {
-            int stophere = 8;
-            assert(false);
-        }
-    }
-
-    cout << "nope";
-    delete[] pScanFileData;
-}
-
-
-*/
-
-// temp
-
-
-
-
-
-
-
-
 bool BlockScanner::Scan(string sourcePath, string scanPath, uint64_t nBlockSize, int64_t nThreads, bool bVerbose)
 {
     mSourcePath = sourcePath;
-    mScanPath = scanPath;
+    mSearchPath = scanPath;
     mnStatus = BlockScanner::kScanning;
     mnBlockSize = nBlockSize;
     mThreads = nThreads;
@@ -171,16 +115,20 @@ bool BlockScanner::Scan(string sourcePath, string scanPath, uint64_t nBlockSize,
     for (int i = 1; i < (int) mnBlockSize; i++)
         mInitialRollingHashMult = (mInitialRollingHashMult * 256) % kQPrime;
 
+
+    mpSharedMemPool = new SharedMemPool(nThreads, nBlockSize);  // TBD, make scoped ptr
+
     cout << "\n";
     cout << "**************************************************************\n";
     cout << "* Indexing Source:" << mSourcePath << "\n";
     cout << "**************************************************************\n";
 
-
+    uint64_t nStartCompute = GetUSSinceEpoch();
     ComputeMetadata();
+    uint64_t nEndCompute = GetUSSinceEpoch();
 
 
-    uint64_t nStarttime = GetUSSinceEpoch();
+    uint64_t nStartSearch = GetUSSinceEpoch();
 
     bool bFolderScan = false;
     char trailChar = scanPath[scanPath.length() - 1];
@@ -191,23 +139,29 @@ bool BlockScanner::Scan(string sourcePath, string scanPath, uint64_t nBlockSize,
 
     if (bFolderScan)
     {
-        for (auto filePath : std::filesystem::recursive_directory_iterator(mScanPath))
+        for (auto filePath : std::filesystem::recursive_directory_iterator(mSearchPath))
         {
             if (filePath.is_regular_file())
+            {
                 pathList.push_back(filePath.path().string());
+                mnSearchDataSize += filePath.file_size();
+            }
         }
     }
     else
+    {
         pathList.push_back(scanPath);
+        mnSearchDataSize = std::filesystem::file_size(scanPath);
+    }
 
 
     cout << "\n";
     cout << "**************************************************************\n";
-    cout << "* Searching Dest:" << mScanPath << "\n";
+    cout << "* Searching Dest:" << mSearchPath << "\n";
     cout << "**************************************************************\n";
 
 
-
+    uint64_t nTotalDataSearched = 0;
     for (auto scanPath : pathList)
     {
         std::ifstream scanFile;
@@ -224,9 +178,9 @@ bool BlockScanner::Scan(string sourcePath, string scanPath, uint64_t nBlockSize,
 
 
 
-        mpScanFileData = new uint8_t[nScanFileSize];
+        uint8_t* pScanFileData = new uint8_t[nScanFileSize];
 
-        if (!mpScanFileData)
+        if (!pScanFileData)
         {
             cerr << "Could not read scanfile. allocate failed for :" << nScanFileSize << "bytes.\n";
             return false;
@@ -234,11 +188,12 @@ bool BlockScanner::Scan(string sourcePath, string scanPath, uint64_t nBlockSize,
 
         cout << "Scanning file: " << scanPath << "\n";
 
-        scanFile.read((char*)mpScanFileData, (streamsize)nScanFileSize);
+        scanFile.read((char*)pScanFileData, (streamsize)nScanFileSize);
 
         if (!scanFile)
         {
             cerr << "ONLY READ:" << scanFile.gcount() << "\n";
+            delete[] pScanFileData;
             return false;
         }
 
@@ -248,57 +203,31 @@ bool BlockScanner::Scan(string sourcePath, string scanPath, uint64_t nBlockSize,
 
         vector<shared_future<SearchJobResult> > jobResults;
 
-/*        if (nScanFileSize <= mnBlockSize)
+        // for reporting status
+        int64_t nReportTime = GetUSSinceEpoch();
+        const int64_t kReportCadence = 1000000;
+
+        for (uint64_t nSearchOffset = 0; nSearchOffset < nScanFileSize; nSearchOffset += mnBlockSize)
         {
-            jobResults.emplace_back(pool.enqueue(&BlockScanner::SearchProc, scanPath, mpScanFileData, nScanFileSize, nScanFileSize, 0, nScanFileSize, this));
-        }
-        else*/
-        {
-            for (uint64_t nScanOffset = 0; nScanOffset < nScanFileSize; nScanOffset += mnBlockSize)
+            uint64_t nEndOffset = nSearchOffset + mnBlockSize;;
+
+            if (nEndOffset > nScanFileSize)  // for last job, make sure the last byte range is at the end of the file
+                nEndOffset = nScanFileSize;
+
+            jobResults.emplace_back(pool.enqueue(&BlockScanner::SearchProc, scanPath, pScanFileData, nScanFileSize, mnBlockSize, nSearchOffset, nEndOffset, this));
+
+            nTotalDataSearched += nEndOffset - nSearchOffset;
+            int64_t nTime = GetUSSinceEpoch();
+            if (mbVerbose && nTime - nReportTime > kReportCadence)
             {
-                uint64_t nEndOffset = nScanOffset + mnBlockSize;;
-
-                if (nEndOffset > nScanFileSize)  // for last job, make sure the last byte range is at the end of the file
-                    nEndOffset = nScanFileSize;
-
-                jobResults.emplace_back(pool.enqueue(&BlockScanner::SearchProc, scanPath, mpScanFileData, nScanFileSize, mnBlockSize, nScanOffset, nEndOffset, this));
+                cout << "Searching: " << nTotalDataSearched / (1024 * 1024) << "/" << mnSearchDataSize / (1024 * 1024) << "MiB (" << std::fixed << std::setprecision(2) << (double)nTotalDataSearched * 100.0 / (double)mnSearchDataSize << "%)\n";
+                nReportTime = nTime;
             }
         }
 
-        int64_t nLastReportTime = 0;
-        const int64_t kTimeBetweenReports = 10000000;  // 1 second
-
-/*        bool bDone = false;
-        while (!bDone)
-        {
-            bDone = true;
-            uint64_t nTotalBytesDone = 0;
-            for (uint32_t i = 0; i < mThreads; i++)
-            {
-                // if any job is still running we're not done
-                if (jobResults[i].get().mState == cSearchJob::cJobState::kRunning)
-                    bDone = false;
-                else
-                    break;
-
-                nTotalBytesDone += jobResults[i].get().nOffsetProgress;
-            }
-
-            if (GetUSSinceEpoch() - nLastReportTime > kTimeBetweenReports)
-            {
-                nLastReportTime = GetUSSinceEpoch();
-                cout << "Scanning... " << nTotalBytesDone / (1024 * 1024) << "MiB out of " << mnScanFileSize / (1024 * 1024) << "MiB\n" << std::flush;
-            }*
-
-            Sleep(10);
-        }*/
-
-
-        // Join all threads
+        // Compile all results
         for (auto result : jobResults)
         {
-//            WaitForSingleObject(hThread[i], INFINITE);
-
             mTotalSHAHashesChecked += result.get().mnSHAHashesChecked;
             mTotalRollingHashesChecked += result.get().mnRollingHashesChecked;
             mTotalBlocksMatched += result.get().matchResultList.size();
@@ -309,14 +238,17 @@ bool BlockScanner::Scan(string sourcePath, string scanPath, uint64_t nBlockSize,
                 mResults.insert(matchResult);
             }
         }
+        delete[] pScanFileData;
     }
 
-    uint64_t nEndTime = GetUSSinceEpoch();
-    mTimeTakenUS = nEndTime-nStarttime;
+    uint64_t nEndSearch = GetUSSinceEpoch();
+
+    cout << "Time to Index:" << (nEndCompute - nStartCompute) / 1000 << "ms.\nTime to Search:" << (nEndSearch - nStartSearch) / 1000 << "ms.\n";
 
     DumpReport();
-//    mResults.clear();
 
+    delete mpSharedMemPool;
+    mpSharedMemPool = nullptr;
 
     mnStatus = BlockScanner::kFinished;
 
@@ -346,78 +278,25 @@ void BlockScanner::Cancel()
     mnStatus = kCancelled;
 }
 
-ComputeJobResult BlockScanner::ComputeMetadataProc(const string& sFilename, BlockScanner* pScanner)
+bool BlockScanner::ComputeHashesProc(BlockDescription& block, SharedMemPage* pPage, BlockScanner* pScanner)
 {
-    uint64_t nBlockSize = pScanner->mnBlockSize;
-
-    ComputeJobResult result;
+    block.mRollingChecksum = pScanner->GetRollingChecksum(pPage->mpBuffer, pPage->mnBufferBytesReady);
 
     SHA256_CTX context;
+    sha256_init(&context);
+    sha256_update(&context, pPage->mpBuffer, pPage->mnBufferBytesReady);
+    sha256_final(&context, block.mSHA256);
 
-    std::ifstream sourceFile;
-    sourceFile.open(sFilename, ios::binary);
-    if (!sourceFile)
-    {
-        cerr << "Failed to open source file:" << sFilename.c_str() << "\n";
-        result.mbError = true;
-        return result;
-    }
-
-    sourceFile.seekg(0, std::ios::end);
-    uint64_t nScanFileSize = (uint64_t)sourceFile.tellg();
-    sourceFile.seekg(0, std::ios::beg);
-
-    if ((size_t)nBlockSize > nScanFileSize)
-    {
-        nBlockSize = (uint32_t)nScanFileSize;
-        if (pScanner->mbVerbose)
-            cout << "Blocksize set to the full source file size:" << nScanFileSize << "\n";
-    }
+    uint8_t c = *pPage->mpBuffer;
+    pScanner->mChecksumToBlockMapMutex.lock();
+    pScanner->mChecksumToBlockMap[c][block.mRollingChecksum].push_back(block);
+    pScanner->mChecksumToBlockMapMutex.unlock();
 
 
-    uint8_t* pBuff = new uint8_t[nBlockSize];
+    pPage->mnBufferBytesReady = 0;
+    pPage->mbBufferFree = true;
 
-    bool bDone = false;
-    uint64_t nOffset = 0;
-    do
-    {
-        sourceFile.read((char*)pBuff, nBlockSize);
-        if (sourceFile.bad())
-        {
-            cerr << "Couldn't read from file: " << sFilename.c_str() << "!\n";
-            bDone = true;
-        }
-        else
-        {
-            size_t nNumRead = sourceFile.gcount();
-            if (nNumRead > 0)
-            {
-                BlockDescription block;
-
-                result.mnTotalBytesScanned += nNumRead;
-                block.mRollingChecksum = pScanner->GetRollingChecksum(pBuff, nNumRead);
-                block.mpPath = pScanner->UniquePath(sFilename);
-                block.mnOffset = nOffset;
-
-                sha256_init(&context);
-                sha256_update(&context, pBuff, nNumRead);
-                sha256_final(&context, block.mSHA256);
-
-                uint8_t c = *pBuff;
-                pScanner->mChecksumToBlockMapMutex.lock();
-                pScanner->mChecksumToBlockMap[c][block.mRollingChecksum].push_back(block);
-                pScanner->mChecksumToBlockMapMutex.unlock();
-
-                nOffset += nNumRead;
-            }
-            else
-                bDone = true;
-        }
-    } while (!bDone);
-
-    delete[] pBuff;
-    result.mbError = false;
-    return result;
+    return true;
 }
 
 void BlockScanner::ComputeMetadata()
@@ -429,53 +308,124 @@ void BlockScanner::ComputeMetadata()
 
     std::list<string> pathList;
 
+    mnSourceDataSize = 0;
     if (bFolderScan)
     {
         for (auto filePath : std::filesystem::recursive_directory_iterator(mSourcePath))
         {
             if (filePath.is_regular_file())
+            {
                 pathList.push_back(filePath.path().string());
+                mnSourceDataSize += filePath.file_size();
+            }
         }
     }
     else
+    {
         pathList.push_back(mSourcePath);
+        mnSourceDataSize = std::filesystem::file_size(mSourcePath);
+    }
+
+    if (mbVerbose)
+    {
+        cout << "Source file count:" << pathList.size() << "\n";
+        cout << "Source data size:" << mnSourceDataSize << "\n";
+    }
+
 
 
     ThreadPool pool(mThreads);
-    vector<shared_future<ComputeJobResult> > jobResults;
+    vector<shared_future<bool> > jobResults;
 
+    // for reporting status
+    int64_t nReportTime = GetUSSinceEpoch();
+    const int64_t kReportCadence = 1000000;
 
+    uint64_t nTotalScanned = 0;
     for (auto path: pathList)
     {
-        if (mbVerbose)
-            cout << "Indexing file:" << path << "\n";
-        jobResults.emplace_back(pool.enqueue(&BlockScanner::ComputeMetadataProc, path, this));
+        std::ifstream sourceFile;
+        sourceFile.open(path, ios::binary);
+        if (!sourceFile)
+        {
+            cerr << "Failed to open source file:" << path.c_str() << "\n";
+            return;
+        }
+
+        sourceFile.seekg(0, std::ios::end);
+        uint64_t nScanFileSize = (uint64_t)sourceFile.tellg();
+        sourceFile.seekg(0, std::ios::beg);
+
+        uint64_t nBlockSize = mnBlockSize;
+        if (nScanFileSize < nBlockSize)
+            nBlockSize = nScanFileSize;
+
+        bool bDone = false;
+        uint64_t nOffset = 0;
+        do
+        {
+            SharedMemPage* pPage = mpSharedMemPool->GetFreePage();
+
+            sourceFile.read((char*)pPage->mpBuffer, nBlockSize);
+
+            if (sourceFile.bad())
+            {
+                cerr << "Couldn't read from file: " << path.c_str() << " offset:" << nOffset  << "!\n";
+                bDone = true;
+            }
+            else
+            {
+                size_t nNumRead = sourceFile.gcount();
+                if (nNumRead > 0)
+                {
+                    BlockDescription block;
+                    block.mpPath = UniquePath(path);
+                    block.mnOffset = nOffset;
+                    block.mnSize = nNumRead;
+
+                    pPage->mnBufferBytesReady = nNumRead;
+                    jobResults.emplace_back(pool.enqueue(&BlockScanner::ComputeHashesProc, block, pPage, this));
+
+                    nOffset += nNumRead;
+                    nTotalScanned += nNumRead;
+                }
+                else
+                {
+                    pPage->mbBufferFree = true;
+                    bDone = true;
+                }
+
+                int64_t nTime = GetUSSinceEpoch();
+                if (mbVerbose && nTime - nReportTime > kReportCadence)
+                {
+                    cout << "Indexing: " << nTotalScanned / (1024 * 1024) << "/" << mnSourceDataSize / (1024 * 1024) << "MiB (" << std::fixed << std::setprecision(2) << (double)nTotalScanned * 100.0 / (double)mnSourceDataSize << "%)\n";
+                    nReportTime = nTime;
+                }
+            }
+        } while (!bDone);
+
+        sourceFile.close();
     }
 
     for (auto jobResult : jobResults)
     {
-        if (jobResult.get().mbError)
+        if (!jobResult.get())
         {
             cerr << "jobResult is in Error\n";
             return;
         }
-        mnSourceDataSize += jobResult.get().mnTotalBytesScanned;
     }
 
 
 
+//#define DEBUG_HASHING
+#ifdef DEBUG_HASHING
     if (mbVerbose)
     {
-        cout << "blocksize:" << mnBlockSize << "\n";
-        cout << "Source file count:" << pathList.size() << "\n";
-        cout << "Source data size:" << mnSourceDataSize << "\n";
-
         for (int i = 0; i < 256; i++)
         {
             cout << "rolling hashes:[" << i << "]:" << mChecksumToBlockMap[i].size() << "\n";
 
-            //#define VERY_VERBOSE_OUTPUT
-#ifdef VERY_VERBOSE_OUTPUT
 
             typedef std::pair<int64_t, int64_t> tHashesAndCountPair;
             std::list< tHashesAndCountPair > hashesAndCounts;
@@ -492,11 +442,11 @@ void BlockScanner::ComputeMetadata()
             {
                 if (h.second > 1)
                     cout << "hash:" << h.first << "count:" << h.second << "\n";
-    }
+            }
             cout << "done.";
-#endif
-}
+        }
     }
+#endif
 }
 
 
@@ -571,7 +521,7 @@ int64_t BlockScanner::GetRollingChecksum(const uint8_t* pData, size_t dataLength
 #endif
 }
 
-//#define VERBOSE_SCAN
+//#define DEBUG_SEARCH
 SearchJobResult BlockScanner::SearchProc(const string& sSearchFilename, uint8_t* pDataToScan, uint64_t nDataLength, uint64_t nBlockSize, uint64_t nStartOffset, uint64_t nEndOffset, BlockScanner* pScanner)
 {
 //    cout << "Scanning from:" << job->nStartOffset << " to:" << job->nEndOffset << "\n";
@@ -579,11 +529,11 @@ SearchJobResult BlockScanner::SearchProc(const string& sSearchFilename, uint8_t*
     SHA256_CTX context;
 
     SearchJobResult result;
-    result.mnBytesScanned = nEndOffset-nStartOffset;
+    result.mnBytesSearched = nEndOffset-nStartOffset;
     bool bComputeFullChecksum = true;
     int64_t nRollingHash;
 
-#ifdef VERBOSE_SCAN
+#ifdef DEBUG_SEARCH
     uint64_t nUSSpendLookingUpRollingHash = 0;
     uint64_t nLastReportRollingHashTime = 0;
 
@@ -606,14 +556,14 @@ SearchJobResult BlockScanner::SearchProc(const string& sSearchFilename, uint8_t*
 
         result.mnRollingHashesChecked++;
 
-#ifdef VERBOSE_SCAN
+#ifdef DEBUG_SEARCH
         uint64_t nStartFind = GetUSSinceEpoch();
 #endif
 
         uint8_t c = *(pDataToScan+nOffset);
         tChecksumToBlockMap::iterator blockSetIt = pScanner->mChecksumToBlockMap[c].find(nRollingHash);
 
-#ifdef VERBOSE_SCAN
+#ifdef DEBUG_SEARCH
         uint64_t nEndFind = GetUSSinceEpoch();
         nUSSpendLookingUpRollingHash += (nEndFind-nStartFind);
         if (nUSSpendLookingUpRollingHash - nLastReportRollingHashTime > 1000000)
@@ -626,7 +576,7 @@ SearchJobResult BlockScanner::SearchProc(const string& sSearchFilename, uint8_t*
         if (blockSetIt != pScanner->mChecksumToBlockMap[c].end())
         {
             // Found a match for the checksum. Compute the SHA256
-#ifdef VERBOSE_SCAN
+#ifdef DEBUG_SEARCH
             nStartFind = GetUSSinceEpoch();
 #endif
 
@@ -635,7 +585,7 @@ SearchJobResult BlockScanner::SearchProc(const string& sSearchFilename, uint8_t*
             uint8_t sha256[32];
             sha256_final(&context, sha256);
 
-#ifdef VERBOSE_SCAN
+#ifdef DEBUG_SEARCH
             nEndFind = GetUSSinceEpoch();
             nUSSpentComputingSHA += (nEndFind - nStartFind);
             if (nUSSpentComputingSHA - nLastReportComputingSHA > 1000000)
@@ -692,8 +642,8 @@ SearchJobResult BlockScanner::SearchProc(const string& sSearchFilename, uint8_t*
 
                 nRollingHash = pScanner->UpdateRollingChecksum(nRollingHash, oldByte, newByte, nBytesToScan);
 
-//#define VEFIRY_CHECKSUM
-#ifdef VEFIRY_CHECKSUM
+//#define DEBUG_VERIFY_ROLLING_CHECKSUM
+#ifdef DEBUG_VERIFY_ROLLING_CHECKSUM
 
                 int64_t nVerify = pScanner->GetRollingChecksum(pDataToScan+nOffset, nBytesToScan);
                 if (nVerify != nRollingHash)
@@ -722,14 +672,41 @@ const char* BlockScanner::UniquePath(const string& sPath)
 
 void BlockScanner::DumpReport()
 {
+    cout << "**************************************************************\n";
+    cout << "*                         Report                             *\n";
+    cout << "**************************************************************\n";
+
     uint64_t nTotalReusableBytes = 0;
     uint64_t nMergedBlocks = 0;
     uint64_t nUnmergeableRanges = 0;
+
+    std::string sCommonSource;
+    std::string sCommonDest;
+
+    char trailChar = mSourcePath[mSourcePath.length() - 1];
+    if (trailChar == '/' || trailChar == '\\')
+    {
+        sCommonSource = mSourcePath;
+        cout << "Source Base: " << sCommonSource << "\n";
+    }
+
+    trailChar = mSearchPath[mSearchPath.length() - 1];
+    if (trailChar == '/' || trailChar == '\\')
+    {
+        sCommonDest = mSearchPath;
+        cout << "Search Base: " << sCommonDest << "\n";
+    }
+
+    size_t commonSourceChars = sCommonSource.length();
+    size_t commonDestChars = sCommonDest.length();
+
+
+    list<sMatchResult> fullFileMatches;
+    list<sMatchResult> partialMatches;
+    TableOutput table(",\t");
+
     if (mResults.size() > 0)
     {
-        cout << "\n*Merged Results*" << "\n";
-        cout << std::setw(16) << std::right << "src_path" << std::setw(0) << "," << std::setw(16) << std::right << "src_offset" << std::setw(0) << "," << std::setw(16) << "dst_path" << std::setw(0) << "," << std::setw(16) << std::right << "dst_offset" << std::setw(0) << "," << std::setw(16) << "bytes" << std::setw(0) << "\n";
-
         for (auto result = mResults.begin(); result != mResults.end();)
         {
             sMatchResult mergedResult(*result);
@@ -744,21 +721,62 @@ void BlockScanner::DumpReport()
             if (nextResult != mResults.end())
                 nUnmergeableRanges++;
 
-            cout << std::right << std::setw(32) << mergedResult.sourceFile << std::setw(16) << mergedResult.nSourceOffset << std::setw(0) << "," << std::setw(32) << mergedResult.destFile << std::setw(16) << mergedResult.nDestinationOffset << std::setw(0) << ","  << std::setw(16) << mergedResult.nMatchingBytes << std::setw(0) << "\n";
+            size_t nDestFileSize = std::filesystem::file_size(mergedResult.destFile);
+
+            if (nDestFileSize == mergedResult.nMatchingBytes)
+                fullFileMatches.push_back(mergedResult);
+            else
+                partialMatches.push_back(mergedResult);
+
             nTotalReusableBytes += mergedResult.nMatchingBytes;
             nMergedBlocks++;
             result = nextResult;
         }
+
+        if (fullFileMatches.size() > 0)
+        {
+            cout << "\n*Full File Matched Results*\n";
+            table.AddRow("src_path", "dst_path", "bytes");
+
+            for (auto result : fullFileMatches)
+            {
+                table.AddRow(result.sourceFile.substr(commonSourceChars), result.destFile.substr(commonDestChars), result.nMatchingBytes);
+            }
+            cout << table;
+            table.Clear();
+        }
+
+        if (partialMatches.size() > 0)
+        {
+            cout << "\n*Partial File Matched Results*\n";
+            table.AddRow("src_path", "src_offset", "dst_path", "dst_offset", "bytes");
+            for (auto result : partialMatches)
+            {
+                table.AddRow(result.sourceFile.substr(commonSourceChars), result.nSourceOffset, result.destFile.substr(commonDestChars), result.nDestinationOffset, result.nMatchingBytes);
+            }
+            cout << table;
+            table.Clear();
+        }
     }
 
+
+
+
+    table.SetSeparator(":\t");
+
     cout << "\n*Summary*\n";
-    cout << std::left << std::setw(32) << "Block Size: " << mnBlockSize << "\n";
-    cout << std::left << std::setw(32) << "Total blocks:" << mResults.size() << "\n";
-    cout << std::left << std::setw(32) << "Merged Blocks:" << nMergedBlocks << "\n";
-    cout << std::left << std::setw(32) << "Unmergeable Ranges:" << nUnmergeableRanges << "\n";
-    cout << std::left << std::setw(32) << "Reusable bytes:" << nTotalReusableBytes << "/" << mnSourceDataSize << "\n";
-    cout << std::left << std::setw(32) << "Unfound byte:  " << mnSourceDataSize - nTotalReusableBytes << "\n";
-    cout << std::left << std::setw(32) << "Time Spent:" << mTimeTakenUS / 1000.0 << "ms\n";
+    table.AddRow("Source bytes", (uint64_t)mnSourceDataSize);
+    table.AddRow("Search bytes", (uint64_t)mnSearchDataSize);
+
+    table.AddRow("Block Size", mnBlockSize);
+    table.AddRow("Total blocks", mResults.size());
+    table.AddRow("Merged Blocks", nMergedBlocks);
+    table.AddRow("Unmergeable Ranges", nUnmergeableRanges);
+    table.AddRow("Reusable bytes", nTotalReusableBytes);
+    table.AddRow("Reusable percent", (double)nTotalReusableBytes * 100.0 / (double)mnSourceDataSize);
+    table.AddRow("Unfound bytes", mnSearchDataSize - nTotalReusableBytes);
+
+    cout << table;
 
     if (mbVerbose)
     {

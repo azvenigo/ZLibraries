@@ -25,6 +25,7 @@ public:
     uint8_t         mSHA256[32];    
     const char*     mpPath;
     uint64_t        mnOffset;           // offset within the file where the block is found
+    uint64_t        mnSize;
 
     bool operator < (const BlockDescription& rhs) const
     {
@@ -81,17 +82,77 @@ typedef std::set<sMatchResult, compareMatchResult> tMatchResultList;
 
 
 
+class SharedMemPage
+{
+public:
+//    SharedMemPage() { mpBuffer = nullptr; mnBufferBytesReady = 0; mbBufferFree = false; }
+    SharedMemPage(size_t allocSize)
+    {
+        mpBuffer = new uint8_t[allocSize];
+        mnBufferBytesReady = 0;
+        mbBufferFree = true;
+    }
+
+    ~SharedMemPage()
+    {
+        while (!mbBufferFree)
+            std::this_thread::sleep_for(std::chrono::microseconds(10));
+        delete[] mpBuffer;
+    }
+
+    uint8_t*            mpBuffer;
+    std::atomic<size_t> mnBufferBytesReady;
+    std::atomic<bool>   mbBufferFree;
+
+
+};
+
+class SharedMemPool
+{
+public:
+    SharedMemPool(size_t buffers, size_t allocSize)
+    {
+        mPages.resize(buffers);
+        for (size_t i = 0; i < buffers; i++)
+            mPages[i] = new SharedMemPage(allocSize);
+    }
+    
+    ~SharedMemPool()
+    {
+        for (size_t i = 0; i < mPages.size(); i++)
+            delete mPages[i];
+    }
+
+    SharedMemPage* GetFreePage()
+    {
+        while (1)
+        {
+            for (size_t i = 0; i < mPages.size(); i++)
+            {
+                if (mPages[i]->mbBufferFree)
+                {
+                    mPages[i]->mbBufferFree = false;
+                    return mPages[i];
+                }
+            }
+            // none found. Need to wait for a free one
+            std::this_thread::sleep_for(std::chrono::microseconds(10));
+        }
+    }
+
+    std::vector<SharedMemPage*> mPages;
+};
+
+
 
 class BlockScanner;
 
 class ComputeJobResult
 {
 public:
+    ComputeJobResult(uint64_t nTotalBytesIndexed = 0, bool bError = false) : mnTotalBytesIndexed(nTotalBytesIndexed), mbError(bError) {}
 
-//    ComputeJobResult() : mnTotalBytesScanned(0), mbError(false) {}
-    ComputeJobResult(uint64_t nTotalBytesScanned = 0, bool bError = false) : mnTotalBytesScanned(nTotalBytesScanned), mbError(bError) {}
-
-    uint64_t        mnTotalBytesScanned;
+    uint64_t        mnTotalBytesIndexed;
     bool            mbError;
 };
 
@@ -100,14 +161,14 @@ class SearchJobResult
 {
 public:
 
-    SearchJobResult(uint64_t nSHAHashesChecked = 0, uint64_t nRollingHashesChecked = 0, uint64_t nBytesScanned = 0, bool bError = false) :  mnSHAHashesChecked(nSHAHashesChecked), mnRollingHashesChecked(nRollingHashesChecked), mnBytesScanned(nBytesScanned), mbError(bError) {}
+    SearchJobResult(uint64_t nSHAHashesChecked = 0, uint64_t nRollingHashesChecked = 0, uint64_t nBytesSearched = 0, bool bError = false) :  mnSHAHashesChecked(nSHAHashesChecked), mnRollingHashesChecked(nRollingHashesChecked), mnBytesSearched(nBytesSearched), mbError(bError) {}
 
     tMatchResultList        matchResultList;
 
     // stats
     uint64_t                mnSHAHashesChecked;
     uint64_t                mnRollingHashesChecked;
-    uint64_t                mnBytesScanned;
+    uint64_t                mnBytesSearched;
 
     bool                    mbError;
 };
@@ -131,7 +192,7 @@ public:
     BlockScanner();
     ~BlockScanner();
 
-    bool			        Scan(string sourcePath, string scanPath, uint64_t nBlockSize, int64_t nThreads=16, bool bVerbose = false);
+    bool			        Scan(string sourcePath, string searchPath, uint64_t nBlockSize, int64_t nThreads=16, bool bVerbose = false);
     void			        Cancel();								// Signals the thread to terminate and returns when thread has terminated
 
     const char*             UniquePath(const string& sPath);
@@ -156,15 +217,15 @@ private:
 
     void                    ComputeMetadata();
 
-    static SearchJobResult         SearchProc(const string& sSearchFilename, uint8_t* pDataToScan, uint64_t nDataLength, uint64_t nBlockSize, uint64_t nStartOffset, uint64_t nEndOffset, BlockScanner* pScanner);
-    static ComputeJobResult        ComputeMetadataProc(const string& sFilename, BlockScanner* pScanner);
+    static SearchJobResult  SearchProc(const string& sSearchFilename, uint8_t* pDataToScan, uint64_t nDataLength, uint64_t nBlockSize, uint64_t nStartOffset, uint64_t nEndOffset, BlockScanner* pScanner);
+//    static ComputeJobResult ComputeMetadataProc(const string& sFilename, BlockScanner* pScanner);
+    static bool             ComputeHashesProc(BlockDescription& block, SharedMemPage* pPage, BlockScanner* pScanner);
 
     static void				FillError(BlockScanner* pScanner);
 
 
     // Results
     tMatchResultList        mResults;
-    uint64_t                mTimeTakenUS;
     uint64_t                mTotalSHAHashesChecked;
     uint64_t                mTotalRollingHashesChecked;
     uint64_t                mTotalBlocksMatched;
@@ -179,14 +240,16 @@ private:
 
 
     std::string             mSourcePath;
-    std::string             mScanPath;
+    std::string             mSearchPath;
     uint64_t                mnBlockSize;
     int64_t                 mThreads;
 
     std::atomic<uint64_t>   mnSourceDataSize;
+    std::atomic<uint64_t>   mnSearchDataSize;
 
-    uint8_t*                mpScanFileData;     // read into ram before setting the scanning threads going
     //uint64_t                mnScanFileSize;
+
+    SharedMemPool*          mpSharedMemPool;
 
     bool                    mbVerbose;
     bool		            mbCancel;

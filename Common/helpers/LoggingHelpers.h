@@ -6,6 +6,7 @@
 #include <iostream>
 #include <list>
 #include <vector>
+#include <iomanip>
 
 inline std::string HexValueOut(uint32_t nVal, bool bIncludeDecimal = true)
 {
@@ -96,7 +97,7 @@ class TableOutput
 {
 public:
     TableOutput(const std::string& separator = " ") { mSeparator = separator; }
-
+    void SetSeparator(const std::string& separator) { mSeparator = separator; }
     void Clear() { mRows.clear(); }
 
     template <typename T, typename...Types>
