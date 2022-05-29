@@ -11,6 +11,7 @@
 #include <mutex>
 #include <list>
 #include <future>
+#include "sha256.h"
 
 using namespace std;
 
@@ -21,11 +22,12 @@ class BlockDescription
 public:
     BlockDescription();
 
-    int64_t        mRollingChecksum;   // extra, can be removed since this should be a mapping of rolling checksum to set of blocks matching it
-    uint8_t         mSHA256[32];    
-    const char*     mpPath;
-    uint64_t        mnOffset;           // offset within the file where the block is found
-    uint64_t        mnSize;
+    int64_t         mRollingChecksum;   // extra, can be removed since this should be a mapping of rolling checksum to set of blocks matching it
+    SHA256Hash     mSHA256;
+    
+    const char* mpPath;
+    uint64_t    mnOffset;           // offset within the file where the block is found
+    uint64_t    mnSize;
 
     bool operator < (const BlockDescription& rhs) const
     {
@@ -46,7 +48,7 @@ struct sMatchResult
 
     uint64_t        nMatchingBytes;
     int64_t         nChecksum;
-    uint8_t         mSHA256[32];
+    SHA256Hash    mSHA256;
 
     bool operator==(const sMatchResult& rhs)
     {
@@ -54,7 +56,7 @@ struct sMatchResult
                nDestinationOffset == rhs.nDestinationOffset &&
                nMatchingBytes == rhs.nMatchingBytes &&
                nChecksum == rhs.nChecksum &&
-               memcmp(mSHA256, rhs.mSHA256, 32) == 0;
+               mSHA256 == rhs.mSHA256;
     }
 
     bool IsAdjacent(const sMatchResult& rhs)
@@ -85,7 +87,6 @@ typedef std::set<sMatchResult, compareMatchResult> tMatchResultList;
 class SharedMemPage
 {
 public:
-//    SharedMemPage() { mpBuffer = nullptr; mnBufferBytesReady = 0; mbBufferFree = false; }
     SharedMemPage(size_t allocSize)
     {
         mpBuffer = new uint8_t[allocSize];
@@ -217,7 +218,7 @@ private:
 
     void                    ComputeMetadata();
 
-    static SearchJobResult  SearchProc(const string& sSearchFilename, uint8_t* pDataToScan, uint64_t nDataLength, uint64_t nBlockSize, uint64_t nStartOffset, uint64_t nEndOffset, BlockScanner* pScanner);
+    static SearchJobResult  SearchProc(const string& sSearchFilename, uint8_t* pDataToScan, uint64_t nDataLength, uint64_t nBlockSize, uint64_t nStartOffset, uint64_t nEndOffset, bool bSelfDupeScan, BlockScanner* pScanner);
 //    static ComputeJobResult ComputeMetadataProc(const string& sFilename, BlockScanner* pScanner);
     static bool             ComputeHashesProc(BlockDescription& block, SharedMemPage* pPage, BlockScanner* pScanner);
 
