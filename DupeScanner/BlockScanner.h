@@ -218,7 +218,7 @@ private:
 
     void                    ComputeMetadata();
 
-    static SearchJobResult  SearchProc(const string& sSearchFilename, uint8_t* pDataToScan, uint64_t nDataLength, uint64_t nBlockSize, uint64_t nStartOffset, uint64_t nEndOffset, bool bSelfDupeScan, BlockScanner* pScanner);
+    static SearchJobResult  SearchProc(const string& sSearchFilename, uint8_t* pDataToScan, uint64_t nDataLength, uint64_t nBlockSize, uint64_t nStartOffset, uint64_t nEndOffset, BlockScanner* pScanner);
 //    static ComputeJobResult ComputeMetadataProc(const string& sFilename, BlockScanner* pScanner);
     static bool             ComputeHashesProc(BlockDescription& block, SharedMemPage* pPage, BlockScanner* pScanner);
 
@@ -242,6 +242,7 @@ private:
 
     std::string             mSourcePath;
     std::string             mSearchPath;
+    bool                    mbSelfScan;
     uint64_t                mnBlockSize;
     int64_t                 mThreads;
 

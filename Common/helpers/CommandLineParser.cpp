@@ -67,6 +67,69 @@ namespace CLP
 
     static const int sizeEntryTableSize = sizeof(sizeEntryTable) / sizeof(sSizeEntry);
 
+    int32_t LongestLine(const string& sText)
+    {
+        int nLongest = 0;
+        int nCount = 0;
+        for (auto c : sText)
+        {
+            nCount++;
+            if (c == '\r' || c == '\n')
+                nCount = 0;
+            else if (nCount > nLongest)
+                nLongest = nCount;
+        }
+        return nLongest;
+    }
+
+    void RepeatOut(char c, int32_t nCount, bool bNewLine)
+    {
+        while (nCount-- > 0)
+            cout << c;
+
+        if (bNewLine)
+            cout << '\n';
+    }
+
+    void OutputFixed(int32_t nWidth, const char* format, ...)
+    {
+        va_list args;
+        va_start(args, format);
+
+        int32_t nRequiredLength = vsnprintf(nullptr, 0, format, args);
+        char* pBuf = (char*)malloc(nRequiredLength + 1);
+        vsnprintf(pBuf, nRequiredLength + 1, format, args);
+
+        va_end(args);
+
+        int32_t nPadding = nWidth - nRequiredLength - 6;    // "** " and " **" on the ends is six chars
+
+        cout << "** " << pBuf;
+        RepeatOut(' ', nPadding, false);
+        cout << " **\n";
+        free(pBuf);
+    }
+
+    void AddSpacesToEnsureWidth(string& sText, int64_t nWidth)
+    {
+        int64_t nSpaces = nWidth - sText.length();
+        while (nSpaces-- > 0)
+            sText += ' ';
+    }
+
+    void OutputLines(int32_t nWidth, const string& sMultiLineString)
+    {
+        std::string line;
+        std::istringstream stringStream(sMultiLineString);
+        while (std::getline(stringStream, line, '\n'))
+        {
+            OutputFixed(nWidth, line.c_str());
+        }
+
+    }
+
+
+
 
     // many ways to say "true"
     bool StringToBool(string sValue)
@@ -252,21 +315,16 @@ namespace CLP
         return sCommandExample;
     }
 
-    CommandLineParser::CommandLineParser()
+    CLModeParser::CLModeParser()
     {
         mnRegisteredPositional = 0;
     }
 
-    CommandLineParser::~CommandLineParser()
+    CLModeParser::~CLModeParser()
     {
     }
 
-    void CommandLineParser::RegisterAppDescription(const string& sDescription)
-    {
-        msAppDescription = sDescription;
-    }
-
-    bool CommandLineParser::RegisterParam(ParamDesc param)
+    bool CLModeParser::RegisterParam(ParamDesc param)
     {
         // Assign positional index based on how many have been registered
         if (param.IsPositional())
@@ -277,44 +335,19 @@ namespace CLP
         return true;
     }
 
-    bool CommandLineParser::Parse(int argc, char* argv[], bool bVerbose)
+    // Arg0 and any mode Arg1 specified should be stripped by now
+    bool CLModeParser::Parse(int argc, char* argv[], bool bVerbose)
     {
-        msAppPath = argv[0];
-
-        // Ensure the msAppPath extension includes ".exe" since it can be launched without
-        if (msAppPath.length() > 4)
-        {
-            // Ensure the msAppPath extension includes ".exe" since it can be launched without
-            string sExtension(msAppPath.substr(msAppPath.length() - 4));
-            std::transform(sExtension.begin(), sExtension.end(), sExtension.begin(), std::tolower);
-            if (sExtension != ".exe")
-                msAppPath += ".exe";
-        }
-
-        // Extract  application name
-        int32_t nLastSlash = (int32_t)msAppPath.find_last_of('/');
-        int32_t nLastBackSlash = (int32_t)msAppPath.find_last_of('\\');
-        nLastSlash = (nLastSlash > nLastBackSlash) ? nLastSlash : nLastBackSlash;
-
-        if (nLastSlash > 0)
-        {
-            msAppName = msAppPath.substr(nLastSlash + 1);
-            msAppPath = msAppPath.substr(0, nLastBackSlash);
-        }
-        else
-            msAppName = msAppPath;
-
-
         int64_t nPositionalParametersFound = 0;
 
         bool bError = false;
-        if (argc < 2)
+        if (argc < 1)
         {
             bError = true;
             goto errorprompt;
         }
 
-        for (int i = 1; i < argc; i++)
+        for (int i = 0; i < argc; i++)
         {
             std::string sParam(argv[i]);
 
@@ -399,7 +432,7 @@ namespace CLP
                     ParamDesc* pPositionalDesc = nullptr;
                     if (!GetDescriptor(nPositionalParametersFound, &pPositionalDesc))
                     {
-                        cerr << "Error: Too many parameters! Max is:" << mnRegisteredPositional << "parameter:" << sParam << "\n";
+                        cerr << "Error: Too many parameters! Max is:" << mnRegisteredPositional << " parameter:" << sParam << "\n";
                         bError = true;
                         continue;
                     }
@@ -453,6 +486,7 @@ namespace CLP
             }
         }
 
+    errorprompt:
         for (auto desc : mParameterDescriptors)
         {
             if (desc.IsRequired() && !desc.mbFound)
@@ -462,18 +496,13 @@ namespace CLP
             }
         }
 
-    errorprompt:
-
         if (bError)
-        {
-            OutputUsage();
             return false;
-        }
 
         return true;
     }
 
-    bool CommandLineParser::GetDescriptor(const string& sKey, ParamDesc** pDescriptorOut)
+    bool CLModeParser::GetDescriptor(const string& sKey, ParamDesc** pDescriptorOut)
     {
         //    cout << "retrieving named desciptor for:" << sKey << "size:" << mNamedParameterDescriptors.size() << "\n";
         for (auto& desc : mParameterDescriptors)
@@ -492,7 +521,7 @@ namespace CLP
         return false;
     }
 
-    bool CommandLineParser::GetDescriptor(int64_t nIndex, ParamDesc** pDescriptorOut)
+    bool CLModeParser::GetDescriptor(int64_t nIndex, ParamDesc** pDescriptorOut)
     {
         for (auto& desc : mParameterDescriptors)
         {
@@ -510,7 +539,7 @@ namespace CLP
         return false;
     }
 
-    bool CommandLineParser::GetParamWasFound(const string& sKey)
+    bool CLModeParser::GetParamWasFound(const string& sKey)
     {
         ParamDesc* pDesc = nullptr;
         if (GetDescriptor(sKey, &pDesc))
@@ -521,7 +550,7 @@ namespace CLP
         return false;
     }
 
-    bool CommandLineParser::GetParamWasFound(int64_t nIndex)
+    bool CLModeParser::GetParamWasFound(int64_t nIndex)
     {
         ParamDesc* pDesc = nullptr;
         if (GetDescriptor(nIndex, &pDesc))
@@ -532,9 +561,9 @@ namespace CLP
         return false;
     }
 
-    void CommandLineParser::OutputUsage()
+    void CLModeParser::OutputModeUsage(const string& sAppName, const string& sMode)
     {
-        string sCommandLineExample = msAppName;
+        string sCommandLineExample = sAppName + " " + sMode;
 
         // create example command line with positional params first followed by named
         for (auto& desc : mParameterDescriptors)
@@ -583,7 +612,7 @@ namespace CLP
         }
 
         // Compute longest line from app description
-        int32_t nWidth = LongestLine(msAppDescription);
+        int32_t nWidth = LongestLine(msModeDescription);
         if (sCommandLineExample.length() > nWidth)
             nWidth = (int32_t)sCommandLineExample.length();
 
@@ -596,14 +625,6 @@ namespace CLP
 
         cout << "\n";
         RepeatOut('*', nWidth, true);
-        RepeatOut('*', nWidth, true);
-
-        if (!msAppDescription.empty())
-        {
-            OutputFixed(nWidth, "Description:");
-            OutputLines(nWidth, msAppDescription);
-            RepeatOut('*', nWidth, true);
-        }
 
         OutputFixed(nWidth, "Keys:");
         OutputFixed(nWidth, "       [] -> optional parameters");
@@ -613,6 +634,16 @@ namespace CLP
         OutputFixed(nWidth, "                    Can include commas (1,000)");
         OutputFixed(nWidth, "                    Can include scale labels (10k, 64KiB, etc.)");
         OutputFixed(nWidth, "       $$ -> STRING");
+
+        RepeatOut('*', nWidth, true);
+
+        if (!msModeDescription.empty())
+        {
+            if (!sMode.empty())
+                OutputFixed(nWidth, "Command: %s", sMode.c_str());
+            OutputLines(nWidth, msModeDescription);
+            RepeatOut('*', nWidth, true);
+        }
 
 
         RepeatOut('*', nWidth, true);
@@ -636,64 +667,197 @@ namespace CLP
     }
 
 
-    int32_t CommandLineParser::LongestLine(const string& sText)
+    void CommandLineParser::RegisterAppDescription(const string& sDescription)
     {
-        int nLongest = 0;
-        int nCount = 0;
-        for (auto c : sText)
+        msAppDescription = sDescription;
+    }
+
+
+    string CommandLineParser::FindMode(const string& sArg)
+    {
+        for (tModeStringToParserMap::iterator it = mModeToCommandLineParser.begin(); it != mModeToCommandLineParser.end(); it++)
         {
-            nCount++;
-            if (c == '\r' || c == '\n')
-                nCount = 0;
-            else if (nCount > nLongest)
-                nLongest = nCount;
-        }
-        return nLongest;
-    }
-
-    void CommandLineParser::RepeatOut(char c, int32_t nCount, bool bNewLine)
-    {
-        while (nCount-- > 0)
-            cout << c;
-
-        if (bNewLine)
-            cout << '\n';
-    }
-
-    void CommandLineParser::OutputFixed(int32_t nWidth, const char* format, ...)
-    {
-        va_list args;
-        va_start(args, format);
-
-        int32_t nRequiredLength = vsnprintf(nullptr, 0, format, args);
-        char* pBuf = (char*)malloc(nRequiredLength + 1);
-        vsnprintf(pBuf, nRequiredLength + 1, format, args);
-
-        va_end(args);
-
-        int32_t nPadding = nWidth - nRequiredLength - 6;    // "** " and " **" on the ends is six chars
-
-        cout << "** " << pBuf;
-        RepeatOut(' ', nPadding);
-        cout << " **\n";
-        free(pBuf);
-    }
-
-    void CommandLineParser::AddSpacesToEnsureWidth(string& sText, int64_t nWidth)
-    {
-        int64_t nSpaces = nWidth - sText.length();
-        while (nSpaces-- > 0)
-            sText += ' ';
-    }
-
-    void CommandLineParser::OutputLines(int32_t nWidth, const string& sMultiLineString)
-    {
-        std::string line;
-        std::istringstream stringStream(sMultiLineString);
-        while (std::getline(stringStream, line, '\n'))
-        {
-            OutputFixed(nWidth, line.c_str());
+            if ((*it).first == sArg)
+                return sArg;
         }
 
+        return "";
     }
+
+    bool CommandLineParser::GetParamWasFound(const string& sKey)
+    {
+        if (msMode.empty())
+            return mDefaultCommandLineParser.GetParamWasFound(sKey);
+
+        return mModeToCommandLineParser[msMode].GetParamWasFound(sKey);
+    }
+
+    bool CommandLineParser::GetParamWasFound(int64_t nIndex)
+    {
+        if (msMode.empty())
+            return mDefaultCommandLineParser.GetParamWasFound(nIndex);
+
+        return mModeToCommandLineParser[msMode].GetParamWasFound(nIndex);
+    }
+
+    bool CommandLineParser::RegisterMode(const string& sMode, const string& sModeDescription)
+    {
+        if (mModeToCommandLineParser.find(sMode) != mModeToCommandLineParser.end())
+        {
+            cerr << "Mode already registered:" << sMode << "\n";
+            return false;
+        }
+
+        return mModeToCommandLineParser[sMode].RegisterModeDescription(sModeDescription);
+    }
+
+    bool CommandLineParser::RegisterParam(const string& sMode, ParamDesc param)
+    {
+        if (mModeToCommandLineParser.find(sMode) == mModeToCommandLineParser.end())
+        {
+            cerr << "Unregistered mode:" << sMode << "\n";
+            return false;
+        }
+        return mModeToCommandLineParser[sMode].RegisterParam(param);
+    }
+
+    bool CommandLineParser::RegisterParam(ParamDesc param)
+    {
+        return mDefaultCommandLineParser.RegisterParam(param);
+    }
+
+    bool CommandLineParser::Parse(int argc, char* argv[], bool bVerbose)
+    {
+        msAppPath = argv[0];
+        // Ensure the msAppPath extension includes ".exe" since it can be launched without
+        if (msAppPath.length() > 4)
+        {
+            // Ensure the msAppPath extension includes ".exe" since it can be launched without
+            string sExtension(msAppPath.substr(msAppPath.length() - 4));
+            std::transform(sExtension.begin(), sExtension.end(), sExtension.begin(), std::tolower);
+            if (sExtension != ".exe")
+                msAppPath += ".exe";
+        }
+
+        // Extract  application name
+        int32_t nLastSlash = (int32_t)msAppPath.find_last_of('/');
+        int32_t nLastBackSlash = (int32_t)msAppPath.find_last_of('\\');
+        nLastSlash = (nLastSlash > nLastBackSlash) ? nLastSlash : nLastBackSlash;
+
+        if (nLastSlash > 0)
+        {
+            msAppName = msAppPath.substr(nLastSlash + 1);
+            msAppPath = msAppPath.substr(0, nLastBackSlash);
+        }
+        else
+            msAppName = msAppPath;
+
+
+
+        if (argc > 1)
+        {
+            // If "help" requested
+            string sFirst(argv[1]);
+            if (sFirst == "?" || sFirst == "help" || sFirst == "-h")
+            {
+                // if specific help for a mode requested
+                if (argc > 2)
+                {
+                    msMode.assign(argv[2]);
+                    OutputHelp();
+                }
+                else
+                {
+                    OutputUsage();
+                }
+                return false;
+            }
+
+            msMode = FindMode(sFirst);
+        }
+
+        // if multi-mode but no mode specified
+        if (msMode.empty() && !mModeToCommandLineParser.empty())
+        {
+            OutputUsage();
+            return false;
+        }
+
+        if (msMode.empty()) // if no command mode specified use default parser
+        {
+            if (!mDefaultCommandLineParser.Parse(argc, argv, bVerbose))
+            {
+//                mDefaultCommandLineParser.OutputModeUsage(msAppName);
+                return false;
+            }
+        }
+        else
+        {
+            if (!mModeToCommandLineParser[msMode].Parse(argc - 2, argv + 2, bVerbose))  // "strip" off the app path argv[0] and the mode argv[1]
+            {
+  //              mModeToCommandLineParser[msMode].OutputModeUsage(msAppName, msMode);
+                return false;
+            }
+        }
+        return true;
+    }
+
+    void CommandLineParser::OutputHelp()
+    {
+        if (msMode.empty())
+            return mDefaultCommandLineParser.OutputModeUsage(msAppName);
+
+        if (mModeToCommandLineParser.find(msMode) == mModeToCommandLineParser.end())
+        {
+            cerr << "help: Unknown command:" << msMode << "\n";
+            return;
+        }
+
+        mModeToCommandLineParser[msMode].OutputModeUsage(msAppName, msMode);
+    }
+
+    void CommandLineParser::OutputUsage()
+    {
+        // First output Application name
+
+        uint32_t nWidth = LongestLine(msAppDescription);
+        if (msAppName.length() > nWidth)
+            nWidth = (uint32_t) msAppName.length();
+
+        if (nWidth < 80)
+            nWidth = 80;
+        nWidth += 6;
+
+        RepeatOut('*', nWidth, true);
+
+        OutputFixed(nWidth, msAppName.c_str());
+        OutputFixed(nWidth, " ");
+
+        if (!msAppDescription.empty())
+        {
+            OutputLines(nWidth, msAppDescription);
+        }
+        RepeatOut('*', nWidth, true);
+
+
+        bool bMultiMode = !mModeToCommandLineParser.empty();
+
+        if (bMultiMode)
+        {
+            OutputFixed(nWidth, "Commands:");
+            OutputFixed(nWidth, "help COMMAND - Details for the command.");
+            for (tModeStringToParserMap::iterator it = mModeToCommandLineParser.begin(); it != mModeToCommandLineParser.end(); it++)
+            {
+                string sCommand = (*it).first;
+                OutputFixed(nWidth, sCommand.c_str());
+            }
+            RepeatOut('*', nWidth, true);
+        }
+        else
+            mDefaultCommandLineParser.OutputModeUsage(msAppName);
+    }
+
+
+
+
 }; // namespace CLP

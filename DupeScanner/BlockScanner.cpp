@@ -39,6 +39,7 @@ BlockScanner::BlockScanner()
     mnStatus = kNone;
     mbCancel = false;
     mbVerbose = false;
+    mbSelfScan = false;
 
     mTotalSHAHashesChecked = 0;
     mTotalRollingHashesChecked = 0;
@@ -111,8 +112,8 @@ bool BlockScanner::Scan(string sourcePath, string scanPath, uint64_t nBlockSize,
     mThreads = nThreads;
     mbVerbose = bVerbose;
 
-    bool bSelfScan = scanPath.empty();
-    if (bSelfScan)
+    mbSelfScan = scanPath.empty();
+    if (mbSelfScan)
     {
         cout << "Performing self scan for dupes.\n";
         mSearchPath = sourcePath;
@@ -140,10 +141,10 @@ bool BlockScanner::Scan(string sourcePath, string scanPath, uint64_t nBlockSize,
 
     uint64_t nStartSearch = GetUSSinceEpoch();
 
-    bool bFolderScan = false;
+    bool bFolderScan = std::filesystem::is_directory(mSearchPath);
     char trailChar = mSearchPath[mSearchPath.length() - 1];
-    if (trailChar == '/' || trailChar == '\\')
-        bFolderScan = true;
+    if (bFolderScan && (trailChar != '/' || trailChar != '\\'))
+        mSearchPath += "/";
 
     std::list<string> pathList;
 
@@ -252,7 +253,7 @@ bool BlockScanner::Scan(string sourcePath, string scanPath, uint64_t nBlockSize,
             if (nEndOffset > nScanFileSize)  // for last job, make sure the last byte range is at the end of the file
                 nEndOffset = nScanFileSize;
 
-            jobResults.emplace_back(pool.enqueue(&BlockScanner::SearchProc, scanPath, pScanFileData, nScanFileSize, mnBlockSize, nSearchOffset, nEndOffset, bSelfScan, this));
+            jobResults.emplace_back(pool.enqueue(&BlockScanner::SearchProc, scanPath, pScanFileData, nScanFileSize, mnBlockSize, nSearchOffset, nEndOffset, this));
         }
 
         // Compile all results
@@ -350,10 +351,10 @@ bool BlockScanner::ComputeHashesProc(BlockDescription& block, SharedMemPage* pPa
 
 void BlockScanner::ComputeMetadata()
 {
-    bool bFolderScan = false;
+    bool bFolderScan = std::filesystem::is_directory(mSourcePath);
     char trailChar = mSourcePath[mSourcePath.length() - 1];
-    if (trailChar == '/' || trailChar == '\\')
-        bFolderScan = true;
+    if (bFolderScan && (trailChar != '/' && trailChar != '\\'))
+        mSourcePath += "/";
 
     std::list<string> pathList;
 
@@ -575,7 +576,7 @@ int64_t BlockScanner::GetRollingChecksum(const uint8_t* pData, size_t dataLength
 }
 
 //#define DEBUG_SEARCH
-SearchJobResult BlockScanner::SearchProc(const string& sSearchFilename, uint8_t* pDataToScan, uint64_t nDataLength, uint64_t nBlockSize, uint64_t nStartOffset, uint64_t nEndOffset, bool bSelfDupeScan, BlockScanner* pScanner)
+SearchJobResult BlockScanner::SearchProc(const string& sSearchFilename, uint8_t* pDataToScan, uint64_t nDataLength, uint64_t nBlockSize, uint64_t nStartOffset, uint64_t nEndOffset, BlockScanner* pScanner)
 {
 //    cout << "Scanning from:" << job->nStartOffset << " to:" << job->nEndOffset << "\n";
 
@@ -584,6 +585,8 @@ SearchJobResult BlockScanner::SearchProc(const string& sSearchFilename, uint8_t*
     bool bComputeFullChecksum = true;
     bool bLastBlock = false;
     int64_t nRollingHash;
+
+    const char* pSearchFilename = pScanner->UniquePath(sSearchFilename);
 
 #ifdef DEBUG_SEARCH
     uint64_t nUSSpendLookingUpRollingHash = 0;
@@ -660,7 +663,7 @@ SearchJobResult BlockScanner::SearchProc(const string& sSearchFilename, uint8_t*
                 {
 //                    cout << "True match found offset: " << nOffset << "  Source:" << block.mpPath << " offset :" << block.mnOffset << "\n";
 
-                    bool bSelfMatch = (bSelfDupeScan && block.mpPath == sSearchFilename && block.mnOffset == nOffset);  // if self scan, ignore matches for the same file at the same offset
+                    bool bSelfMatch = (pScanner->mbSelfScan && block.mpPath == pSearchFilename && block.mnOffset == nOffset);  // if self scan, ignore matches for the same file at the same offset
 
                     if (!bSelfMatch)
                     {
@@ -671,7 +674,6 @@ SearchJobResult BlockScanner::SearchProc(const string& sSearchFilename, uint8_t*
                         match.nMatchingBytes = nBytesToScan;
                         match.sourceFile = block.mpPath;
                         match.destFile = sSearchFilename;
-                        //memcpy(match.mSHA256, block.mSHA256, 32);
                         match.mSHA256 = block.mSHA256;
 
                         result.matchResultList.insert(match);
@@ -745,8 +747,7 @@ void BlockScanner::DumpReport()
     std::string sCommonSource;
     std::string sCommonDest;
 
-    char trailChar = mSourcePath[mSourcePath.length() - 1];
-    if (trailChar == '/' || trailChar == '\\')
+    if (std::filesystem::is_directory(mSourcePath))
     {
         sCommonSource = mSourcePath;
         cout << "Source Base: " << sCommonSource << "\n";
@@ -754,8 +755,7 @@ void BlockScanner::DumpReport()
 
     if (!mSearchPath.empty())
     {
-        trailChar = mSearchPath[mSearchPath.length() - 1];
-        if (trailChar == '/' || trailChar == '\\')
+        if (std::filesystem::is_directory(mSearchPath))
         {
             sCommonDest = mSearchPath;
             cout << "Search Base: " << sCommonDest << "\n";
@@ -834,10 +834,18 @@ void BlockScanner::DumpReport()
     table.AddRow("Search bytes", (uint64_t)mnSearchDataSize);
 
     table.AddRow("Block Size", mnBlockSize);
-    table.AddRow("Total ref blocks", mResults.size());
-    table.AddRow("Merged ref blocks", nMergedBlocks);
-    table.AddRow("Reusable bytes", nTotalReusableBytes);
-    table.AddRow("Reusable percent", (double)nTotalReusableBytes * 100.0 / (double)mnSourceDataSize);
+    table.AddRow("Individual blocks found", mResults.size());
+    table.AddRow("Merged referrable ranges", nMergedBlocks);
+    if (mbSelfScan)
+    {
+        table.AddRow("Duplicate bytes", nTotalReusableBytes);
+        table.AddRow("Duplicate percent", (double)nTotalReusableBytes * 100.0 / (double)mnSourceDataSize);
+    }
+    else
+    {
+        table.AddRow("Reusable bytes", nTotalReusableBytes);
+        table.AddRow("Reusable percent", (double)nTotalReusableBytes * 100.0 / (double)mnSourceDataSize);
+    }
     table.AddRow("Unfound bytes", mnSearchDataSize - nTotalReusableBytes);
 
     cout << table;

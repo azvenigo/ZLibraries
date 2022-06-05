@@ -28,14 +28,20 @@ int _tmain(int argc, char* argv[])
 {
     CommandLineParser parser;
 
-    parser.RegisterParam(ParamDesc("SOURCE_PATH", &sSourcePath, CLP::kPositional | CLP::kRequired, "File/folder to index by blocks."));
-    parser.RegisterParam(ParamDesc("SCAN_PATH", &sScanPath, CLP::kPositional | CLP::kOptional, "File/folder to scan at byte granularity. If provided, performs a binary diff between source and scan."));
-    parser.RegisterParam(ParamDesc("threads", &nThreads, CLP::kNamed | CLP::kOptional | CLP::kRangeRestricted, "Number of threads to spawn.", 1, 256));
-    parser.RegisterParam(ParamDesc("blocksize", &nBlockSize, CLP::kNamed | CLP::kOptional | CLP::kRangeRestricted, "Granularity of blocks to use for scanning.", 16, /*1024 * 1024 * 1024*/32 * 1024 * 1024));
-    parser.RegisterParam(ParamDesc("verbose", &gbVerbose, CLP::kNamed | CLP::kOptional, "Detailed output."));
+    parser.RegisterMode("diff", "Performs a binary diff, looking for blocks of matching data at one byte offsets in the search path.");
+    parser.RegisterParam("diff", ParamDesc("SOURCE_PATH", &sSourcePath, CLP::kPositional | CLP::kRequired, "File/folder to index by blocks."));
+    parser.RegisterParam("diff", ParamDesc("SEARCH_PATH", &sScanPath, CLP::kPositional | CLP::kRequired, "File/folder to scan at byte granularity."));
+    parser.RegisterParam("diff", ParamDesc("threads", &nThreads, CLP::kNamed | CLP::kOptional | CLP::kRangeRestricted, "Number of threads to spawn.", 1, 256));
+    parser.RegisterParam("diff", ParamDesc("blocksize", &nBlockSize, CLP::kNamed | CLP::kOptional | CLP::kRangeRestricted, "Granularity of blocks to use for scanning.", 16, /*1024 * 1024 * 1024*/32 * 1024 * 1024));
+    parser.RegisterParam("diff", ParamDesc("verbose", &gbVerbose, CLP::kNamed | CLP::kOptional, "Detailed output."));
 
+    parser.RegisterMode("find_dupes", "Performs a self-search for blocks of data that exist multiple times in the data.");
+    parser.RegisterParam("find_dupes", ParamDesc("PATH", &sSourcePath, CLP::kPositional | CLP::kRequired, "File/folder to index by blocks."));
+    parser.RegisterParam("find_dupes", ParamDesc("threads", &nThreads, CLP::kNamed | CLP::kOptional | CLP::kRangeRestricted, "Number of threads to spawn.", 1, 256));
+    parser.RegisterParam("find_dupes", ParamDesc("blocksize", &nBlockSize, CLP::kNamed | CLP::kOptional | CLP::kRangeRestricted, "Granularity of blocks to use for scanning.", 16, /*1024 * 1024 * 1024*/32 * 1024 * 1024));
+    parser.RegisterParam("find_dupes", ParamDesc("verbose", &gbVerbose, CLP::kNamed | CLP::kOptional, "Detailed output."));
 
-    parser.RegisterAppDescription("Indexes source file(s) by blocks and scans for those blocks in scan file(s).\nIf only SOURCE_PATH is provided, then it performs a scan for duplicate data. If both SOURCE_PATH and SCAN_PATH are provided, it performs a diff.\nIf either PATH ends in a '/' or '\\' it is assumed to be a folder and all files are scanned at that path recursively.\nIf blocksize is >= the size of the source file, the entirety of the source file is searched for. ");
+    parser.RegisterAppDescription("Searches for blocks of data.\nPaths can be individual files or folders where all files are scanned at that path recursively.\nIf blocksize is >= the size of the source file, the entirety of the source file is searched for. ");
     if (!parser.Parse(argc, argv))
         return false;
 
@@ -54,11 +60,12 @@ int _tmain(int argc, char* argv[])
         return -1;
     }
 
+
     if (!sScanPath.empty())
     {
         if (!std::filesystem::exists(sScanPath))
         {
-            cerr << "Scan Path:" << sSourcePath << " doesn't exist.\n";
+            cerr << "Scan Path:" << sScanPath << " doesn't exist.\n";
             return -1;
         }
     }
