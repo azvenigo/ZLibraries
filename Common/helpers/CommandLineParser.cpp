@@ -785,7 +785,7 @@ namespace CLP
 
         if (msMode.empty()) // if no command mode specified use default parser
         {
-            if (!mDefaultCommandLineParser.Parse(argc, argv, bVerbose))
+            if (!mDefaultCommandLineParser.Parse(argc-1, argv+1, bVerbose)) // strip off app path argv[0]
             {
 //                mDefaultCommandLineParser.OutputModeUsage(msAppName);
                 return false;
