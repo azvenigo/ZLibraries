@@ -134,7 +134,7 @@ namespace CLP
     // many ways to say "true"
     bool StringToBool(string sValue)
     {
-        std::transform(sValue.begin(), sValue.end(), sValue.begin(), std::tolower);
+        std::transform(sValue.begin(), sValue.end(), sValue.begin(), [](unsigned char c){ return std::tolower(c); });
         return sValue == "1" ||
             sValue == "t" ||
             sValue == "true" ||
@@ -149,7 +149,7 @@ namespace CLP
     // Supports trailing scaling labels  (k, kb, kib, m, mb, mib, etc.)
     int64_t IntFromUserReadable(string sReadable)
     {
-        std::transform(sReadable.begin(), sReadable.end(), sReadable.begin(), std::toupper);
+        std::transform(sReadable.begin(), sReadable.end(), sReadable.begin(), [](unsigned char c){ return std::toupper(c); });
 
         // strip any commas in case human readable string has those
         sReadable.erase(std::remove(sReadable.begin(), sReadable.end(), ','), sReadable.end());
@@ -199,31 +199,31 @@ namespace CLP
     {
         char buf[128];
         if (nValue % kPiB == 0)
-            sprintf_s(buf, "%lldPiB", nValue / kPiB);
+            sprintf(buf, "%lldPiB", nValue / kPiB);
         else if (nValue % kPB == 0)
-            sprintf_s(buf, "%lldPB", nValue / kPB);
+            sprintf(buf, "%lldPB", nValue / kPB);
 
         else if (nValue % kTiB == 0)
-            sprintf_s(buf, "%lldTiB", nValue / kTiB);
+            sprintf(buf, "%lldTiB", nValue / kTiB);
         else if (nValue % kTB == 0)
-            sprintf_s(buf, "%lldTB", nValue / kTB);
+            sprintf(buf, "%lldTB", nValue / kTB);
 
         else if (nValue % kGiB == 0)
-            sprintf_s(buf, "%lldGiB", nValue / kGiB);
+            sprintf(buf, "%lldGiB", nValue / kGiB);
         else if (nValue % kGB == 0)
-            sprintf_s(buf, "%lldGB", nValue / kGB);
+            sprintf(buf, "%lldGB", nValue / kGB);
 
         else if (nValue % kMiB == 0)
-            sprintf_s(buf, "%lldMiB", nValue / kMiB);
+            sprintf(buf, "%lldMiB", nValue / kMiB);
         else if (nValue % kMB == 0)
-            sprintf_s(buf, "%lldMB", nValue / kMB);
+            sprintf(buf, "%lldMB", nValue / kMB);
 
         else if (nValue % kKiB == 0)
-            sprintf_s(buf, "%lldKiB", nValue / kKiB);
+            sprintf(buf, "%lldKiB", nValue / kKiB);
         else if (nValue % kKB == 0)
-            sprintf_s(buf, "%lldKB", nValue / kKB);
+            sprintf(buf, "%lldKB", nValue / kKB);
 
-        else sprintf_s(buf, "%lld", nValue);
+        else sprintf(buf, "%lld", nValue);
 
         return string(buf);
     }
@@ -288,6 +288,8 @@ namespace CLP
                 break;
             case ParamDesc::kBool:
                 sCommandExample += msName;
+            default:
+                break;
             }
         }
         else // kPositional
@@ -306,6 +308,9 @@ namespace CLP
                 break;
             case ParamDesc::kBool:
                 sCommandExample += msName + "(bool)";
+                break;
+            default:
+                break;
             }
         }
 
@@ -376,7 +381,7 @@ namespace CLP
                     ParamDesc* pDesc = nullptr;
                     if (!GetDescriptor(sKey, &pDesc))
                     {
-                        cerr << "Error: Unknown parameter \"" << sParam << "\"\n";
+                        cerr << "Error: Unknown parameter '" << sKey << "'\n";
                         bError = true;
                         continue;
                     }
@@ -504,10 +509,11 @@ namespace CLP
 
     bool CLModeParser::GetDescriptor(const string& sKey, ParamDesc** pDescriptorOut)
     {
-        //    cout << "retrieving named desciptor for:" << sKey << "size:" << mNamedParameterDescriptors.size() << "\n";
+        cout << "retrieving named desciptor for:" << sKey.c_str() << " size:" << sKey.size() << "\n" << std::flush;
         for (auto& desc : mParameterDescriptors)
         {
-            if (desc.IsNamed() && desc.msName == sKey)
+            cout << std::flush << "\n comparing '" << sKey.c_str() << "' length:" << sKey.length() << " to:'" << desc.msName << "' length:" << desc.msName.length() << "\n";
+            if (desc.IsNamed() &&  desc.msName.compare(sKey.c_str()) == 0)
             {
                 if (pDescriptorOut)
                 {
@@ -599,7 +605,7 @@ namespace CLP
         int32_t nLeftColumnWidth = 0;
         for (auto entry : leftColumn)
         {
-            if (entry.length() > nLeftColumnWidth)
+            if ((int32_t)entry.length() > nLeftColumnWidth)
                 nLeftColumnWidth = (int32_t)entry.length();
         }
 
@@ -613,7 +619,7 @@ namespace CLP
 
         // Compute longest line from app description
         int32_t nWidth = LongestLine(msModeDescription);
-        if (sCommandLineExample.length() > nWidth)
+        if ((int32_t)sCommandLineExample.length() > nWidth)
             nWidth = (int32_t)sCommandLineExample.length();
 
         if (nWidth < nLeftColumnWidth + nRightColumnWidth)
@@ -651,7 +657,7 @@ namespace CLP
         OutputFixed(nWidth, sCommandLineExample.c_str());
         OutputFixed(nWidth, " ");
 
-        for (int32_t i = 0; i < leftColumn.size(); i++)
+        for (int32_t i = 0; i < (int32_t)leftColumn.size(); i++)
         {
             string sLeft = leftColumn[i];
             AddSpacesToEnsureWidth(sLeft, nLeftColumnWidth);
@@ -734,7 +740,7 @@ namespace CLP
         {
             // Ensure the msAppPath extension includes ".exe" since it can be launched without
             string sExtension(msAppPath.substr(msAppPath.length() - 4));
-            std::transform(sExtension.begin(), sExtension.end(), sExtension.begin(), std::tolower);
+            std::transform(sExtension.begin(), sExtension.end(), sExtension.begin(), [](unsigned char c){ return std::tolower(c); });
             if (sExtension != ".exe")
                 msAppPath += ".exe";
         }

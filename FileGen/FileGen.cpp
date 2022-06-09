@@ -204,7 +204,7 @@ int main(int argc, char* argv[])
             if (nFilesPerFolder > 1)
             {
                 char buf[512];
-                sprintf_s(buf, "%s%d.%s", sFilename.c_str(), (int) i, sExtension.c_str());
+                sprintf(buf, "%s%d.%s", sFilename.c_str(), (int) i, sExtension.c_str());
                 sPaddingFileName = sPath + string(buf);
             }
             else
