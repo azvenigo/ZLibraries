@@ -768,7 +768,8 @@ void BlockScanner::DumpReport()
 
     list<sMatchResult> fullFileMatches;
     list<sMatchResult> partialMatches;
-    TableOutput table(",\t");
+    TableOutput table;
+    table.SetSeparator(',', 10);
 
     if (mResults.size() > 0)
     {
@@ -827,7 +828,9 @@ void BlockScanner::DumpReport()
 
 
 
-    table.SetSeparator(":\t");
+    table.SetSeparator(':', 2);
+    table.SetBorders('*', '*', '*', '*');
+    table.SetAlignment({ 0, 1 });
 
     cout << "\n*Summary*\n";
     table.AddRow("Source bytes", (uint64_t)mnSourceDataSize);

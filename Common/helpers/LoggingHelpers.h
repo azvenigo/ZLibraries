@@ -96,8 +96,30 @@ typedef std::list<std::string> tStringList;
 class TableOutput
 {
 public:
-    TableOutput(const std::string& separator = " ") { mSeparator = separator; }
-    void SetSeparator(const std::string& separator) { mSeparator = separator; }
+    TableOutput() : mT(0), mB(0), mL(0), mR(0), mSeparator(0), mColumnPadding(0) {}
+
+    // Formatting
+    void SetSeparator(char sep = 0, size_t padding=0) 
+    { 
+        mSeparator = sep;  
+        mColumnPadding = padding;
+    }
+    void SetBorders(char top = 0, char bottom = 0, char left = 0, char right = 0) // optional formatting
+    {
+        mT = top;
+        mB = bottom;
+        mL = left;
+        mR = right;
+    }
+
+    void SetAlignment(std::initializer_list<bool> columnAlignments)
+    {
+        for(auto bRight : columnAlignments)
+            mRightAlignedColumns.push_back(bRight);
+    }
+
+
+    // Table manimpulation
     void Clear() { mRows.clear(); }
 
     template <typename T, typename...Types>
@@ -108,6 +130,8 @@ public:
         mRows.push_back(columns);
     }
 
+    // Output
+#define PAD(n) std::string(n, ' ')
 
     friend std::ostream& operator <<(std::ostream& os, const TableOutput& tableOut)
     {
@@ -131,20 +155,66 @@ public:
             }
         }
 
+        size_t tableWidth = 0;
+        for (auto w : columnWidths)     // width of all columns
+            tableWidth += w;
+
+        // separator between columns is 1 char plus any padding.
+        tableWidth += ((1+tableOut.mColumnPadding) * (columnWidths.size() - 1));
+
+        // If left border
+        if (tableOut.mL)
+            tableWidth+=1+tableOut.mColumnPadding;
+
+        // If right border
+        if (tableOut.mR)
+            tableWidth+=1+tableOut.mColumnPadding;
+
+        // Draw top border
+        if (tableOut.mT)
+            os << std::string(tableWidth, tableOut.mT) << "\n"; // repeat out
+
         // Now print each row based on column widths
         for (auto row : tableOut.mRows)
         {
+            // Draw left border
+            if (tableOut.mL)
+                os << tableOut.mL << PAD(tableOut.mColumnPadding);
+
             size_t nCol = 0;
             for (auto s : row)
             {
-                os << std::setw(columnWidths[nCol]) << s;
+                size_t nColWidth = columnWidths[nCol];
+                if (nCol < row.size() - 1)
+                {
+                    s += tableOut.mSeparator;
+                    nColWidth++;
+                }
+
+                if (tableOut.RightAligned(nCol))
+                    os << std::right;
+                else
+                    os << std::left;
+
+                os << std::setw(nColWidth) << s;
+
                 // Output a separator for all but last column
                 if (nCol < row.size() - 1)
-                    os << tableOut.mSeparator;
+                    os << PAD(tableOut.mColumnPadding);
+
                 nCol++;
             }
+
+            // Draw right border
+            if (tableOut.mR)
+                os << PAD(tableOut.mColumnPadding) << tableOut.mR;
+
             os << "\n";
         }
+
+        // bottom border
+        if (tableOut.mB)
+            os << std::string(tableWidth, tableOut.mB) << "\n";
 
         return os;
     }
@@ -162,9 +232,23 @@ protected:
 
     inline void ToStringList(tStringList&) {}   // needed for the variadic with no args
 
+    inline bool RightAligned(size_t nCol) const
+    {
+        if (mRightAlignedColumns.size() < nCol)
+            return false;
+
+        return mRightAlignedColumns[nCol];
+    }
+
     std::list<tStringList> mRows;
 
+    std::vector<bool> mRightAlignedColumns;  // true if right aligned
+
     // Formatting options
-    std::string mSeparator; // between columns
-    char mOutlineChar;      // Surrounding Table
+    char mSeparator; // between columns
+    size_t mColumnPadding;
+    char mT;
+    char mB;
+    char mL;
+    char mR;
 };
