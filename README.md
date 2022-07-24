@@ -2,6 +2,8 @@
 
 My collection of general tools and reusable code.
 
+Use "cmake ." in root folder to generate VisualStudio solution files for all of the projects.
+
 ## CopyByteRange
 Simply copies bytes from one file/offset into another file/offset. 
 
