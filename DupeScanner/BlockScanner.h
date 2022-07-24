@@ -4,6 +4,7 @@
 //
 #include <string>
 #include <stdint.h>
+#define NOMINMAX
 #include <Windows.h>
 #include <set>
 #include <map>

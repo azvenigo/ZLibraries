@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <iostream>
+#define NOMINMAX
 #include <Windows.h>
 #include <tchar.h>
 #include <locale>

@@ -7,6 +7,7 @@
 #include <list>
 #include <vector>
 #include <iomanip>
+#include <algorithm>
 
 inline std::string HexValueOut(uint32_t nVal, bool bIncludeDecimal = true)
 {
@@ -82,7 +83,7 @@ inline void DumpMemoryToCout(uint8_t* pBuf, uint32_t nBytes, uint32_t nBaseMemor
 }
 
 
-typedef std::list<std::string> tStringList;
+typedef std::vector<std::string> tStringArray;
 
 
 
@@ -96,9 +97,15 @@ typedef std::list<std::string> tStringList;
 class TableOutput
 {
 public:
-    TableOutput() : mT(0), mB(0), mL(0), mR(0), mSeparator(0), mColumnPadding(0) {}
+    TableOutput() : mColumns(0), mT(0), mB(0), mL(0), mR(0), mSeparator(0), mColumnPadding(0), mMinimumOutputWidth(0) {}
 
     // Formatting
+
+    void SetMinimumOutputWidth(size_t minWidth)
+    {
+        mMinimumOutputWidth = minWidth;
+    }
+
     void SetSeparator(char sep = 0, size_t padding=0) 
     { 
         mSeparator = sep;  
@@ -125,27 +132,47 @@ public:
     template <typename T, typename...Types>
     inline void AddRow(T arg, Types...more)
     {
-        tStringList columns;
+        tStringArray columns;
         ToStringList(columns, arg, more...);
+
+        // Check if the row being added has more columns than any row before.
+        // If so, resize all existing rows to match
+        if (columns.size() > mColumns)
+        {
+            mColumns = columns.size();
+            for (auto& row : mRows)
+                row.resize(mColumns);
+        }
+        else if (columns.size() < mColumns)
+            columns.resize(mColumns);
+
         mRows.push_back(columns);
     }
 
-    // Output
-#define PAD(n) std::string(n, ' ')
-
-    friend std::ostream& operator <<(std::ostream& os, const TableOutput& tableOut)
+    void AddMultilineRow(std::string& sMultiLine)
     {
-        // compute max # of columns
-        size_t nMaxColumns = 0;
-        for (auto row : tableOut.mRows)
-            nMaxColumns = nMaxColumns < row.size() ? row.size() : nMaxColumns;
+        std::stringstream ss;
+        ss << sMultiLine;
+        std::string s;
+        while (std::getline(ss, s, '\n'))
+            AddRow(s);
+    }
 
+    // Output
 
+    size_t GetRowCount() const
+    {
+        return mRows.size();
+    }
+
+    // GetTableWidth() returns minimum width in characters to draw table (excluding mMinimumOutputWidth setting for output)
+    size_t GetTableWidth() const
+    {
         // Compute max width of each column
         std::vector<size_t> columnWidths;
-        columnWidths.resize(nMaxColumns);
+        columnWidths.resize(mColumns);
 
-        for (auto row : tableOut.mRows)
+        for (auto row : mRows)
         {
             size_t nCol = 0;
             for (auto s : row)
@@ -160,31 +187,84 @@ public:
             tableWidth += w;
 
         // separator between columns is 1 char plus any padding.
-        tableWidth += ((1+tableOut.mColumnPadding) * (columnWidths.size() - 1));
+        if (columnWidths.size() > 1)
+            tableWidth += ((1 + mColumnPadding) * (columnWidths.size() - 1));
 
         // If left border
-        if (tableOut.mL)
-            tableWidth+=1+tableOut.mColumnPadding;
+        if (mL)
+            tableWidth += 1 + mColumnPadding;
 
         // If right border
+        if (mR)
+            tableWidth += 1 + mColumnPadding;
+
+        return tableWidth;
+    }
+
+#define PAD(n) std::string(n, ' ')
+
+    friend std::ostream& operator <<(std::ostream& os, const TableOutput& tableOut)
+    {
+        if (tableOut.mRows.empty())
+            return os;
+
+        size_t tableWidth = tableOut.GetTableWidth();
+
+        // Compute max width of each column
+        std::vector<size_t> columnWidths;
+        columnWidths.resize(tableOut.mColumns);
+
+        for (auto row : tableOut.mRows)
+        {
+            size_t nCol = 0;
+            for (auto s : row)
+            {
+                columnWidths[nCol] = std::max(columnWidths[nCol], s.length());
+                nCol++;
+            }
+        }
+
+        size_t nTotalColumnWidths = 0;
+        for (auto c : columnWidths)
+            nTotalColumnWidths += (c+tableOut.mColumnPadding);
+        // If left border
+        if (tableOut.mL)
+            nTotalColumnWidths += (1 + tableOut.mColumnPadding);
+        // If right border
         if (tableOut.mR)
-            tableWidth+=1+tableOut.mColumnPadding;
+            nTotalColumnWidths += (1 + tableOut.mColumnPadding);
+
+        // If the computed widths don't add up to the minimum, pad the last column extra
+        if (nTotalColumnWidths < tableOut.mMinimumOutputWidth)
+        {
+//            size_t totalPaddingChars = tableOut.mMinimumOutputWidth - nTotalColumnWidths;
+//            columnWidths[tableOut.mColumns - 1] += totalPaddingChars;
+            tableWidth = tableOut.mMinimumOutputWidth;
+        }
+
 
         // Draw top border
         if (tableOut.mT)
             os << std::string(tableWidth, tableOut.mT) << "\n"; // repeat out
 
+
+
         // Now print each row based on column widths
         for (auto row : tableOut.mRows)
         {
+            size_t nCharsOnRow = 0;
             // Draw left border
             if (tableOut.mL)
+            {
                 os << tableOut.mL << PAD(tableOut.mColumnPadding);
+                nCharsOnRow += (tableOut.mL != 0) + tableOut.mColumnPadding;
+            }
 
-            size_t nCol = 0;
-            for (auto s : row)
+            for (size_t nCol = 0; nCol < tableOut.mColumns; nCol++)
             {
                 size_t nColWidth = columnWidths[nCol];
+                std::string s(row[nCol]);
+
                 if (nCol < row.size() - 1)
                 {
                     s += tableOut.mSeparator;
@@ -197,17 +277,27 @@ public:
                     os << std::left;
 
                 os << std::setw(nColWidth) << s;
+                nCharsOnRow += nColWidth;
+
 
                 // Output a separator for all but last column
                 if (nCol < row.size() - 1)
+                {
                     os << PAD(tableOut.mColumnPadding);
-
-                nCol++;
+                    nCharsOnRow += tableOut.mColumnPadding;
+                }
             }
 
             // Draw right border
             if (tableOut.mR)
-                os << PAD(tableOut.mColumnPadding) << tableOut.mR;
+            {
+                if (tableWidth - nCharsOnRow == 0)
+                {
+                    int x = 5;
+                }
+                size_t nFinalColumnPadding = tableWidth - nCharsOnRow-1;
+                os << PAD(nFinalColumnPadding) << tableOut.mR;
+            }
 
             os << "\n";
         }
@@ -222,7 +312,7 @@ public:
 protected:
 
     template <typename S, typename...SMore>
-    inline void ToStringList(tStringList& columns, S arg, SMore...moreargs)
+    inline void ToStringList(tStringArray& columns, S arg, SMore...moreargs)
     {
         std::stringstream ss;
         ss << arg;
@@ -230,17 +320,18 @@ protected:
         return ToStringList(columns, moreargs...);
     }
 
-    inline void ToStringList(tStringList&) {}   // needed for the variadic with no args
+    inline void ToStringList(tStringArray&) {}   // needed for the variadic with no args
 
     inline bool RightAligned(size_t nCol) const
     {
-        if (mRightAlignedColumns.size() < nCol)
+        if (mRightAlignedColumns.size() <= nCol)
             return false;
 
         return mRightAlignedColumns[nCol];
     }
 
-    std::list<tStringList> mRows;
+    std::list<tStringArray> mRows;
+    size_t mColumns;
 
     std::vector<bool> mRightAlignedColumns;  // true if right aligned
 
@@ -251,4 +342,5 @@ protected:
     char mB;
     char mL;
     char mR;
+    size_t mMinimumOutputWidth;
 };

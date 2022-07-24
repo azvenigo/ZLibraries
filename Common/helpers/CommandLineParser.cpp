@@ -7,6 +7,7 @@
 #include <assert.h>
 #include <stdarg.h> 
 #include <sstream>
+#include <algorithm>
 
 using namespace std;
 
@@ -263,61 +264,62 @@ namespace CLP
     }
 
 
-    string ParamDesc::GetExampleString()
+    void ParamDesc::GetExample(std::string& sParameter, std::string& sType, std::string& sUsage)
     {
         // for unrequired params, surround with brackets
-        string sCommandExample = " ";
         if (IsOptional())
-            sCommandExample += "[";
+            sParameter = "[";
 
         if (IsNamed())
         {
-            sCommandExample += "-";
+            sParameter += "-";
+            sParameter += msName;
+            sParameter += ":";
             switch (mValueType)
             {
             case ParamDesc::kString:
-                sCommandExample += msName + ":$$";
+                sType = "$$";
                 break;
             case ParamDesc::kInt64:
-                sCommandExample += msName + ":";
+            {
                 if (IsRangeRestricted())
-                    sCommandExample += "(" + UserReadableFromInt(mnMinValue) + "-" + UserReadableFromInt(mnMaxValue) + ")";
+                    sType = "(" + UserReadableFromInt(mnMinValue) + "-" + UserReadableFromInt(mnMaxValue) + ")";
                 else
-                    sCommandExample += "##";
-
-                break;
+                    sType = "##";
+            }
+            break;
             case ParamDesc::kBool:
-                sCommandExample += msName;
+                sType = "BOOL";
             default:
                 break;
             }
         }
         else // kPositional
         {
+            sParameter += msName;
             switch (mValueType)
             {
             case ParamDesc::kString:
-                sCommandExample += msName + " ($$)";
+                sType = "$$";
                 break;
             case ParamDesc::kInt64:
+            {
                 if (IsRangeRestricted())
-                    sCommandExample += msName + "(" + UserReadableFromInt(mnMinValue) + "-" + UserReadableFromInt(mnMaxValue) + ")";
+                    sType = "(" + UserReadableFromInt(mnMinValue) + "-" + UserReadableFromInt(mnMaxValue) + ")";
                 else
-                    sCommandExample += msName + " (##)";
-
-                break;
+                    sType = "##";
+            }
             case ParamDesc::kBool:
-                sCommandExample += msName + "(bool)";
-                break;
+                sType = "BOOL";
             default:
                 break;
             }
         }
 
         if (IsOptional())
-            sCommandExample += "]";
+            sParameter += "]";
 
-        return sCommandExample;
+        sUsage = msUsage;
     }
 
     CLModeParser::CLModeParser()
@@ -567,21 +569,49 @@ namespace CLP
         return false;
     }
 
-    void CLModeParser::OutputModeUsage(const string& sAppName, const string& sMode)
+    size_t  CLModeParser::GetOptionalParameterCount()
+    {
+        size_t nCount = 0;
+        for (auto& desc : mParameterDescriptors)
+        {
+            if (desc.IsOptional())
+                nCount++;
+        }
+
+        return nCount;
+    }
+
+    size_t  CLModeParser::GetRequiredParameterCount()
+    {
+        size_t nCount = 0;
+        for (auto& desc : mParameterDescriptors)
+        {
+            if (!desc.IsOptional())
+                nCount++;
+        }
+
+        return nCount;
+    }
+
+
+    void CLModeParser::GetModeUsageOutput(const string& sAppName, const string& sMode, TableOutput& usageTable, TableOutput& modeDescriptionTable, TableOutput& requiredParamTable, TableOutput& optionalParamTable)
     {
         string sCommandLineExample = sAppName + " " + sMode;
 
         // create example command line with positional params first followed by named
         for (auto& desc : mParameterDescriptors)
         {
-            if (desc.IsPositional())
-                sCommandLineExample += " " + desc.GetExampleString();
+            if (desc.IsPositional() && !desc.IsOptional())
+                sCommandLineExample += " " + desc.msName;
         }
         for (auto& desc : mParameterDescriptors)
         {
-            if (desc.IsNamed())
-                sCommandLineExample += " " + desc.GetExampleString();
+            if (desc.IsNamed() && !desc.IsOptional())
+                sCommandLineExample += " " + desc.msName;
         }
+
+        if (GetOptionalParameterCount() > 0)
+            sCommandLineExample += " [options]";
 
 
         // Create table of params and usages
@@ -591,85 +621,29 @@ namespace CLP
         // PATH         - The file to process.
         // PROCESS_SIZE - Number of bytes to process. (Range: 1-1TiB)
 
-        vector<string> leftColumn;
-        vector<string> rightColumn;
-
-
         for (auto& desc : mParameterDescriptors)
         {
-            leftColumn.push_back(desc.GetExampleString());
-            rightColumn.push_back(desc.msUsage);
+            string sName;
+            string sType;
+            string sUsage;
+
+            desc.GetExample(sName, sType, sUsage);
+            if (desc.IsOptional())
+                optionalParamTable.AddRow(sName, sType, sUsage);
+            else
+                requiredParamTable.AddRow(sName, sType, sUsage);
         }
 
-        // Compute column widths
-        int32_t nLeftColumnWidth = 0;
-        for (auto entry : leftColumn)
-        {
-            if ((int32_t)entry.length() > nLeftColumnWidth)
-                nLeftColumnWidth = (int32_t)entry.length();
-        }
-
-        int32_t nRightColumnWidth = 0;
-        for (auto entry : rightColumn)
-        {
-            int32_t nWidth = LongestLine(entry);
-            if (nWidth > nRightColumnWidth)
-                nRightColumnWidth = nWidth;
-        }
-
-        // Compute longest line from app description
-        int32_t nWidth = LongestLine(msModeDescription);
-        if ((int32_t)sCommandLineExample.length() > nWidth)
-            nWidth = (int32_t)sCommandLineExample.length();
-
-        if (nWidth < nLeftColumnWidth + nRightColumnWidth)
-            nWidth = nLeftColumnWidth + nRightColumnWidth;
-
-        if (nWidth < 80)
-            nWidth = 80;
-        nWidth += 6;
-
-        cout << "\n";
-        RepeatOut('*', nWidth, true);
-
-        OutputFixed(nWidth, "Keys:");
-        OutputFixed(nWidth, "       [] -> optional parameters");
-        OutputFixed(nWidth, "       -  -> named key:value pair. (-size:1KB  -verbose)");
-        OutputFixed(nWidth, "                    Can be anywhere on command line, in any order.");
-        OutputFixed(nWidth, "       ## -> NUMBER Can be hex (0x05) or decimal");
-        OutputFixed(nWidth, "                    Can include commas (1,000)");
-        OutputFixed(nWidth, "                    Can include scale labels (10k, 64KiB, etc.)");
-        OutputFixed(nWidth, "       $$ -> STRING");
-
-        RepeatOut('*', nWidth, true);
 
         if (!msModeDescription.empty())
         {
             if (!sMode.empty())
-                OutputFixed(nWidth, "Command: %s", sMode.c_str());
-            OutputLines(nWidth, msModeDescription);
-            RepeatOut('*', nWidth, true);
+                modeDescriptionTable.AddRow(string("Command: " + sMode));
+            else
+                modeDescriptionTable.AddRow("Temporary Command: sMode string.");
         }
 
-
-        RepeatOut('*', nWidth, true);
-        OutputFixed(nWidth, "Usage:");
-        OutputFixed(nWidth, sCommandLineExample.c_str());
-        OutputFixed(nWidth, " ");
-
-        for (int32_t i = 0; i < (int32_t)leftColumn.size(); i++)
-        {
-            string sLeft = leftColumn[i];
-            AddSpacesToEnsureWidth(sLeft, nLeftColumnWidth);
-
-            string sRight = rightColumn[i];
-
-            string sLine = sLeft + " - " + sRight;
-            OutputFixed(nWidth, sLine.c_str());
-        }
-
-        RepeatOut('*', nWidth, true);
-        RepeatOut('*', nWidth, true);
+        usageTable.AddRow(sCommandLineExample);
     }
 
 
@@ -679,21 +653,21 @@ namespace CLP
     }
 
 
-    string CommandLineParser::FindMode(const string& sArg)
+    bool CommandLineParser::IsRegisteredMode(const string& sArg)
     {
         for (tModeStringToParserMap::iterator it = mModeToCommandLineParser.begin(); it != mModeToCommandLineParser.end(); it++)
         {
             if ((*it).first == sArg)
-                return sArg;
+                return true;
         }
 
-        return "";
+        return false;
     }
 
     bool CommandLineParser::GetParamWasFound(const string& sKey)
     {
         if (msMode.empty())
-            return mDefaultCommandLineParser.GetParamWasFound(sKey);
+            return mGeneralCommandLineParser.GetParamWasFound(sKey);
 
         return mModeToCommandLineParser[msMode].GetParamWasFound(sKey);
     }
@@ -701,10 +675,30 @@ namespace CLP
     bool CommandLineParser::GetParamWasFound(int64_t nIndex)
     {
         if (msMode.empty())
-            return mDefaultCommandLineParser.GetParamWasFound(nIndex);
+            return mGeneralCommandLineParser.GetParamWasFound(nIndex);
 
         return mModeToCommandLineParser[msMode].GetParamWasFound(nIndex);
     }
+
+    size_t CommandLineParser::GetOptionalParameterCount()
+    {
+        size_t nCount = 0;
+        if (!msMode.empty())
+            nCount = mModeToCommandLineParser[msMode].GetOptionalParameterCount(); 
+
+        nCount += mGeneralCommandLineParser.GetOptionalParameterCount();
+
+        return nCount;
+    }
+
+    size_t CommandLineParser::GetRequiredParameterCount()
+    {
+        if (msMode.empty())
+            return mGeneralCommandLineParser.GetRequiredParameterCount();
+
+        return mModeToCommandLineParser[msMode].GetRequiredParameterCount();
+    }
+
 
     bool CommandLineParser::RegisterMode(const string& sMode, const string& sModeDescription)
     {
@@ -729,11 +723,12 @@ namespace CLP
 
     bool CommandLineParser::RegisterParam(ParamDesc param)
     {
-        return mDefaultCommandLineParser.RegisterParam(param);
+        return mGeneralCommandLineParser.RegisterParam(param);
     }
 
     bool CommandLineParser::Parse(int argc, char* argv[], bool bVerbose)
     {
+        msMode.clear();
         msAppPath = argv[0];
         // Ensure the msAppPath extension includes ".exe" since it can be launched without
         if (msAppPath.length() > 4)
@@ -779,88 +774,183 @@ namespace CLP
                 return false;
             }
 
-            msMode = FindMode(sFirst);
+            if (IsRegisteredMode(sFirst))
+            {
+                msMode = sFirst;
+
+                // First parse mode
+                if (!mModeToCommandLineParser[msMode].Parse(argc - 2, argv + 2, bVerbose))  // "strip" off the app path argv[0] and the mode argv[1]
+                    return false;
+
+                // Second parse general
+                if (!mGeneralCommandLineParser.Parse(argc - 2, argv + 2, bVerbose))
+                    return false;
+            }
         }
 
-        // if multi-mode but no mode specified
-        if (msMode.empty() && !mModeToCommandLineParser.empty())
+        // if multi-modes are available show usage
+        if (!mModeToCommandLineParser.empty())
         {
             OutputUsage();
             return false;
         }
 
-        if (msMode.empty()) // if no command mode specified use default parser
-        {
-            if (!mDefaultCommandLineParser.Parse(argc-1, argv+1, bVerbose)) // strip off app path argv[0]
-            {
-//                mDefaultCommandLineParser.OutputModeUsage(msAppName);
-                return false;
-            }
-        }
-        else
-        {
-            if (!mModeToCommandLineParser[msMode].Parse(argc - 2, argv + 2, bVerbose))  // "strip" off the app path argv[0] and the mode argv[1]
-            {
-  //              mModeToCommandLineParser[msMode].OutputModeUsage(msAppName, msMode);
-                return false;
-            }
-        }
+        // only general parsing is available
+        if (!mGeneralCommandLineParser.Parse(argc-1, argv+1, bVerbose)) // strip off app path argv[0]
+            return false;
+
         return true;
     }
 
     void CommandLineParser::OutputHelp()
     {
-        if (msMode.empty())
-            return mDefaultCommandLineParser.OutputModeUsage(msAppName);
-
         if (mModeToCommandLineParser.find(msMode) == mModeToCommandLineParser.end())
         {
             cerr << "help: Unknown command:" << msMode << "\n";
             return;
         }
 
-        mModeToCommandLineParser[msMode].OutputModeUsage(msAppName, msMode);
+        TableOutput usageTable;
+        TableOutput descriptionTable;
+        TableOutput requiredParamTable;
+        TableOutput optionalParamTable;
+
+        requiredParamTable.AddRow("*Required Param*", "*Type*", "*Description*");
+        optionalParamTable.AddRow("*Optional Param*", "*Type*", "*Description*");
+        requiredParamTable.SetBorders(0, 0, '*', '*');
+        requiredParamTable.SetSeparator(' ', 1);
+        optionalParamTable.SetBorders(0, 0, '*', '*');
+        optionalParamTable.SetSeparator(' ', 1);
+
+        descriptionTable.SetBorders('*', '*', '*', '*');
+        descriptionTable.SetSeparator(' ', 1);
+        descriptionTable.AddRow("Description:");
+
+        usageTable.AddRow("*Usage*");
+        usageTable.SetBorders('*', '*', '*', '*');
+
+        // if modal
+        if (!msMode.empty())
+        {
+            TableOutput dummyUsageTable;    // only going to use usageTable from mode
+            mModeToCommandLineParser[msMode].GetModeUsageOutput(msAppName, msMode, usageTable, descriptionTable, requiredParamTable, optionalParamTable);
+            mGeneralCommandLineParser.GetModeUsageOutput(msAppName, "", dummyUsageTable, descriptionTable, requiredParamTable, optionalParamTable);
+        }
+        else
+        {
+            mGeneralCommandLineParser.GetModeUsageOutput(msAppName, "", usageTable, descriptionTable, requiredParamTable, optionalParamTable);
+        }
+
+
+        size_t nMinTableWidth = std::max({ descriptionTable.GetTableWidth(), requiredParamTable.GetTableWidth(), optionalParamTable.GetTableWidth(), usageTable.GetTableWidth() });
+
+        usageTable.SetMinimumOutputWidth(nMinTableWidth);
+        requiredParamTable.SetMinimumOutputWidth(nMinTableWidth);
+        optionalParamTable.SetMinimumOutputWidth(nMinTableWidth);
+        descriptionTable.SetMinimumOutputWidth(nMinTableWidth);
+
+
+        // Now default/global
+        cout << descriptionTable;
+        cout << usageTable;
+        if (requiredParamTable.GetRowCount() > 1)   // 1 because "Required:" added above
+            cout << requiredParamTable;
+        if (optionalParamTable.GetRowCount() > 1)   // 1 because "Optional:" added above
+            cout << optionalParamTable;
     }
 
     void CommandLineParser::OutputUsage()
     {
         // First output Application name
 
-        uint32_t nWidth = LongestLine(msAppDescription);
-        if (msAppName.length() > nWidth)
-            nWidth = (uint32_t) msAppName.length();
+        TableOutput keyTable;
+        keyTable.SetBorders('*', '*', '*', '*');
+        keyTable.SetSeparator(' ', 1);
+        keyTable.AddRow("Keys:");
+        keyTable.AddRow(" []","Optional");
+        keyTable.AddRow("  -", "Named '-key:value' pair. (examples: -size:1KB  -verbose)");
+        keyTable.AddRow(" ", "Can be anywhere on command line, in any order.");
+        keyTable.AddRow(" ##", "NUMBER");
+        keyTable.AddRow(" ", "Can be hex (0x05) or decimal");
+        keyTable.AddRow(" ", "Can include commas (1,000)");
+        keyTable.AddRow(" ", "Can include scale labels (10k, 64KiB, etc.)");
+        keyTable.AddRow(" $$", "STRING");
 
-        if (nWidth < 80)
-            nWidth = 80;
-        nWidth += 6;
+        TableOutput descriptionTable;
+        descriptionTable.SetBorders('*', '*', '*', '*');
+        descriptionTable.SetSeparator(' ', 1);
+        descriptionTable.AddRow("*Application*");
+        descriptionTable.AddMultilineRow(msAppDescription);
+        descriptionTable.AddRow(" ");
 
-        RepeatOut('*', nWidth, true);
+        TableOutput requiredParamTable;
+        requiredParamTable.SetBorders(0, 0, '*', '*');
+        requiredParamTable.SetSeparator(' ', 1);
+        if (GetRequiredParameterCount() > 0)
+            requiredParamTable.AddRow("*Required Param*", "*Type*", "*Description*");
 
-        OutputFixed(nWidth, msAppName.c_str());
-        OutputFixed(nWidth, " ");
-
-        if (!msAppDescription.empty())
+        TableOutput optionalParamTable;
+        optionalParamTable.SetBorders(0, 0, '*', '*');
+        optionalParamTable.SetSeparator(' ', 1);
+        if (GetOptionalParameterCount() > 0)
         {
-            OutputLines(nWidth, msAppDescription);
+            optionalParamTable.AddRow("*Optional Param*", "*Type*", "*Description*");
+            optionalParamTable.SetBorders(0, '*', '*', '*');        // if there are optional parameters, draw a bottom border after optional table
         }
-        RepeatOut('*', nWidth, true);
-
+        else
+            requiredParamTable.SetBorders(0, '*', '*', '*');        // if no optional parameters, draw a bottom border after required table
 
         bool bMultiMode = !mModeToCommandLineParser.empty();
 
+        TableOutput usageTable;
+        usageTable.SetBorders(0, 0, '*', '*');
+        usageTable.SetSeparator(' ', 1);
+
         if (bMultiMode)
         {
-            OutputFixed(nWidth, "Commands:");
-            OutputFixed(nWidth, "help COMMAND - Details for the command.");
+            descriptionTable.AddRow("*Commands*");
+            descriptionTable.AddRow("help COMMAND", "Details for the command.");
+
             for (tModeStringToParserMap::iterator it = mModeToCommandLineParser.begin(); it != mModeToCommandLineParser.end(); it++)
             {
                 string sCommand = (*it).first;
-                OutputFixed(nWidth, sCommand.c_str());
+                if (!sCommand.empty())
+                    descriptionTable.AddRow(sCommand);
             }
-            RepeatOut('*', nWidth, true);
+
+
+            usageTable.AddRow("*Usage*");
+            TableOutput dummyUsageTable;    // only going to use usageTable from mode
+            mModeToCommandLineParser[msMode].GetModeUsageOutput(msAppName, msMode, usageTable, descriptionTable, requiredParamTable, optionalParamTable);
+            mGeneralCommandLineParser.GetModeUsageOutput(msAppName, "", dummyUsageTable, descriptionTable, requiredParamTable, optionalParamTable);
+            usageTable.AddRow(" ");
+            requiredParamTable.AddRow(" ");
+
+
         }
         else
-            mDefaultCommandLineParser.OutputModeUsage(msAppName);
+        {
+            usageTable.AddRow("*Usage*");
+            mGeneralCommandLineParser.GetModeUsageOutput(msAppName, "", usageTable, descriptionTable, requiredParamTable, optionalParamTable);
+            usageTable.AddRow(" ");
+            requiredParamTable.AddRow(" ");
+        }
+
+        size_t nMinTableWidth = std::max({ keyTable.GetTableWidth(), descriptionTable.GetTableWidth(), requiredParamTable.GetTableWidth(), optionalParamTable.GetTableWidth(), usageTable.GetTableWidth() });
+
+        usageTable.SetMinimumOutputWidth(nMinTableWidth);
+        keyTable.SetMinimumOutputWidth(nMinTableWidth);
+        descriptionTable.SetMinimumOutputWidth(nMinTableWidth);
+        requiredParamTable.SetMinimumOutputWidth(nMinTableWidth);
+        optionalParamTable.SetMinimumOutputWidth(nMinTableWidth);
+
+        cout << descriptionTable;
+        cout << usageTable;
+        //        cout << keyTable;
+        if (GetRequiredParameterCount() > 0)
+            cout << requiredParamTable;
+        if (GetOptionalParameterCount() > 0)
+            cout << optionalParamTable;
     }
 
 

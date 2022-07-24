@@ -9,6 +9,7 @@ InlineFormatter gFormatter;
 
 namespace fs = std::filesystem;
 using namespace CLP;
+using namespace std;
 
 
 bool bVerbose = false;
@@ -128,8 +129,6 @@ void CreateValueFile(string sPath, int64_t nTotalSize, int64_t nFillValue)
     delete[] buf;
 }
 
-
-
 int main(int argc, char* argv[])
 {
     string sDestPath;
@@ -144,7 +143,7 @@ int main(int argc, char* argv[])
     bool bSkipExistingFiles = false;
 
     string sDescription = "Creates one or more files in one or more folders.\n"
-        "note: default fill is cyclical data. Each 32bit offset is equal to the 32bit value. This is highly compressible and easy to verify partially read data.\n";
+        "note: default fill is cyclical data.\nEach 32bit offset is equal to the 32bit value.\nThis is highly compressible and easy to verify partially read data.";
 
     CommandLineParser parser;
     parser.RegisterAppDescription(sDescription);
@@ -227,4 +226,3 @@ int main(int argc, char* argv[])
 
     return 0;
 }
-

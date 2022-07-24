@@ -3,8 +3,7 @@
 #include <map>
 #include <vector>
 #include <iostream>
-
-using namespace std;
+#include "LoggingHelpers.h"
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // CommandlineParser 
@@ -112,13 +111,13 @@ namespace CLP
         friend class CommandLineParser;
 
         // named string
-        ParamDesc(const string& sName, string* pString, eBehavior behavior, const string& sUsage = "");
-        ParamDesc(const string& sName, bool* pBool, eBehavior behavior, const string& sUsage = "");
-        ParamDesc(const string& sName, int64_t* pInt, eBehavior behavior, const string& sUsage = "", int64_t nRangeMin = 0, int64_t nRangeMax = 0);
+        ParamDesc(const std::string& sName, std::string* pString, eBehavior behavior, const std::string& sUsage = "");
+        ParamDesc(const std::string& sName, bool* pBool, eBehavior behavior, const std::string& sUsage = "");
+        ParamDesc(const std::string& sName, int64_t* pInt, eBehavior behavior, const std::string& sUsage = "", int64_t nRangeMin = 0, int64_t nRangeMax = 0);
 
     private:
 
-        string      GetExampleString();
+        void        GetExample(std::string& sParameter, std::string& sType, std::string& sUsage);
 
         // Behavior Accessors
         bool        IsNamed()               const { return mBehaviorFlags & kNamed; }
@@ -141,7 +140,7 @@ namespace CLP
         eParamValueType mValueType;
         void*           mpValue;        // Memory location of value to be filled in
 
-        string          msName;         // For named parameters like "-catlives:9" or "-VERBOSE".  Also used for help text for all parameters
+        std::string          msName;         // For named parameters like "-catlives:9" or "-VERBOSE".  Also used for help text for all parameters
         int64_t         mnPosition;     // positional parameter index.  For unnamed (i.e. positional) parameters
         eBehavior       mBehaviorFlags;
 
@@ -150,7 +149,7 @@ namespace CLP
         int64_t         mnMaxValue;
 
         // Parameter usage for help text
-        string          msUsage; 
+        std::string          msUsage;
 
         // Tracking for checking whether all required parameters were found
         bool            mbFound;
@@ -170,34 +169,38 @@ namespace CLP
 
         bool    RegisterParam(ParamDesc param);
 
-        bool    RegisterModeDescription(const string& sModeDescription) { msModeDescription = sModeDescription; return true; }
+        bool    RegisterModeDescription(const std::string& sModeDescription) { msModeDescription = sModeDescription; return true; }
 
         bool    Parse(int argc, char* argv[], bool bVerbose = false);
 
-        string  GetModeDescription() { return msModeDescription; }
-        bool    GetParamWasFound(const string& sKey);   // returns true if the parameter was found when parsing
+        std::string  GetModeDescription() { return msModeDescription; }
+
+        size_t  GetOptionalParameterCount();
+        size_t  GetRequiredParameterCount();
+
+        bool    GetParamWasFound(const std::string& sKey);   // returns true if the parameter was found when parsing
         bool    GetParamWasFound(int64_t nIndex);       // returns true if the parameter was found when parsing
 
-        void    OutputModeUsage(const string& sAppName, const string& sMode = "");
+        void    GetModeUsageOutput(const std::string& sAppName, const std::string& sMode, TableOutput& usageTable, TableOutput& modeDescriptionTable, TableOutput& requiredParamTable, TableOutput& optionalParamTable);
 
     protected:
-        bool    GetDescriptor(const string& sKey, ParamDesc** pDescriptorOut);
+        bool    GetDescriptor(const std::string& sKey, ParamDesc** pDescriptorOut);
         bool    GetDescriptor(int64_t nIndex, ParamDesc** pDescriptorOut);
 
-        string  msModeDescription;
+        std::string  msModeDescription;
 
     private:
         // Positional parameters
         int64_t             mnRegisteredPositional;
-        vector<ParamDesc>   mParameterDescriptors;
+        std::vector<ParamDesc>   mParameterDescriptors;
 
     protected:
 
-        bool        ParseParameter(std::string sParam, uint64_t& nRegisteredPositionalVal, vector<ParamDesc>& paramDescriptors, bool bVerbose = false);
+        bool        ParseParameter(std::string sParam, uint64_t& nRegisteredPositionalVal, std::vector<ParamDesc>& paramDescriptors, bool bVerbose = false);
     };
 
 
-    typedef  map<string, CLModeParser> tModeStringToParserMap;
+    typedef  std::map<std::string, CLModeParser> tModeStringToParserMap;
 
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     // CommandLineParser 
@@ -210,36 +213,39 @@ namespace CLP
     {
     public:
         // Registration Functions
-        void    RegisterAppDescription(const string& sDescription);
+        void    RegisterAppDescription(const std::string& sDescription);
         bool    Parse(int argc, char* argv[], bool bVerbose = false);
         void    OutputUsage();
         void    OutputHelp();
 
         // Accessors
-        string  GetAppMode() { return msMode; }         // empty string if default mode
-        string  GetAppPath() { return msAppPath; }
-        string  GetAppName() { return msAppName; }
-        bool    GetParamWasFound(const string& sKey);   // returns true if the parameter was found when parsing
+        std::string  GetAppMode() { return msMode; }         // empty string if default mode
+        std::string  GetAppPath() { return msAppPath; }
+        std::string  GetAppName() { return msAppName; }
+        bool    GetParamWasFound(const std::string& sKey);   // returns true if the parameter was found when parsing
         bool    GetParamWasFound(int64_t nIndex);       // returns true if the parameter was found when parsing
+
+        size_t  GetOptionalParameterCount();
+        size_t  GetRequiredParameterCount();
 
 
         // multi-mode behavior registration
-        bool    RegisterMode(const string& sMode, const string& sModeDescription);
-        bool    RegisterParam(const string& sMode, ParamDesc param);    // will return false if sMode hasn't been registered yet
+        bool    RegisterMode(const std::string& sMode, const std::string& sModeDescription);
+        bool    RegisterParam(const std::string& sMode, ParamDesc param);    // will return false if sMode hasn't been registered yet
 
         // default mode (i.e. no command specified)
         bool    RegisterParam(ParamDesc param);         // default mode parameter
 
     protected:
 
-        string  FindMode(const string& sArg);  // checks first parameter against registered modes. empty if none found
+        bool  IsRegisteredMode(const std::string& sArg);  // checks first parameter against registered modes. empty if none found
 
-        string  msMode;
-        string  msAppPath;                      // full path to the app.exe
-        string  msAppName;                      // just the app.exe
-        string  msAppDescription;
+        std::string  msMode;
+        std::string  msAppPath;                      // full path to the app.exe
+        std::string  msAppName;                      // just the app.exe
+        std::string  msAppDescription;
 
-        CLModeParser   mDefaultCommandLineParser;      // if no registered modes, defaults to this one
+        CLModeParser   mGeneralCommandLineParser;      // if no registered modes, defaults to this one
         tModeStringToParserMap  mModeToCommandLineParser;
     };
 };  // namespace CLP
