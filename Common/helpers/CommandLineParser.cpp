@@ -309,6 +309,7 @@ namespace CLP
                 else
                     sType = "##";
             }
+            break;
             case ParamDesc::kBool:
                 sType = "BOOL";
             default:
