@@ -199,32 +199,32 @@ namespace CLP
     string UserReadableFromInt(int64_t nValue)
     {
         char buf[128];
-        if (nValue % kPiB == 0)
-            sprintf(buf, "%lldPiB", nValue / kPiB);
+        if (nValue % kPiB == 0)  
+            sprintf(buf, "%" PRId64 "PiB", nValue / kPiB);
         else if (nValue % kPB == 0)
-            sprintf(buf, "%lldPB", nValue / kPB);
+            sprintf(buf, "%" PRId64 "PB", nValue / kPB);
 
         else if (nValue % kTiB == 0)
-            sprintf(buf, "%lldTiB", nValue / kTiB);
+            sprintf(buf, "%" PRId64 "TiB", nValue / kTiB);
         else if (nValue % kTB == 0)
-            sprintf(buf, "%lldTB", nValue / kTB);
+            sprintf(buf, "%" PRId64 "TB", nValue / kTB);
 
         else if (nValue % kGiB == 0)
-            sprintf(buf, "%lldGiB", nValue / kGiB);
+            sprintf(buf, "%" PRId64 "GiB", nValue / kGiB);
         else if (nValue % kGB == 0)
-            sprintf(buf, "%lldGB", nValue / kGB);
+            sprintf(buf, "%" PRId64 "GB", nValue / kGB);
 
         else if (nValue % kMiB == 0)
-            sprintf(buf, "%lldMiB", nValue / kMiB);
+            sprintf(buf, "%" PRId64 "MiB", nValue / kMiB);
         else if (nValue % kMB == 0)
-            sprintf(buf, "%lldMB", nValue / kMB);
+            sprintf(buf, "%" PRId64 "MB", nValue / kMB);
 
         else if (nValue % kKiB == 0)
-            sprintf(buf, "%lldKiB", nValue / kKiB);
+            sprintf(buf, "%" PRId64 "KiB", nValue / kKiB);
         else if (nValue % kKB == 0)
-            sprintf(buf, "%lldKB", nValue / kKB);
+            sprintf(buf, "%" PRId64 "KB", nValue / kKB);
 
-        else sprintf(buf, "%lld", nValue);
+        else sprintf(buf, "%" PRId64, nValue);
 
         return string(buf);
     }
