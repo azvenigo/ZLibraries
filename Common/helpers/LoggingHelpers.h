@@ -4,6 +4,7 @@
 #include <sstream>
 #include <any>
 #include <iostream>
+#include <inttypes.h>
 #include <list>
 #include <vector>
 #include <iomanip>
@@ -13,9 +14,9 @@ inline std::string HexValueOut(uint32_t nVal, bool bIncludeDecimal = true)
 {
     char buf[64];
     if (bIncludeDecimal)
-        sprintf_s(buf, "0x%08x (%ld)", nVal, nVal);
+        sprintf(buf, "0x%08x (%ld)", nVal, nVal);
     else
-        sprintf_s(buf, "0x%08x", nVal);
+        sprintf(buf, "0x%08x", nVal);
     return std::string(buf);
 }
 
@@ -23,9 +24,9 @@ inline std::string HexValueOut(uint64_t nVal, bool bIncludeDecimal = true)
 {
     char buf[64];
     if (bIncludeDecimal)
-        sprintf_s(buf, "0x%016llx (%lld)", nVal, nVal);
+        sprintf(buf, "0x%016" PRIX64 " (%" PRIu64 ")", nVal, nVal);
     else
-        sprintf_s(buf, "0x%016llx", nVal);
+        sprintf(buf, "0x%016" PRIX64, nVal);
     return std::string(buf);
 }
 
