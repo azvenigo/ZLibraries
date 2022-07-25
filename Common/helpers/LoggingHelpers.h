@@ -14,9 +14,9 @@ inline std::string HexValueOut(uint32_t nVal, bool bIncludeDecimal = true)
 {
     char buf[64];
     if (bIncludeDecimal)
-        sprintf(buf, "0x%08x (%ld)", nVal, nVal);
+        sprintf(buf, "0x%" PRIx32 " (%" PRIu32 ")", nVal, nVal);
     else
-        sprintf(buf, "0x%08x", nVal);
+        sprintf(buf, "0x%" PRIx32, nVal);
     return std::string(buf);
 }
 
@@ -292,10 +292,6 @@ public:
             // Draw right border
             if (tableOut.mR)
             {
-                if (tableWidth - nCharsOnRow == 0)
-                {
-                    int x = 5;
-                }
                 size_t nFinalColumnPadding = tableWidth - nCharsOnRow-1;
                 os << PAD(nFinalColumnPadding) << tableOut.mR;
             }
@@ -337,11 +333,11 @@ protected:
     std::vector<bool> mRightAlignedColumns;  // true if right aligned
 
     // Formatting options
-    char mSeparator; // between columns
-    size_t mColumnPadding;
     char mT;
     char mB;
     char mL;
     char mR;
+    char mSeparator; // between columns
+    size_t mColumnPadding;
     size_t mMinimumOutputWidth;
 };

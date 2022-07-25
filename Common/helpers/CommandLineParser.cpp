@@ -135,7 +135,7 @@ namespace CLP
     // many ways to say "true"
     bool StringToBool(string sValue)
     {
-        std::transform(sValue.begin(), sValue.end(), sValue.begin(), [](unsigned char c){ return std::tolower(c); });
+        std::transform(sValue.begin(), sValue.end(), sValue.begin(), [](unsigned char c){ return (unsigned char) std::tolower(c); });
         return sValue == "1" ||
             sValue == "t" ||
             sValue == "true" ||
@@ -150,7 +150,7 @@ namespace CLP
     // Supports trailing scaling labels  (k, kb, kib, m, mb, mib, etc.)
     int64_t IntFromUserReadable(string sReadable)
     {
-        std::transform(sReadable.begin(), sReadable.end(), sReadable.begin(), [](unsigned char c){ return std::toupper(c); });
+        std::transform(sReadable.begin(), sReadable.end(), sReadable.begin(), [](unsigned char c){ return (unsigned char) std::toupper(c); });
 
         // strip any commas in case human readable string has those
         sReadable.erase(std::remove(sReadable.begin(), sReadable.end(), ','), sReadable.end());
@@ -735,7 +735,7 @@ namespace CLP
         {
             // Ensure the msAppPath extension includes ".exe" since it can be launched without
             string sExtension(msAppPath.substr(msAppPath.length() - 4));
-            std::transform(sExtension.begin(), sExtension.end(), sExtension.begin(), [](unsigned char c){ return std::tolower(c); });
+            std::transform(sExtension.begin(), sExtension.end(), sExtension.begin(), [](unsigned char c){ return (unsigned char) std::tolower(c); });
             if (sExtension != ".exe")
                 msAppPath += ".exe";
         }
