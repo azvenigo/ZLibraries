@@ -325,7 +325,6 @@ namespace CLP
 
     CLModeParser::CLModeParser()
     {
-        mnRegisteredPositional = 0;
     }
 
     CLModeParser::~CLModeParser()
@@ -336,186 +335,212 @@ namespace CLP
     {
         // Assign positional index based on how many have been registered
         if (param.IsPositional())
-            param.mnPosition = mnRegisteredPositional++;
+            param.mnPosition = GetNumPositionalParamsRegistered();
 
         mParameterDescriptors.emplace_back(param);
 
         return true;
     }
 
-    // Arg0 and any mode Arg1 specified should be stripped by now
-    bool CLModeParser::Parse(int argc, char* argv[], bool bVerbose)
+    size_t CLModeParser::GetNumPositionalParamsRegistered()
     {
-        int64_t nPositionalParametersFound = 0;
-
-        bool bError = false;
-        if (argc < 1)
+        size_t nCount = 0;
+        for (auto p : mParameterDescriptors)
         {
-            bError = true;
-            goto errorprompt;
+            if (p.IsPositional())
+                nCount++;
         }
 
-        for (int i = 0; i < argc; i++)
+        return nCount;
+    }
+
+    size_t CLModeParser::GetNumPositionalParamsHandled()
+    {
+        size_t nCount = 0;
+        for (auto p : mParameterDescriptors)
         {
-            std::string sParam(argv[i]);
+            if (p.IsPositional() && p.mbFound)
+                nCount++;
+        }
 
-            if (!sParam.empty())
+        return nCount;
+    }
+
+    bool CLModeParser::CheckAllRequirementsMet()
+    {
+        int nErrors = 0;
+        for (auto p : mParameterDescriptors)
+        {
+            if (p.IsRequired() && !p.mbFound)
             {
-                if (sParam[0] == '-')
+                cerr << "Error: Required parameter not found:" << p.msName << "\n";
+                nErrors++;
+            }
+        }
+
+        return nErrors == 0;
+    }
+
+
+
+    bool CLModeParser::CanHandleArgument(const std::string& sArg)
+    {
+        // named argument
+        if (sArg[0] == '-')
+        {
+            string sKey;
+
+            size_t nIndexOfColon = sArg.find(':');
+            if (nIndexOfColon != string::npos)
+            {
+                sKey = sArg.substr(1, nIndexOfColon - 1).c_str();    // everything from first char to colon
+            }
+            else
+            {
+                // flag with no value is the same as -flag:true
+                sKey = sArg.substr(1, nIndexOfColon).c_str();
+            }
+
+            return GetDescriptor(sKey, nullptr);  // if descriptor is found this parameter is registered
+        }
+        else
+        {
+            // positional arguments can be handled is fewer have been handled than total registered
+            return GetNumPositionalParamsHandled() < GetNumPositionalParamsRegistered();
+        }
+    }
+
+    bool CLModeParser::HandleArgument(const std::string& sArg, bool bVerbose)
+    {
+        // named argument
+        if (sArg[0] == '-')
+        {
+            ////////////////////////////////////////////
+            // Named parameter processing
+            string sKey;
+            string sValue;
+
+            size_t nIndexOfColon = sArg.find(':');
+            if (nIndexOfColon != string::npos)
+            {
+                sKey = sArg.substr(1, nIndexOfColon - 1).c_str();    // everything from first char to colon
+                sValue = sArg.substr(nIndexOfColon + 1).c_str(); // everything after the colon
+            }
+            else
+            {
+                // flag with no value is the same as -flag:true
+                sKey = sArg.substr(1, nIndexOfColon).c_str();
+                sValue = "true";
+            }
+
+            ParamDesc* pDesc = nullptr;
+            if (!GetDescriptor(sKey, &pDesc))
+            {
+                cerr << "Error: Unknown parameter '" << sKey << "'\n";
+                return false;
+            }
+
+            switch (pDesc->mValueType)
+            {
+                case ParamDesc::kBool:
                 {
-                    ////////////////////////////////////////////
-                    // Named parameter processing
-                    string sKey;
-                    string sValue;
-
-                    size_t nIndexOfColon = sParam.find(':');
-                    if (nIndexOfColon != string::npos)
-                    {
-                        sKey = sParam.substr(1, nIndexOfColon - 1).c_str();    // everything from first char to colon
-                        sValue = sParam.substr(nIndexOfColon + 1).c_str(); // everything after the colon
-                    }
-                    else
-                    {
-                        // flag with no value is the same as -flag:true
-                        sKey = sParam.substr(1, nIndexOfColon).c_str();
-                        sValue = "true";
-                    }
-
-                    ParamDesc* pDesc = nullptr;
-                    if (!GetDescriptor(sKey, &pDesc))
-                    {
-                        cerr << "Error: Unknown parameter '" << sKey << "'\n";
-                        bError = true;
-                        continue;
-                    }
-
-                    switch (pDesc->mValueType)
-                    {
-                    case ParamDesc::kBool:
-                    {
-                        *((bool*)pDesc->mpValue) = StringToBool(sValue);    // set the registered bool
-                        pDesc->mbFound = true;
-                        if (bVerbose)
-                            cout << "Set " << sKey << " = " << sValue << "\n";
-                    }
-                    break;
-                    case ParamDesc::kInt64:
-                    {
-                        int64_t nValue = IntFromUserReadable(sValue);
-                        if (pDesc->IsRangeRestricted())
-                        {
-                            if (nValue < pDesc->mnMinValue || nValue > pDesc->mnMaxValue)
-                            {
-                                bError = true;
-                                cerr << "Error: Value for parameter \"" << sParam << "\" is:" << nValue << ". Allowed range:(" << pDesc->mnMinValue << "-" << pDesc->mnMaxValue << ")\n";
-                                continue;
-                            }
-                        }
-
-                        *((int64_t*)pDesc->mpValue) = nValue;    // set the registered int
-                        pDesc->mbFound = true;
-                        if (bVerbose)
-                            cout << "Set " << sKey << " = " << nValue << "\n";
-                    }
-                    break;
-                    case ParamDesc::kString:
-                    {
-                        *((string*)pDesc->mpValue) = sValue;     // set the registered string
-                        pDesc->mbFound = true;
-                        if (bVerbose)
-                            cout << "Set " << sKey << " = " << sValue << "\n";
-                    }
-                    break;
-                    default:
-                        cerr << "Error: Unknown parameter type registered \"" << sParam << "\"\n";
-                        bError = true;
-                        break;
-                    }
-
+                    *((bool*)pDesc->mpValue) = StringToBool(sValue);    // set the registered bool
+                    pDesc->mbFound = true;
+                    if (bVerbose)
+                        cout << "Set " << sKey << " = " << sValue << "\n";
+                    return true;
                 }
-                else
+                break;
+                case ParamDesc::kInt64:
                 {
-                    ////////////////////////////////////////////
-                    // Positional parameter processing
-                    ParamDesc* pPositionalDesc = nullptr;
-                    if (!GetDescriptor(nPositionalParametersFound, &pPositionalDesc))
+                    int64_t nValue = IntFromUserReadable(sValue);
+                    if (pDesc->IsRangeRestricted())
                     {
-                        cerr << "Error: Too many parameters! Max is:" << mnRegisteredPositional << " parameter:" << sParam << "\n";
-                        bError = true;
-                        continue;
-                    }
-                    else
-                    {
-                        switch (pPositionalDesc->mValueType)
+                        if (nValue < pDesc->mnMinValue || nValue > pDesc->mnMaxValue)
                         {
-                        case ParamDesc::kBool:
-                        {
-                            *((bool*)pPositionalDesc->mpValue) = StringToBool(sParam);    // set the registered bool
-                            pPositionalDesc->mbFound = true;
-                            if (bVerbose)
-                                cout << "Set " << pPositionalDesc->msName << " = " << sParam << "\n";
+                            cerr << "Error: Value for parameter \"" << sArg << "\" is:" << nValue << ". Allowed range:(" << pDesc->mnMinValue << "-" << pDesc->mnMaxValue << ")\n";
+                            return false;
                         }
-                        break;
-                        case ParamDesc::kInt64:
-                        {
-                            pPositionalDesc->mbFound = true;
-                            int64_t nValue = IntFromUserReadable(sParam);
-                            if (pPositionalDesc->IsRangeRestricted())
-                            {
-                                if (nValue < pPositionalDesc->mnMinValue || nValue > pPositionalDesc->mnMaxValue)
-                                {
-                                    bError = true;
-                                    cerr << "Error: Value for parameter \"" << sParam << "\" is:" << nValue << ". Allowed values from min:" << UserReadableFromInt(pPositionalDesc->mnMinValue) << " to max:" << UserReadableFromInt(pPositionalDesc->mnMaxValue) << "\n";
-                                    continue;
-                                }
-                            }
+                    }
 
-                            *((int64_t*)pPositionalDesc->mpValue) = nValue;    // set the registered int
-                            if (bVerbose)
-                                cout << "Set " << pPositionalDesc->msName << " = " << nValue << "\n";
-                        }
-                        break;
-                        case ParamDesc::kString:
+                    *((int64_t*)pDesc->mpValue) = nValue;    // set the registered int
+                    pDesc->mbFound = true;
+                    if (bVerbose)
+                        cout << "Set " << sKey << " = " << nValue << "\n";
+                    return true;
+                }
+                break;
+                default:    // ParamDesc::kString
+                {
+                    *((string*)pDesc->mpValue) = sValue;     // set the registered string
+                    pDesc->mbFound = true;
+                    if (bVerbose)
+                        cout << "Set " << sKey << " = " << sValue << "\n";
+                    return true;
+                }
+            }
+        }
+        else
+        {
+            ////////////////////////////////////////////
+            // Positional parameter processing
+            ParamDesc* pPositionalDesc = nullptr;
+            if (!GetDescriptor(GetNumPositionalParamsHandled(), &pPositionalDesc))  // num handled is also the index of the next one
+            {
+                cerr << "Error: Too many parameters! Max is:" << GetNumPositionalParamsRegistered() << " parameter:" << sArg << "\n";
+                return false;
+            }
+            else
+            {
+                switch (pPositionalDesc->mValueType)
+                {
+                case ParamDesc::kBool:
+                {
+                    *((bool*)pPositionalDesc->mpValue) = StringToBool(sArg);    // set the registered bool
+                    pPositionalDesc->mbFound = true;
+                    if (bVerbose)
+                        cout << "Set " << pPositionalDesc->msName << " = " << sArg << "\n";
+                    return true;
+                }
+                break;
+                case ParamDesc::kInt64:
+                {
+                    pPositionalDesc->mbFound = true;
+                    int64_t nValue = IntFromUserReadable(sArg);
+                    if (pPositionalDesc->IsRangeRestricted())
+                    {
+                        if (nValue < pPositionalDesc->mnMinValue || nValue > pPositionalDesc->mnMaxValue)
                         {
-                            pPositionalDesc->mbFound = true;
-                            *((string*)pPositionalDesc->mpValue) = sParam;     // set the registered string
-                            if (bVerbose)
-                                cout << "Set " << pPositionalDesc->msName << " = " << sParam << "\n";
-                        }
-                        break;
-                        default:
-                            cerr << "Error: Unknown parameter type at index:" << nPositionalParametersFound << "registered \"" << sParam << "\"\n";
-                            bError = true;
-                            break;
+                            cerr << "Error: Value for parameter \"" << sArg << "\" is:" << nValue << ". Allowed values from min:" << UserReadableFromInt(pPositionalDesc->mnMinValue) << " to max:" << UserReadableFromInt(pPositionalDesc->mnMaxValue) << "\n";
+                            return false;
                         }
                     }
-                    nPositionalParametersFound++;
+
+                    *((int64_t*)pPositionalDesc->mpValue) = nValue;    // set the registered int
+                    if (bVerbose)
+                        cout << "Set " << pPositionalDesc->msName << " = " << nValue << "\n";
+                    return true;
+                }
+                break;
+                default:    // ParamDesc::kString
+                {
+                    pPositionalDesc->mbFound = true;
+                    *((string*)pPositionalDesc->mpValue) = sArg;     // set the registered string
+                    if (bVerbose)
+                        cout << "Set " << pPositionalDesc->msName << " = " << sArg << "\n";
+                    return true;
+                }
                 }
             }
         }
 
-    errorprompt:
-        for (auto desc : mParameterDescriptors)
-        {
-            if (desc.IsRequired() && !desc.mbFound)
-            {
-                cerr << "Error: Required parameter not found:" << desc.msName << "\n";
-                bError = true;
-            }
-        }
-
-        if (bError)
-            return false;
-
-        return true;
+        return false;
     }
 
     bool CLModeParser::GetDescriptor(const string& sKey, ParamDesc** pDescriptorOut)
     {
-        cout << "retrieving named desciptor for:" << sKey.c_str() << " size:" << sKey.size() << "\n" << std::flush;
         for (auto& desc : mParameterDescriptors)
         {
-            cout << std::flush << "\n comparing '" << sKey.c_str() << "' length:" << sKey.length() << " to:'" << desc.msName << "' length:" << desc.msName.length() << "\n";
             if (desc.IsNamed() &&  desc.msName.compare(sKey.c_str()) == 0)
             {
                 if (pDescriptorOut)
@@ -559,7 +584,7 @@ namespace CLP
         return false;
     }
 
-    bool CLModeParser::GetParamWasFound(int64_t nIndex)
+/*    bool CLModeParser::GetParamWasFound(int64_t nIndex)
     {
         ParamDesc* pDesc = nullptr;
         if (GetDescriptor(nIndex, &pDesc))
@@ -568,7 +593,7 @@ namespace CLP
         }
 
         return false;
-    }
+    }*/
 
     size_t  CLModeParser::GetOptionalParameterCount()
     {
@@ -673,14 +698,6 @@ namespace CLP
         return mModeToCommandLineParser[msMode].GetParamWasFound(sKey);
     }
 
-    bool CommandLineParser::GetParamWasFound(int64_t nIndex)
-    {
-        if (msMode.empty())
-            return mGeneralCommandLineParser.GetParamWasFound(nIndex);
-
-        return mModeToCommandLineParser[msMode].GetParamWasFound(nIndex);
-    }
-
     size_t CommandLineParser::GetOptionalParameterCount()
     {
         size_t nCount = 0;
@@ -756,6 +773,8 @@ namespace CLP
 
 
 
+        int nErrors = 0;
+
         if (argc > 1)
         {
             // If "help" requested
@@ -778,28 +797,86 @@ namespace CLP
             if (IsRegisteredMode(sFirst))
             {
                 msMode = sFirst;
+                for (int i = 2; i < argc; i++)
+                {
+                    std::string sParam(argv[i]);
 
-                // First parse mode
-                if (!mModeToCommandLineParser[msMode].Parse(argc - 2, argv + 2, bVerbose))  // "strip" off the app path argv[0] and the mode argv[1]
-                    return false;
+                    if (mModeToCommandLineParser[msMode].CanHandleArgument(sParam)) // if regestered for specific mode handle it
+                    {
+                        if (!mModeToCommandLineParser[msMode].HandleArgument(sParam, bVerbose))
+                            nErrors++;
+                    }
+                    else if (mGeneralCommandLineParser.CanHandleArgument(sParam))   // if general parameter handle it
+                    {
+                        if (!mGeneralCommandLineParser.HandleArgument(sParam, bVerbose))
+                            nErrors++;
+                    }
+                    else
+                    {
+                        cerr << "Error: Unknown parameter '" << sParam << "'\n";
+                        nErrors++;
+                    }
+                }
 
-                // Second parse general
-                if (!mGeneralCommandLineParser.Parse(argc - 2, argv + 2, bVerbose))
+                if (!mModeToCommandLineParser[msMode].CheckAllRequirementsMet())
+                {
+                    cout << "\n\"" << msAppName << " help\" - to see usage.\n";
                     return false;
+                }
+
+            }
+            else
+            {
+                // modeless parsing
+                for (int i = 1; i < argc; i++)
+                {
+                    std::string sParam(argv[i]);
+
+                    if (mGeneralCommandLineParser.CanHandleArgument(sParam))
+                    {
+                        if (!mGeneralCommandLineParser.HandleArgument(sParam, bVerbose))
+                            nErrors++;
+                    }
+                    else
+                    {
+                        cerr << "Error: Unknown parameter '" << sParam << "'\n";
+                        nErrors++;
+                    }
+                }
+
+                if (!mGeneralCommandLineParser.CheckAllRequirementsMet())
+                {
+                    cout << "\n\"" << msAppName << " help\" - to see usage.\n";
+                    return false;
+                }
+
             }
         }
 
-        // if multi-modes are available show usage
+        if (nErrors > 0)
+        {
+            OutputUsage();
+            return false;
+        }
+
+        // no parameters
+
+
+        // no parameters but multi-modes are available... show usage
         if (!mModeToCommandLineParser.empty())
         {
             OutputUsage();
             return false;
         }
 
-        // only general parsing is available
-        if (!mGeneralCommandLineParser.Parse(argc-1, argv+1, bVerbose)) // strip off app path argv[0]
+        // no parameters passed, see if general parser has required params 
+        if (!mGeneralCommandLineParser.CheckAllRequirementsMet())
+        {
+            cout << "\n\"" << msAppName << " help\" - to see usage.\n";
             return false;
+        }
 
+        // no parameters and none required
         return true;
     }
 
@@ -823,11 +900,12 @@ namespace CLP
         optionalParamTable.SetBorders(0, 0, '*', '*');
         optionalParamTable.SetSeparator(' ', 1);
 
-        descriptionTable.SetBorders('*', '*', '*', '*');
+        descriptionTable.SetBorders('*', 0, '*', '*');
         descriptionTable.SetSeparator(' ', 1);
-        descriptionTable.AddRow("Description:");
+        descriptionTable.AddRow("*Description*");
 
         usageTable.AddRow("*Usage*");
+        usageTable.SetSeparator(' ', 1);
         usageTable.SetBorders('*', '*', '*', '*');
 
         // if modal
@@ -843,12 +921,22 @@ namespace CLP
         }
 
 
-        size_t nMinTableWidth = std::max({ descriptionTable.GetTableWidth(), requiredParamTable.GetTableWidth(), optionalParamTable.GetTableWidth(), usageTable.GetTableWidth() });
+        size_t nMinTableWidth = std::max({ (size_t) 120, descriptionTable.GetTableWidth(), requiredParamTable.GetTableWidth(), optionalParamTable.GetTableWidth(), usageTable.GetTableWidth() });
 
         usageTable.SetMinimumOutputWidth(nMinTableWidth);
         requiredParamTable.SetMinimumOutputWidth(nMinTableWidth);
         optionalParamTable.SetMinimumOutputWidth(nMinTableWidth);
         descriptionTable.SetMinimumOutputWidth(nMinTableWidth);
+
+        optionalParamTable.SetBorders(0, 0, '*', '*');
+        optionalParamTable.SetSeparator(' ', 1);
+        if (GetOptionalParameterCount() > 0)
+        {
+            optionalParamTable.AddRow("*Optional Param*", "*Type*", "*Description*");
+            optionalParamTable.SetBorders(0, '*', '*', '*');        // if there are optional parameters, draw a bottom border after optional table
+        }
+        else
+            requiredParamTable.SetBorders(0, '*', '*', '*');        // if no optional parameters, draw a bottom border after required table
 
 
         // Now default/global
@@ -910,7 +998,7 @@ namespace CLP
         if (bMultiMode)
         {
             descriptionTable.AddRow("*Commands*");
-            descriptionTable.AddRow("help COMMAND", "Details for the command.");
+            descriptionTable.AddRow("help COMMAND");
 
             for (tModeStringToParserMap::iterator it = mModeToCommandLineParser.begin(); it != mModeToCommandLineParser.end(); it++)
             {
@@ -920,13 +1008,13 @@ namespace CLP
             }
 
 
-            usageTable.AddRow("*Usage*");
+/*            usageTable.AddRow("*Usage*");
             TableOutput dummyUsageTable;    // only going to use usageTable from mode
             mModeToCommandLineParser[msMode].GetModeUsageOutput(msAppName, msMode, usageTable, descriptionTable, requiredParamTable, optionalParamTable);
             mGeneralCommandLineParser.GetModeUsageOutput(msAppName, "", dummyUsageTable, descriptionTable, requiredParamTable, optionalParamTable);
             usageTable.AddRow(" ");
             requiredParamTable.AddRow(" ");
-
+            */
 
         }
         else
@@ -937,7 +1025,7 @@ namespace CLP
             requiredParamTable.AddRow(" ");
         }
 
-        size_t nMinTableWidth = std::max({ keyTable.GetTableWidth(), descriptionTable.GetTableWidth(), requiredParamTable.GetTableWidth(), optionalParamTable.GetTableWidth(), usageTable.GetTableWidth() });
+        size_t nMinTableWidth = std::max({ (size_t) 120, keyTable.GetTableWidth(), descriptionTable.GetTableWidth(), requiredParamTable.GetTableWidth(), optionalParamTable.GetTableWidth(), usageTable.GetTableWidth() });
 
         usageTable.SetMinimumOutputWidth(nMinTableWidth);
         keyTable.SetMinimumOutputWidth(nMinTableWidth);

@@ -157,7 +157,7 @@ int main(int argc, char* argv[])
     parser.RegisterParam(ParamDesc("fillvalue",    &nFillValue,         CLP::kNamed | CLP::kOptional,       "fill the file with specific value."));
     parser.RegisterParam(ParamDesc("verbose",      &bVerbose,           CLP::kNamed | CLP::kOptional,       "hear all the gritty details about everthing that's happening. (Can slow down operation due to command line output.)"));
 
-    if (!parser.Parse(argc, argv, true))
+    if (!parser.Parse(argc, argv, bVerbose))
     {
         cerr << "Aborting.\n";
         return -1;

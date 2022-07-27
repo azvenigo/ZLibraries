@@ -161,6 +161,8 @@ namespace CLP
     // Helper class used by CommandLineParser
     class CLModeParser
     {
+        friend class CommandLineParser;
+
     public:
         CLModeParser();
         ~CLModeParser();
@@ -171,7 +173,7 @@ namespace CLP
 
         bool    RegisterModeDescription(const std::string& sModeDescription) { msModeDescription = sModeDescription; return true; }
 
-        bool    Parse(int argc, char* argv[], bool bVerbose = false);
+//        bool    Parse(int argc, char* argv[], bool bVerbose = false);
 
         std::string  GetModeDescription() { return msModeDescription; }
 
@@ -179,11 +181,16 @@ namespace CLP
         size_t  GetRequiredParameterCount();
 
         bool    GetParamWasFound(const std::string& sKey);   // returns true if the parameter was found when parsing
-        bool    GetParamWasFound(int64_t nIndex);       // returns true if the parameter was found when parsing
+        bool    CheckAllRequirementsMet();      // true if all registered parameters that are required were handled
+        size_t  GetNumPositionalParamsRegistered();
+        size_t  GetNumPositionalParamsHandled();
 
         void    GetModeUsageOutput(const std::string& sAppName, const std::string& sMode, TableOutput& usageTable, TableOutput& modeDescriptionTable, TableOutput& requiredParamTable, TableOutput& optionalParamTable);
 
     protected:
+        bool    CanHandleArgument(const std::string& sArg); // returns true if the key for this argument is registered
+        bool    HandleArgument(const std::string& sArg, bool bVerbose = false);    // returns false if there's an error
+
         bool    GetDescriptor(const std::string& sKey, ParamDesc** pDescriptorOut);
         bool    GetDescriptor(int64_t nIndex, ParamDesc** pDescriptorOut);
 
@@ -191,8 +198,7 @@ namespace CLP
 
     private:
         // Positional parameters
-        int64_t             mnRegisteredPositional;
-        std::vector<ParamDesc>   mParameterDescriptors;
+        std::vector<ParamDesc>  mParameterDescriptors;
 
     protected:
 
