@@ -814,6 +814,7 @@ namespace CLP
                     return false;
                 }
 
+                return true;
             }
             else
             {
