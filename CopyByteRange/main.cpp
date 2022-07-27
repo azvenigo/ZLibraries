@@ -11,31 +11,27 @@
 using namespace std;
 using namespace CLP;
 
-std::string sSourcePath;
-std::string sDestPath;
-
-int64_t nSourceOffset;
-int64_t nDestOffset;
-int64_t nBytes;
-
-
-bool ParseCommands(int argc, char* argv[])        // returns false if usage needs to be shown
+int main(int argc, char* argv[])
 {
+    std::string sSourcePath;
+    std::string sDestPath;
+
+    int64_t nSourceOffset = 0;
+    int64_t nDestOffset = 0;
+    int64_t nBytes = 0;
+    bool bVerbose = false;
+
     CommandLineParser parser;
-    parser.RegisterParam(ParamDesc("SOURCE_FILE",   &sSourcePath,   CLP::kPositional| CLP::kRequired, "File to read from."));
-    parser.RegisterParam(ParamDesc("DEST_FILE",     &sDestPath,     CLP::kPositional| CLP::kRequired, "File to write to."));
-    parser.RegisterParam(ParamDesc("SOURCE_OFFSET", &nSourceOffset, CLP::kPositional| CLP::kRequired, "Source offset"));
-    parser.RegisterParam(ParamDesc("DEST_OFFSET",   &nDestOffset,   CLP::kPositional| CLP::kRequired, "Destination offset"));
-    parser.RegisterParam(ParamDesc("BYTES",         &nBytes,        CLP::kPositional| CLP::kRequired, "Number of bytes to copy."));
+    parser.RegisterParam(ParamDesc("SOURCE_FILE", &sSourcePath, CLP::kPositional | CLP::kRequired, "File to read from."));
+    parser.RegisterParam(ParamDesc("DEST_FILE", &sDestPath, CLP::kPositional | CLP::kRequired, "File to write to."));
+    parser.RegisterParam(ParamDesc("SOURCE_OFFSET", &nSourceOffset, CLP::kPositional | CLP::kRequired, "Source offset"));
+    parser.RegisterParam(ParamDesc("DEST_OFFSET", &nDestOffset, CLP::kPositional | CLP::kRequired, "Destination offset"));
+    parser.RegisterParam(ParamDesc("BYTES", &nBytes, CLP::kPositional | CLP::kRequired, "Number of bytes to copy."));
+    parser.RegisterParam(ParamDesc("verbose", &bVerbose, CLP::kNamed | CLP::kOptional, "details"));
 
     parser.RegisterAppDescription("Copies bytes from a source file/offset into a destination file/offset.");
 
-    return parser.Parse(argc, argv, true);
-}
-
-int main(int argc, char* argv[])
-{
-    if (!ParseCommands(argc, argv))
+    if (!parser.Parse(argc, argv, bVerbose))
     {
         return -1;
     }

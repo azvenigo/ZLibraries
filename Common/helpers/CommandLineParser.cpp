@@ -584,16 +584,6 @@ namespace CLP
         return false;
     }
 
-/*    bool CLModeParser::GetParamWasFound(int64_t nIndex)
-    {
-        ParamDesc* pDesc = nullptr;
-        if (GetDescriptor(nIndex, &pDesc))
-        {
-            return pDesc->mbFound;
-        }
-
-        return false;
-    }*/
 
     size_t  CLModeParser::GetOptionalParameterCount()
     {
