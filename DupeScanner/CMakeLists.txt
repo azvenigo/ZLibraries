@@ -76,7 +76,8 @@ include_directories(${INCLUDE_DIRS})
 
 add_executable(DupeScanner ${SOURCES} ${INCLUDES})
 target_link_libraries(DupeScanner ${LINK_LIBS})
-
-################################################################################
-# Copy build to tools folder if release
-add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD COMMAND "${CMAKE_COMMAND}" -E copy_if_different  "$(TargetPath)" "$(SolutionDir)Common\\Tools\\" )
+    
+if(MSVC)
+    # Copy build to tools folder if release
+    add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD COMMAND cmd.exe /c if "$(Configuration)" == "Release" "${CMAKE_COMMAND}" -E copy_if_different  "$(TargetPath)" "$(SolutionDir)Common\\Tools\\" )
+endif()

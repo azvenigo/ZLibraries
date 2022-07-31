@@ -178,8 +178,13 @@ bool BlockScanner::Scan(string sourcePath, string scanPath, uint64_t nBlockSize,
         // nothing to search for 0 byte files
         if (nScanFileSize == 0)
             continue;
+#ifdef WIN32
 
-#define MEMORY_MAPPING
+//#define MEMORY_MAPPING
+
+#endif
+
+
 #ifdef MEMORY_MAPPING
         HANDLE hFile = CreateFile(scanPath.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_FLAG_RANDOM_ACCESS, 0);
         if (hFile == INVALID_HANDLE_VALUE)

@@ -4,8 +4,10 @@
 //
 #include <string>
 #include <stdint.h>
+#ifdef WIN32
 #define NOMINMAX
 #include <Windows.h>
+#endif
 #include <set>
 #include <map>
 #include <unordered_map>
