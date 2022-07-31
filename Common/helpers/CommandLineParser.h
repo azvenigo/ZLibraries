@@ -173,8 +173,6 @@ namespace CLP
 
         bool    RegisterModeDescription(const std::string& sModeDescription) { msModeDescription = sModeDescription; return true; }
 
-//        bool    Parse(int argc, char* argv[], bool bVerbose = false);
-
         std::string  GetModeDescription() { return msModeDescription; }
 
         size_t  GetOptionalParameterCount();
@@ -199,10 +197,6 @@ namespace CLP
     private:
         // Positional parameters
         std::vector<ParamDesc>  mParameterDescriptors;
-
-    protected:
-
-        bool        ParseParameter(std::string sParam, uint64_t& nRegisteredPositionalVal, std::vector<ParamDesc>& paramDescriptors, bool bVerbose = false);
     };
 
 
@@ -221,7 +215,7 @@ namespace CLP
         // Registration Functions
         void    RegisterAppDescription(const std::string& sDescription);
         bool    Parse(int argc, char* argv[], bool bVerbose = false);
-        void    OutputUsage();
+        void    ListModes();
         void    OutputHelp();
 
         // Accessors
@@ -243,7 +237,6 @@ namespace CLP
         bool    RegisterParam(ParamDesc param);         // default mode parameter
 
     protected:
-
         bool  IsRegisteredMode(const std::string& sArg);  // checks first parameter against registered modes. empty if none found
 
         std::string  msMode;
@@ -251,7 +244,9 @@ namespace CLP
         std::string  msAppName;                      // just the app.exe
         std::string  msAppDescription;
 
+        bool         mbVerbose;
         CLModeParser   mGeneralCommandLineParser;      // if no registered modes, defaults to this one
         tModeStringToParserMap  mModeToCommandLineParser;
+
     };
 };  // namespace CLP

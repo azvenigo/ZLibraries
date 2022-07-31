@@ -47,7 +47,7 @@ int _tmain(int argc, char* argv[])
 
     if (sSourcePath.empty())
     {
-        parser.OutputUsage();
+        parser.ListModes();
         return -1;
     }
 

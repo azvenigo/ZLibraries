@@ -65,22 +65,6 @@ endif()
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${EXTRA_FLAGS}")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${EXTRA_FLAGS} ${EXTRA_CXX_FLAGS}")
 
-
-####################
-# CLANG SANITIZER
-
-if(USE_SANITIZER)
-    add_definitions(-fsanitize=${USE_SANITIZER} -g -fno-omit-frame-pointer)
-    list(APPEND LINK_LIBS -fsanitize=${USE_SANITIZER})
-endif(USE_SANITIZER)
-
-
-####################
-# GIT TAG AND HASH
-
-add_definitions("-DGIT_COMMIT_TAG_HASH=\"${GIT_COMMIT_TAG_HASH}\"")
-
-
 ####################
 # ADDITIONAL LIBRARIES
 
@@ -94,6 +78,5 @@ add_executable(DupeScanner ${SOURCES} ${INCLUDES})
 target_link_libraries(DupeScanner ${LINK_LIBS})
 
 ################################################################################
-
 # Copy build to tools folder if release
-add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD COMMAND cmd.exe /c if "$(Configuration)" == "Release" "${CMAKE_COMMAND}" -E copy_if_different  "$(TargetPath)" "$(SolutionDir)Common\\Tools\\" )
+add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD COMMAND "${CMAKE_COMMAND}" -E copy_if_different  "$(TargetPath)" "$(SolutionDir)Common\\Tools\\" )

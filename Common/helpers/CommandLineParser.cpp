@@ -274,14 +274,15 @@ namespace CLP
         {
             sParameter += "-";
             sParameter += msName;
-            sParameter += ":";
             switch (mValueType)
             {
             case ParamDesc::kString:
+                sParameter += ":";
                 sType = "$$";
                 break;
             case ParamDesc::kInt64:
             {
+                sParameter += ":";
                 if (IsRangeRestricted())
                     sType = "(" + UserReadableFromInt(mnMinValue) + "-" + UserReadableFromInt(mnMaxValue) + ")";
                 else
@@ -436,7 +437,7 @@ namespace CLP
             ParamDesc* pDesc = nullptr;
             if (!GetDescriptor(sKey, &pDesc))
             {
-                cerr << "Error: Unknown parameter '" << sKey << "'\n";
+                cerr << "Error: Unknown parameter '" << sKey << "' for mode:" << msModeDescription << "\n";
                 return false;
             }
 
@@ -612,6 +613,16 @@ namespace CLP
 
     void CLModeParser::GetModeUsageOutput(const string& sAppName, const string& sMode, TableOutput& usageTable, TableOutput& modeDescriptionTable, TableOutput& requiredParamTable, TableOutput& optionalParamTable)
     {
+        if (!sMode.empty() && !msModeDescription.empty())
+        {
+            modeDescriptionTable.AddRow(string("Command: " + sMode));
+
+            modeDescriptionTable.AddRow(" ");
+            modeDescriptionTable.AddRow("*Description*");
+            modeDescriptionTable.AddMultilineRow(msModeDescription);
+        }
+
+
         string sCommandLineExample = sAppName + " " + sMode;
 
         // create example command line with positional params first followed by named
@@ -650,14 +661,6 @@ namespace CLP
                 requiredParamTable.AddRow(sName, sType, sUsage);
         }
 
-
-        if (!msModeDescription.empty())
-        {
-            if (!sMode.empty())
-                modeDescriptionTable.AddRow(string("Command: " + sMode));
-            else
-                modeDescriptionTable.AddRow("Temporary Command: sMode string.");
-        }
 
         usageTable.AddRow(sCommandLineExample);
     }
@@ -737,6 +740,7 @@ namespace CLP
     bool CommandLineParser::Parse(int argc, char* argv[], bool bVerbose)
     {
         msMode.clear();
+        mbVerbose = bVerbose;
         msAppPath = argv[0];
         // Ensure the msAppPath extension includes ".exe" since it can be launched without
         if (msAppPath.length() > 4)
@@ -762,6 +766,17 @@ namespace CLP
             msAppName = msAppPath;
 
 
+        // Handle help
+        // 
+        // 1) Multi Mode no context
+        //      list commands
+        // 2) Multi Mode with context
+        //      a) registered mode  -> show mode specific help
+        //      b) unknown mode     -> "use help message"
+        // 3) Single Mode
+        //      Show general help
+
+        bool bMultiMode = !mModeToCommandLineParser.empty();
 
         int nErrors = 0;
 
@@ -771,38 +786,72 @@ namespace CLP
             string sFirst(argv[1]);
             if (sFirst == "?" || sFirst == "help" || sFirst == "-h")
             {
-                // if specific help for a mode requested
-                if (argc > 2)
+                if (bMultiMode)
                 {
-                    msMode.assign(argv[2]);
-                    OutputHelp();
+                    if (argc == 2)  // case 1
+                    {
+                        ListModes();
+                        return false;
+                    }
+                    else
+                    {
+                        string sMode = argv[2];
+                        if (IsRegisteredMode(sMode))
+                        {
+                            // case 2a
+                            msMode = sMode;
+                            OutputHelp();
+                            return false;
+                        }
+
+                        // case 2b
+                        cerr << "Error: Unknown help context '" << sMode << "'\n";
+                    }
                 }
                 else
                 {
-                    OutputUsage();
+                    // single mode case 3
+                    OutputHelp();
                 }
+
                 return false;
             }
 
+            // Handle Command Line
+
+            // 1) Multi Mode for each param
+            //      a) mode specific parameter  -> Mode Handle
+            //      b) non mode specific        -> General Handle
+            //      c) unknown parameter        -> unknown param error
+            // 
+            //      Check all mode reqs
+            //
+            // 2) Single mode for each param
+            //      general handle
+            //      Check all general reqs
             if (IsRegisteredMode(sFirst))
             {
+                // Case 1
                 msMode = sFirst;
                 for (int i = 2; i < argc; i++)
                 {
                     std::string sParam(argv[i]);
 
-                    if (mModeToCommandLineParser[msMode].CanHandleArgument(sParam)) // if regestered for specific mode handle it
+                    if (mModeToCommandLineParser[msMode].CanHandleArgument(sParam))
                     {
+                        // case 1a
                         if (!mModeToCommandLineParser[msMode].HandleArgument(sParam, bVerbose))
                             nErrors++;
                     }
-                    else if (mGeneralCommandLineParser.CanHandleArgument(sParam))   // if general parameter handle it
+                    else if (mGeneralCommandLineParser.CanHandleArgument(sParam))
                     {
+                        // case 1b
                         if (!mGeneralCommandLineParser.HandleArgument(sParam, bVerbose))
                             nErrors++;
                     }
                     else
                     {
+                        // case 1c
                         cerr << "Error: Unknown parameter '" << sParam << "'\n";
                         nErrors++;
                     }
@@ -814,11 +863,11 @@ namespace CLP
                     return false;
                 }
 
-                return true;
+                return true;      
             }
             else
             {
-                // modeless parsing
+                // Case 2
                 for (int i = 1; i < argc; i++)
                 {
                     std::string sParam(argv[i]);
@@ -841,31 +890,32 @@ namespace CLP
                     return false;
                 }
 
+                // no parameters passed, see if general parser has required params 
+                if (!mGeneralCommandLineParser.CheckAllRequirementsMet())
+                {
+                    cout << "\n\"" << msAppName << " help\" - to see usage.\n";
+                    return false;
+                }
+
+                return true;    // all single mode requirements met
+
             }
         }
 
-        if (nErrors > 0)
-        {
-            OutputUsage();
-            return false;
-        }
 
-        // no parameters
-
-
-        // no parameters but multi-modes are available... show usage
+        // no parameters but multi-modes are available... list modes
         if (!mModeToCommandLineParser.empty())
         {
-            OutputUsage();
+            ListModes();
             return false;
         }
 
-        // no parameters passed, see if general parser has required params 
-        if (!mGeneralCommandLineParser.CheckAllRequirementsMet())
+        if (!mGeneralCommandLineParser.CheckAllRequirementsMet())   // single mode
         {
             cout << "\n\"" << msAppName << " help\" - to see usage.\n";
             return false;
         }
+
 
         // no parameters and none required
         return true;
@@ -873,19 +923,13 @@ namespace CLP
 
     void CommandLineParser::OutputHelp()
     {
-        if (mModeToCommandLineParser.find(msMode) == mModeToCommandLineParser.end())
-        {
-            cerr << "help: Unknown command:" << msMode << "\n";
-            return;
-        }
-
         TableOutput usageTable;
         TableOutput descriptionTable;
         TableOutput requiredParamTable;
         TableOutput optionalParamTable;
 
-        requiredParamTable.AddRow("*Required Param*", "*Type*", "*Description*");
-        optionalParamTable.AddRow("*Optional Param*", "*Type*", "*Description*");
+        requiredParamTable.AddRow("*******Required******", "*Type*", "*Description*");
+        optionalParamTable.AddRow("*******Options*******", "*Type*", "*Description*");
         requiredParamTable.SetBorders(0, 0, '*', '*');
         requiredParamTable.SetSeparator(' ', 1);
         optionalParamTable.SetBorders(0, 0, '*', '*');
@@ -893,7 +937,6 @@ namespace CLP
 
         descriptionTable.SetBorders('*', 0, '*', '*');
         descriptionTable.SetSeparator(' ', 1);
-        descriptionTable.AddRow("*Description*");
 
         usageTable.AddRow("*Usage*");
         usageTable.SetSeparator(' ', 1);
@@ -908,6 +951,9 @@ namespace CLP
         }
         else
         {
+            descriptionTable.AddMultilineRow(msAppDescription);
+            descriptionTable.AddRow(" ");
+
             mGeneralCommandLineParser.GetModeUsageOutput(msAppName, "", usageTable, descriptionTable, requiredParamTable, optionalParamTable);
         }
 
@@ -923,7 +969,7 @@ namespace CLP
         optionalParamTable.SetSeparator(' ', 1);
         if (GetOptionalParameterCount() > 0)
         {
-            optionalParamTable.AddRow("*Optional Param*", "*Type*", "*Description*");
+            requiredParamTable.AddRow(" ");
             optionalParamTable.SetBorders(0, '*', '*', '*');        // if there are optional parameters, draw a bottom border after optional table
         }
         else
@@ -939,15 +985,36 @@ namespace CLP
             cout << optionalParamTable;
     }
 
-    void CommandLineParser::OutputUsage()
+    void CommandLineParser::ListModes()
     {
         // First output Application name
 
+        TableOutput descriptionTable;
+        descriptionTable.SetBorders('*', '*', '*', '*');
+        descriptionTable.SetSeparator(' ', 1);
+        descriptionTable.AddRow("*Application Description*");
+        descriptionTable.AddMultilineRow(msAppDescription);
+        descriptionTable.AddRow(" ");
+
+
         TableOutput keyTable;
-        keyTable.SetBorders('*', '*', '*', '*');
+        keyTable.SetBorders(0, '*', '*', '*');
         keyTable.SetSeparator(' ', 1);
-        keyTable.AddRow("Keys:");
-        keyTable.AddRow(" []","Optional");
+
+        keyTable.AddRow("*Commands*");
+        keyTable.AddRow("help COMMAND");
+        for (tModeStringToParserMap::iterator it = mModeToCommandLineParser.begin(); it != mModeToCommandLineParser.end(); it++)
+        {
+            string sCommand = (*it).first;
+            string sModeDescription = ((*it).second).GetModeDescription();
+            if (!sCommand.empty())
+                keyTable.AddRow(sCommand, sModeDescription);
+        }
+
+        keyTable.AddRow(" ");
+
+        keyTable.AddRow("*Keys*", "*Description*");
+        keyTable.AddRow(" []", "Optional");
         keyTable.AddRow("  -", "Named '-key:value' pair. (examples: -size:1KB  -verbose)");
         keyTable.AddRow(" ", "Can be anywhere on command line, in any order.");
         keyTable.AddRow(" ##", "NUMBER");
@@ -956,81 +1023,14 @@ namespace CLP
         keyTable.AddRow(" ", "Can include scale labels (10k, 64KiB, etc.)");
         keyTable.AddRow(" $$", "STRING");
 
-        TableOutput descriptionTable;
-        descriptionTable.SetBorders('*', '*', '*', '*');
-        descriptionTable.SetSeparator(' ', 1);
-        descriptionTable.AddRow("*Application*");
-        descriptionTable.AddMultilineRow(msAppDescription);
-        descriptionTable.AddRow(" ");
 
-        TableOutput requiredParamTable;
-        requiredParamTable.SetBorders(0, 0, '*', '*');
-        requiredParamTable.SetSeparator(' ', 1);
-        if (GetRequiredParameterCount() > 0)
-            requiredParamTable.AddRow("*Required Param*", "*Type*", "*Description*");
+        size_t nMinTableWidth = std::max({ (size_t) 120, keyTable.GetTableWidth(), descriptionTable.GetTableWidth() });
 
-        TableOutput optionalParamTable;
-        optionalParamTable.SetBorders(0, 0, '*', '*');
-        optionalParamTable.SetSeparator(' ', 1);
-        if (GetOptionalParameterCount() > 0)
-        {
-            optionalParamTable.AddRow("*Optional Param*", "*Type*", "*Description*");
-            optionalParamTable.SetBorders(0, '*', '*', '*');        // if there are optional parameters, draw a bottom border after optional table
-        }
-        else
-            requiredParamTable.SetBorders(0, '*', '*', '*');        // if no optional parameters, draw a bottom border after required table
-
-        bool bMultiMode = !mModeToCommandLineParser.empty();
-
-        TableOutput usageTable;
-        usageTable.SetBorders(0, 0, '*', '*');
-        usageTable.SetSeparator(' ', 1);
-
-        if (bMultiMode)
-        {
-            descriptionTable.AddRow("*Commands*");
-            descriptionTable.AddRow("help COMMAND");
-
-            for (tModeStringToParserMap::iterator it = mModeToCommandLineParser.begin(); it != mModeToCommandLineParser.end(); it++)
-            {
-                string sCommand = (*it).first;
-                if (!sCommand.empty())
-                    descriptionTable.AddRow(sCommand);
-            }
-
-
-/*            usageTable.AddRow("*Usage*");
-            TableOutput dummyUsageTable;    // only going to use usageTable from mode
-            mModeToCommandLineParser[msMode].GetModeUsageOutput(msAppName, msMode, usageTable, descriptionTable, requiredParamTable, optionalParamTable);
-            mGeneralCommandLineParser.GetModeUsageOutput(msAppName, "", dummyUsageTable, descriptionTable, requiredParamTable, optionalParamTable);
-            usageTable.AddRow(" ");
-            requiredParamTable.AddRow(" ");
-            */
-
-        }
-        else
-        {
-            usageTable.AddRow("*Usage*");
-            mGeneralCommandLineParser.GetModeUsageOutput(msAppName, "", usageTable, descriptionTable, requiredParamTable, optionalParamTable);
-            usageTable.AddRow(" ");
-            requiredParamTable.AddRow(" ");
-        }
-
-        size_t nMinTableWidth = std::max({ (size_t) 120, keyTable.GetTableWidth(), descriptionTable.GetTableWidth(), requiredParamTable.GetTableWidth(), optionalParamTable.GetTableWidth(), usageTable.GetTableWidth() });
-
-        usageTable.SetMinimumOutputWidth(nMinTableWidth);
-        keyTable.SetMinimumOutputWidth(nMinTableWidth);
         descriptionTable.SetMinimumOutputWidth(nMinTableWidth);
-        requiredParamTable.SetMinimumOutputWidth(nMinTableWidth);
-        optionalParamTable.SetMinimumOutputWidth(nMinTableWidth);
+        keyTable.SetMinimumOutputWidth(nMinTableWidth);
 
         cout << descriptionTable;
-        cout << usageTable;
-        //        cout << keyTable;
-        if (GetRequiredParameterCount() > 0)
-            cout << requiredParamTable;
-        if (GetOptionalParameterCount() > 0)
-            cout << optionalParamTable;
+        cout << keyTable;
     }
 
 
