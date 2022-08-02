@@ -5,7 +5,7 @@ cmake_minimum_required(VERSION 3.7.1)
 
 ################################################################################
 
-project(CopyByteRange)
+project(BinCopy)
 
 ####################
 # CHECK IS 64BIT BUILD
@@ -17,9 +17,9 @@ endif()
 
 
 ####################
-# CopyByteRange
+# BinCopy
 
-set(COPYBYTERANGE_SOURCES main.cpp)
+set(BINCOPY_SOURCES main.cpp)
 set(COMMON_FILES ../Common/helpers/CommandLineParser.cpp ../Common/helpers/CommandLineParser.h)
 
 
@@ -36,14 +36,14 @@ list(APPEND INCLUDE_DIRS ../Common)
 ####################
 # source and include sets
 
-set(INCLUDES ${INCLUDES} ${COPYBYTERANGE_HEADERS} ${COMMON_HEADERS} )
-set(SOURCES ${COPYBYTERANGE_SOURCES} ${COMMON_FILES})
+set(INCLUDES ${INCLUDES} ${BINCOPY_HEADERS} ${COMMON_HEADERS} )
+set(SOURCES ${BINCOPY_SOURCES} ${COMMON_FILES})
 
 
 ####################
 # GUI groups
 
-#source_group(CopyByteRange FILES ${COPYBYTERANGE_SOURCES} ${COPYBYTERANGE_HEADERS})
+#source_group(BinCopy FILES ${BINCOPY_SOURCES} ${BINCOPY_HEADERS})
 source_group(Common FILES ${COMMON_FILES})
 
 
@@ -75,8 +75,8 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${EXTRA_FLAGS} ${EXTRA_CXX_FLAGS}")
 link_directories(${LINK_DIRS})
 include_directories(${INCLUDE_DIRS})
 
-add_executable(CopyByteRange ${SOURCES} ${INCLUDES})
-target_link_libraries(CopyByteRange ${LINK_LIBS})
+add_executable(BinCopy ${SOURCES} ${INCLUDES})
+target_link_libraries(BinCopy ${LINK_LIBS})
     
 if(MSVC)
     # Copy build to tools folder if release
