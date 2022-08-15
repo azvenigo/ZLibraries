@@ -68,69 +68,13 @@ namespace CLP
 
     static const int sizeEntryTableSize = sizeof(sizeEntryTable) / sizeof(sSizeEntry);
 
-    int32_t LongestLine(const string& sText)
+    bool StringCompare(const std::string& a, const std::string& b, bool bCaseSensitive = true)
     {
-        int nLongest = 0;
-        int nCount = 0;
-        for (auto c : sText)
-        {
-            nCount++;
-            if (c == '\r' || c == '\n')
-                nCount = 0;
-            else if (nCount > nLongest)
-                nLongest = nCount;
-        }
-        return nLongest;
+        if (bCaseSensitive)
+            return a.compare(b) == 0;
+
+        return ((a.size() == b.size()) && std::equal(a.begin(), a.end(), b.begin(), [](auto char1, auto char2) { return std::toupper(char1) == std::toupper(char2); }));
     }
-
-    void RepeatOut(char c, int32_t nCount, bool bNewLine)
-    {
-        while (nCount-- > 0)
-            cout << c;
-
-        if (bNewLine)
-            cout << '\n';
-    }
-
-    void OutputFixed(int32_t nWidth, const char* format, ...)
-    {
-        va_list args;
-        va_start(args, format);
-
-        int32_t nRequiredLength = vsnprintf(nullptr, 0, format, args);
-        char* pBuf = (char*)malloc(nRequiredLength + 1);
-        vsnprintf(pBuf, nRequiredLength + 1, format, args);
-
-        va_end(args);
-
-        int32_t nPadding = nWidth - nRequiredLength - 6;    // "** " and " **" on the ends is six chars
-
-        cout << "** " << pBuf;
-        RepeatOut(' ', nPadding, false);
-        cout << " **\n";
-        free(pBuf);
-    }
-
-    void AddSpacesToEnsureWidth(string& sText, int64_t nWidth)
-    {
-        int64_t nSpaces = nWidth - sText.length();
-        while (nSpaces-- > 0)
-            sText += ' ';
-    }
-
-    void OutputLines(int32_t nWidth, const string& sMultiLineString)
-    {
-        std::string line;
-        std::istringstream stringStream(sMultiLineString);
-        while (std::getline(stringStream, line, '\n'))
-        {
-            OutputFixed(nWidth, line.c_str());
-        }
-
-    }
-
-
-
 
     // many ways to say "true"
     bool StringToBool(string sValue)
@@ -542,7 +486,7 @@ namespace CLP
     {
         for (auto& desc : mParameterDescriptors)
         {
-            if (desc.IsNamed() &&  desc.msName.compare(sKey.c_str()) == 0)
+            if (desc.IsNamed() && StringCompare(desc.msName, sKey, desc.IsCaseSensitive()))
             {
                 if (pDescriptorOut)
                 {

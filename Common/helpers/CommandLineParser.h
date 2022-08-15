@@ -93,15 +93,17 @@ namespace CLP
     // behavior flags
     #define eBehavior uint32_t
 
-    const static uint32_t kPositional = 0;    // default. Defined for readability
-    const static uint32_t kNamed = 1;    // if not set, it's positional
+    const static uint32_t kPositional           = 0;    // default. Defined for readability
+    const static uint32_t kNamed                = 1;    // if not set, it's positional
 
-    const static uint32_t kOptional = 0;    // default. Defined for readability
-    const static uint32_t kRequired = 2;    // if not set, it's optional 
+    const static uint32_t kOptional             = 0;    // default. Defined for readability
+    const static uint32_t kRequired             = 2;    // if not set, it's optional 
 
-    const static uint32_t kRangeUnrestricted = 0;    // default. Defined for readability
-    const static uint32_t kRangeRestricted = 4;    // if not set, no range restriction (default)
+    const static uint32_t kRangeUnrestricted    = 0;    // default. Defined for readability
+    const static uint32_t kRangeRestricted      = 4;    // if not set, no range restriction (default)
 
+    const static uint32_t kCaseInsensitive      = 0;    // default
+    const static uint32_t kCaseSensitive        = 8;    // named key must match case
 
 
     class ParamDesc
@@ -129,6 +131,9 @@ namespace CLP
         bool        IsRangeRestricted()     const { return mBehaviorFlags & kRangeRestricted; }
         bool        IsRangeUnrestricted()   const { return !IsRangeRestricted(); }
 
+        bool        IsCaseSensitive()       const { return mBehaviorFlags & kCaseSensitive; }
+        bool        IsCaseInsensitive()     const { return !IsCaseSensitive(); }
+
         enum eParamValueType
         {
             // kValue Types
@@ -140,7 +145,7 @@ namespace CLP
         eParamValueType mValueType;
         void*           mpValue;        // Memory location of value to be filled in
 
-        std::string          msName;         // For named parameters like "-catlives:9" or "-VERBOSE".  Also used for help text for all parameters
+        std::string     msName;         // For named parameters like "-catlives:9" or "-VERBOSE".  Also used for help text for all parameters
         int64_t         mnPosition;     // positional parameter index.  For unnamed (i.e. positional) parameters
         eBehavior       mBehaviorFlags;
 
