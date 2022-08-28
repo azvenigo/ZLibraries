@@ -1,9 +1,11 @@
 #pragma once
 
-#include <intrin.h>
 #include <stdint.h>
 
-// K Array (see FIPS 180-4 4.2.2)
+
+#ifdef WIN32
+#include <intrin.h>
+
 static const union {
     unsigned __int32 dw[64];
     __m128i x[16];
@@ -18,6 +20,16 @@ static const union {
     0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
     0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2,
 };
+#else
+typedef struct {
+    uint8_t data[64];
+    uint32_t datalen;
+    uint64_t bitlen;
+    uint32_t state[8];
+} SHA256_CTX;
+#endif
+
+
 
 class SHA256Hash
 {
@@ -25,32 +37,28 @@ public:
     SHA256Hash();
     SHA256Hash(uint8_t* pBuf, size_t length);
 
-    inline void Init()
-    {
-        // Initial hash value (see FIPS 180-4 5.3.3)
-        h0145 = _mm_set_epi32(0x6a09e667, 0xbb67ae85, 0x510e527f, 0x9b05688c);
-        h2367 = _mm_set_epi32(0x3c6ef372, 0xa54ff53a, 0x1f83d9ab, 0x5be0cd19);
-        bufferCount = 0;
-        mnBytesProcessed = 0;
-    }
+    void Init();
 
     void Compute(uint8_t* pBuf, size_t length);
     void Final();
 
-    __m256i Get() { return mHash; }
 
-    inline bool operator==(const SHA256Hash& rhs)
-    {
-        return _mm256_testc_si256(mHash, rhs.mHash) != 0;
-    }
+#ifdef WIN32
+    __m256i Get() { return mHash; }
+    inline bool operator==(const SHA256Hash& rhs) { return _mm256_testc_si256(mHash, rhs.mHash) != 0; }
+#else
+    inline bool operator==(const SHA256Hash& rhs) { return memcmp(mHash, rhs.mHash, 32) == 0; }
+#endif
 
 protected:
-    void ProcessBlock(uint8_t* pBuf);
 
     static const size_t kBufferSize = 64;
     uint8_t             blockBuffer[kBufferSize];
     size_t              bufferCount; 
     uint64_t            mnBytesProcessed;
+
+#ifdef WIN32
+    void ProcessBlock(uint8_t* pBuf);
 
     // Intermediate hash
     __m128i h0145;  // h0:h1:h4:h5
@@ -58,4 +66,9 @@ protected:
 
     // Final hash
     __m256i mHash;
+#else
+    void sha256_transform(const uint8_t* data);
+    SHA256_CTX mContext;
+    uint8_t    mHash[32];
+#endif
 };

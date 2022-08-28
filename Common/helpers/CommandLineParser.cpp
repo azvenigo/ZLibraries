@@ -73,7 +73,7 @@ namespace CLP
         if (bCaseSensitive)
             return a.compare(b) == 0;
 
-        return ((a.size() == b.size()) && std::equal(a.begin(), a.end(), b.begin(), [](auto char1, auto char2) { return std::toupper(char1) == std::toupper(char2); }));
+        return ((a.size() == b.size()) && _stricmp(a.c_str(), b.c_str()) == 0);
     }
 
     // many ways to say "true"
@@ -266,14 +266,6 @@ namespace CLP
             sParameter += "]";
 
         sUsage = msUsage;
-    }
-
-    CLModeParser::CLModeParser()
-    {
-    }
-
-    CLModeParser::~CLModeParser()
-    {
     }
 
     bool CLModeParser::RegisterParam(ParamDesc param)
@@ -572,12 +564,12 @@ namespace CLP
         // create example command line with positional params first followed by named
         for (auto& desc : mParameterDescriptors)
         {
-            if (desc.IsPositional() && !desc.IsOptional())
+            if (desc.IsPositional() && desc.IsRequired())
                 sCommandLineExample += " " + desc.msName;
         }
         for (auto& desc : mParameterDescriptors)
         {
-            if (desc.IsNamed() && !desc.IsOptional())
+            if (desc.IsNamed() && desc.IsRequired())
                 sCommandLineExample += " " + desc.msName;
         }
 

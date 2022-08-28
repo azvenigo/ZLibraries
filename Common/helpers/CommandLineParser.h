@@ -75,15 +75,19 @@
 // 
 //   CommandLineParser parser;
 //
+//   // print mode
 //   parser.RegisterMode("print");
 //   parser.RegisterParam("print", ParamDesc("PATH",       &path1,        ParamDesc::kPositional | ParamDesc::kRequired, "Prints the specified file."));
 //
+//   // concat mode
 //   parser.RegisterMode("concat");
-//   parser.RegisterParam(ParamDesc("PATH1",    &path1,     ParamDesc::kPositional | ParamDesc::kRequired, "First file"));
-//   parser.RegisterParam(ParamDesc("PATH2",    &path2,     ParamDesc::kPositional | ParamDesc::kRequired, "File to append to first file."));
+//   parser.RegisterParam("concat", ParamDesc("PATH1",    &path1,     ParamDesc::kPositional | ParamDesc::kRequired, "First file"));
+//   parser.RegisterParam("concat", ParamDesc("PATH2",    &path2,     ParamDesc::kPositional | ParamDesc::kRequired, "File to append to first file."));
+// 
+//   // common optional parameter
 //   parser.RegisterParam(ParamDesc("verbose",  &bVerbose,  ParamDesc::kNamed | ParamDesc::kOptional));
 //
-//   parser.RegisterAppDescription("Concatenates a file to the end of another file.");
+//   parser.RegisterAppDescription("This app prints and concatenates files for some reason.");
 //   if (!parser.Parse(argc, argv))
 //      return false;
 
@@ -93,17 +97,17 @@ namespace CLP
     // behavior flags
     #define eBehavior uint32_t
 
-    const static uint32_t kPositional           = 0;    // default. Defined for readability
-    const static uint32_t kNamed                = 1;    // if not set, it's positional
+    const static uint32_t kPositional           = 0;    // default
+    const static uint32_t kNamed                = 1;    // if set the parameter is named (example -name:value)
 
-    const static uint32_t kOptional             = 0;    // default. Defined for readability
-    const static uint32_t kRequired             = 2;    // if not set, it's optional 
+    const static uint32_t kOptional             = 0;    // default
+    const static uint32_t kRequired             = 2;    // if set the parameter is required or the parser shows an error
 
-    const static uint32_t kRangeUnrestricted    = 0;    // default. Defined for readability
-    const static uint32_t kRangeRestricted      = 4;    // if not set, no range restriction (default)
+    const static uint32_t kRangeUnrestricted    = 0;    // default
+    const static uint32_t kRangeRestricted      = 4;    // if set the integer values must fall between some min and max
 
     const static uint32_t kCaseInsensitive      = 0;    // default
-    const static uint32_t kCaseSensitive        = 8;    // named key must match case
+    const static uint32_t kCaseSensitive        = 8;    // if set the named key must match case 
 
 
     class ParamDesc
@@ -154,7 +158,7 @@ namespace CLP
         int64_t         mnMaxValue;
 
         // Parameter usage for help text
-        std::string          msUsage;
+        std::string     msUsage;
 
         // Tracking for checking whether all required parameters were found
         bool            mbFound;
@@ -169,9 +173,6 @@ namespace CLP
         friend class CommandLineParser;
 
     public:
-        CLModeParser();
-        ~CLModeParser();
-
         // Registration Functions
 
         bool    RegisterParam(ParamDesc param);
