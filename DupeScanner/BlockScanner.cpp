@@ -312,19 +312,6 @@ bool BlockScanner::Scan(string sourcePath, string scanPath, uint64_t nBlockSize,
     return true;
 }
 
-
-void BlockScanner::FillError(BlockScanner* pScanner)
-{
-    char* pError   = NULL;
-    DWORD  dwResult = FormatMessageA(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM, NULL, GetLastError(), MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (char*)&pError, 0, NULL);
-    if(dwResult)
-    {
-        pScanner->msError  = pError;
-        LocalFree(pError);
-    }
-    pScanner->mnStatus = BlockScanner::kError;
-}
-
 void BlockScanner::Cancel()
 {
     mbCancel = true;

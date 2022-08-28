@@ -39,3 +39,5 @@ Release/
 *.sln
 cmake_install.cmake
 CMakeCache.txt
+Common/helpers/ThreadPool.h_two_queues.h
+Common/helpers/SharedMemPool.h
