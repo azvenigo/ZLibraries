@@ -73,7 +73,7 @@ namespace CLP
         if (bCaseSensitive)
             return a.compare(b) == 0;
 
-        return ((a.size() == b.size()) && _stricmp(a.c_str(), b.c_str()) == 0);
+        return ((a.size() == b.size()) && std::equal(a.begin(), a.end(), b.begin(), [](auto char1, auto char2) { return std::toupper(char1) == std::toupper(char2); }));
     }
 
     // many ways to say "true"
