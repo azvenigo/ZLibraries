@@ -1,6 +1,5 @@
 #include <stdio.h>
 #include <iostream>
-#include <tchar.h>
 #include <locale>
 #include <string>
 #include <filesystem>
@@ -10,7 +9,7 @@
 using namespace std;
 using namespace CLP;
 
-bool Overwrite(const std::string& sSourcePath, const std::string& sDestPath, int64_t nSourceOffset, int64_t nDestOffset, int64_t nBytes, bool bVerbose)
+bool Overwrite(const std::string& sSourcePath, const std::string& sDestPath, int64_t nSourceOffset, int64_t nDestOffset, int64_t nBytes, bool /*bVerbose*/)
 {
     std::ifstream srcFile;
     srcFile.open(sSourcePath, ios::binary);

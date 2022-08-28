@@ -13,7 +13,6 @@
 #include <filesystem>
 
 using namespace std;
-namespace fs = std::filesystem;
 
 InlineFormatter gFormatter;
 const int64_t kQPrime = 961748941;  // prime number
@@ -27,9 +26,8 @@ inline int64_t GetUSSinceEpoch()
 }
 
 
-BlockDescription::BlockDescription() : mRollingChecksum(0), mnSize(0), mnOffset(0)
+BlockDescription::BlockDescription() : mRollingChecksum(0),mnOffset(0),  mnSize(0)
 {
-//    memset(&mSHA256[0], 0, 32*sizeof(uint8_t));
 }
 
 
@@ -180,7 +178,7 @@ bool BlockScanner::Scan(string sourcePath, string scanPath, uint64_t nBlockSize,
             continue;
 #ifdef WIN32
 
-//#define MEMORY_MAPPING
+#define MEMORY_MAPPING
 
 #endif
 
@@ -310,16 +308,6 @@ bool BlockScanner::Scan(string sourcePath, string scanPath, uint64_t nBlockSize,
     mnStatus = BlockScanner::kFinished;
 
     return true;
-}
-
-void BlockScanner::Cancel()
-{
-    mbCancel = true;
-    while (mnStatus == BlockScanner::kScanning)
-    {
-        Sleep(50);
-    }
-    mnStatus = kCancelled;
 }
 
 bool BlockScanner::ComputeHashesProc(BlockDescription& block, SharedMemPage* pPage, BlockScanner* pScanner)
@@ -500,26 +488,8 @@ void BlockScanner::ComputeMetadata()
 //#define ORIGINAL
 #define RABINKARP
 
-int64_t BlockScanner::UpdateRollingChecksum(int64_t prevHash, uint8_t prevBlockFirstByte, uint8_t nextBlockLastByte, size_t dataLength)
+int64_t BlockScanner::UpdateRollingChecksum(int64_t prevHash, uint8_t prevBlockFirstByte, uint8_t nextBlockLastByte)
 {
-
-#ifdef ORIGINAL
-    uint16_t low16  = (uint16_t)prevHash;
-    uint16_t high16 = (uint16_t)(prevHash >> 16);
-
-    low16  += (nextBlockLastByte - prevBlockFirstByte);
-    high16 += low16 - (prevBlockFirstByte << 15);
-
-    return (uint32_t)((high16 << 16) | low16);
-
-#endif
-
-
-#ifdef SIMPLE_SUM
-    return  prevHash - prevBlockFirstByte + nextBlockLastByte;
-#endif
-
-
 
 #ifdef RABINKARP
     prevHash += kQPrime;
@@ -560,7 +530,7 @@ int64_t BlockScanner::GetRollingChecksum(const uint8_t* pData, size_t dataLength
 
 #ifdef RABINKARP
     int64_t nHash = 0;
-    for (int i = 0; i < dataLength; i++)
+    for (size_t i = 0; i < dataLength; i++)
         nHash = (nHash*256 + pData[i])%kQPrime;
 
     return nHash;
@@ -697,7 +667,7 @@ SearchJobResult BlockScanner::SearchProc(const string& sSearchFilename, uint8_t*
             {
                 uint8_t newByte = *(pDataToScan + nOffset + nBytesToScan-1);
 
-                nRollingHash = pScanner->UpdateRollingChecksum(nRollingHash, oldByte, newByte, nBytesToScan);
+                nRollingHash = pScanner->UpdateRollingChecksum(nRollingHash, oldByte, newByte);
 
 //#define DEBUG_VERIFY_ROLLING_CHECKSUM
 #ifdef DEBUG_VERIFY_ROLLING_CHECKSUM

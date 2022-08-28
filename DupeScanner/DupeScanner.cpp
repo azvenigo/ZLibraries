@@ -4,12 +4,12 @@
 #include <stdio.h>
 #include <iostream>
 #include <filesystem>
-#include <tchar.h>
+//#include <tchar.h>
 #include <locale>
 #include <string>
 #include "helpers/LoggingHelpers.h"
 #include "BlockScanner.h"
-#include "helpers\CommandLineParser.h"
+#include "helpers/CommandLineParser.h"
 using namespace std;
 using namespace CLP;
 
@@ -24,7 +24,7 @@ int64_t nBlockSize = kDefaultBlockSize;
 
 
 
-int _tmain(int argc, char* argv[])
+int main(int argc, char* argv[])
 {
     CommandLineParser parser;
 
@@ -43,7 +43,7 @@ int _tmain(int argc, char* argv[])
 
     parser.RegisterAppDescription("Searches for blocks of data.\nPaths can be individual files or folders where all files are scanned at that path recursively.\nIf blocksize is >= the size of the source file, the entirety of the source file is searched for. ");
     if (!parser.Parse(argc, argv))
-        return false;
+        return 1;
 
     if (sSourcePath.empty())
     {

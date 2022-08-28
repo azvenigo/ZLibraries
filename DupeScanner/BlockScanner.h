@@ -10,10 +10,12 @@
 #endif
 #include <set>
 #include <map>
+#include <vector>
 #include <unordered_map>
 #include <mutex>
 #include <list>
 #include <future>
+#include <thread>
 #include "sha256.h"
 
 using namespace std;
@@ -238,7 +240,7 @@ private:
 
     // checksum calc
     int64_t                 GetRollingChecksum(const uint8_t* pData, size_t dataLength);
-    inline int64_t          UpdateRollingChecksum(int64_t prevHash, uint8_t prevBlockFirstByte, uint8_t nextBlockLastByte, size_t dataLength);
+    inline int64_t          UpdateRollingChecksum(int64_t prevHash, uint8_t prevBlockFirstByte, uint8_t nextBlockLastByte);
 
     int64_t                 mInitialRollingHashMult; // computed based on window length
 
