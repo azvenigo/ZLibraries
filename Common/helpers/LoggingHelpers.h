@@ -220,7 +220,8 @@ public:
             size_t nCol = 0;
             for (auto s : row)
             {
-                columnWidths[nCol] = std::max(columnWidths[nCol], s.length());
+                if (columnWidths[nCol] < s.length())
+                    columnWidths[nCol] = s.length();
                 nCol++;
             }
         }

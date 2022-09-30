@@ -43,5 +43,6 @@ endif()
 add_subdirectory(FileGen)
 add_subdirectory(DupeScanner)
 add_subdirectory(BinCopy)
+add_subdirectory(ZZip)
 
 ################################################################################
