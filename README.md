@@ -17,3 +17,6 @@ Once indexed the second set of data is searched on every byte offset for any mat
 
 ## FileGen
 Generates one or many files filled with either specific value, cyclical values or random values. Particularly useful for generating data sets.
+
+## ZZip
+A cross platform tool for creating, exploring, diffing, extracting and updating local files from ZIP files both local and on remote HTTP servers. See README.md in the ZZip folder for more details.
