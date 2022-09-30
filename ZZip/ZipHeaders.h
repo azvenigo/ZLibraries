@@ -47,8 +47,8 @@ public:
     cExtensibleFieldEntry(const cExtensibleFieldEntry& from);
     ~cExtensibleFieldEntry() {}
 
-    std::string                      ToString();
-    std::string                      HeaderToString();
+    std::string                 ToString();
+    std::string                 HeaderToString();
 
     uint16_t                    mnHeader;
     uint16_t                    mnSize;
@@ -83,8 +83,8 @@ public:
         mLastModificationTime(0), mLastModificationDate(0), mCRC32(0), mCompressedSize(0), mUncompressedSize(0), mFilenameLength(0), mExtraFieldLength(0) {}
 
     bool                    ParseRaw(uint8_t* pBuffer, uint32_t& nNumBytesProcessed);     // Returns the number of bytes parsed for everything below
-    static std::string           FieldNames(eToStringFormat format = kTabs);        // returns tab delimited field names that correspond with the ones returned from ToString
-    std::string                  ToString(eToStringFormat format = kTabs);
+    static std::string      FieldNames(eToStringFormat format = kTabs);        // returns tab delimited field names that correspond with the ones returned from ToString
+    std::string             ToString(eToStringFormat format = kTabs);
 
     uint64_t                Size(); // in bytes
 
@@ -103,7 +103,7 @@ public:
     uint64_t                mUncompressedSize;              // 22       // 32 bit in the local file header
     uint16_t                mFilenameLength;                // 26
     uint16_t                mExtraFieldLength;              // 28
-    std::string                  mFilename;                      // 30
+    std::string             mFilename;                      // 30
     tExtensibleFieldList    mExtensibleFieldList;           // 30 + mFilenameLength;
 };
 
@@ -124,23 +124,23 @@ public:
     cEndOfCDRecord() : mEndOfCDRecTag(kZipEndofCDTag), mDiskNum(0), mDiskNumOfCD(0), mNumCDRecordsThisDisk((uint16_t)-1), mNumTotalRecords((uint16_t)-1), mNumBytesOfCD((uint32_t)-1),
         mCDStartOffset((uint32_t)-1), mNumBytesOfComment(0) {}
 
-    bool            ParseRaw(uint8_t* pBuffer, uint32_t& nNumBytesProcessed);     // Returns the number of bytes parsed for everything below
-    static std::string   FieldNames(eToStringFormat format = kTabs);                   // returns tab delimited field names that correspond with the ones returned from ToString
-    std::string          ToString(eToStringFormat format = kTabs);
-    bool            Write(cZZFile& file); // assumes must be written at end of file
+    bool                ParseRaw(uint8_t* pBuffer, uint32_t& nNumBytesProcessed);     // Returns the number of bytes parsed for everything below
+    static std::string  FieldNames(eToStringFormat format = kTabs);                   // returns tab delimited field names that correspond with the ones returned from ToString
+    std::string         ToString(eToStringFormat format = kTabs);
+    bool                Write(cZZFile& file); // assumes must be written at end of file
 
-    uint64_t        Size() { return (uint64_t) kStaticDataSize + (uint64_t) mNumBytesOfComment; }
+    uint64_t            Size() { return (uint64_t) kStaticDataSize + (uint64_t) mNumBytesOfComment; }
 
     // offsets
-    uint32_t        mEndOfCDRecTag;                 // 0        
-    uint16_t        mDiskNum;                       // 4
-    uint16_t        mDiskNumOfCD;                   // 6
-    uint16_t        mNumCDRecordsThisDisk;          // 8
-    uint16_t        mNumTotalRecords;               // 10
-    uint32_t        mNumBytesOfCD;                  // 12
-    uint32_t        mCDStartOffset;                 // 16
-    uint16_t        mNumBytesOfComment;             // 20
-    std::string          mComment;                       // 22
+    uint32_t            mEndOfCDRecTag;                 // 0        
+    uint16_t            mDiskNum;                       // 4
+    uint16_t            mDiskNumOfCD;                   // 6
+    uint16_t            mNumCDRecordsThisDisk;          // 8
+    uint16_t            mNumTotalRecords;               // 10
+    uint32_t            mNumBytesOfCD;                  // 12
+    uint32_t            mCDStartOffset;                 // 16
+    uint16_t            mNumBytesOfComment;             // 20
+    std::string         mComment;                       // 22
 };
 
 //////////////////////////////////////////////////////////////////////////////////////////
@@ -163,28 +163,28 @@ public:
         mDiskNum(0), mDiskNumOfCD(0), mNumCDRecordsThisDisk(0), mNumTotalRecords(0), mNumBytesOfCD(0), mCDStartOffset(0), mpZip64ExtensibleDataSector(NULL), mnDerivedSizeOfExtensibleDataSector(0) {}
     ~cZip64EndOfCDRecord();
 
-    bool            ParseRaw(uint8_t* pBuffer, uint32_t& nNumBytesProcessed);     // Returns the number of bytes parsed for everything below
-    static std::string   FieldNames(eToStringFormat format = kTabs);                   // returns tab delimited field names that correspond with the ones returned from ToString
-    std::string          ToString(eToStringFormat format = kTabs);
-    bool            Write(cZZFile& file);   // assumes must be written at end of file
+    bool                ParseRaw(uint8_t* pBuffer, uint32_t& nNumBytesProcessed);     // Returns the number of bytes parsed for everything below
+    static std::string  FieldNames(eToStringFormat format = kTabs);                   // returns tab delimited field names that correspond with the ones returned from ToString
+    std::string         ToString(eToStringFormat format = kTabs);
+    bool                Write(cZZFile& file);   // assumes must be written at end of file
 
-    uint64_t        Size() { return (uint64_t) kStaticDataSize + (uint64_t) mnDerivedSizeOfExtensibleDataSector; }
+    uint64_t            Size() { return (uint64_t) kStaticDataSize + (uint64_t) mnDerivedSizeOfExtensibleDataSector; }
 
 
     // offsets
-    uint32_t        mZip64EndOfCDRecTag;            // 0 
-    uint64_t        mSizeOfZiP64EndOfCDRecord;      // 4
-    uint16_t        mVersionMadeBy;                 // 12
-    uint16_t        mMinVersionToExtract;           // 14
-    uint32_t        mDiskNum;                       // 16
-    uint32_t        mDiskNumOfCD;                   // 20
-    uint64_t        mNumCDRecordsThisDisk;          // 24
-    uint64_t        mNumTotalRecords;               // 32
-    uint64_t        mNumBytesOfCD;                  // 40
-    uint64_t        mCDStartOffset;                 // 48
-    uint8_t*        mpZip64ExtensibleDataSector;
+    uint32_t            mZip64EndOfCDRecTag;            // 0 
+    uint64_t            mSizeOfZiP64EndOfCDRecord;      // 4
+    uint16_t            mVersionMadeBy;                 // 12
+    uint16_t            mMinVersionToExtract;           // 14
+    uint32_t            mDiskNum;                       // 16
+    uint32_t            mDiskNumOfCD;                   // 20
+    uint64_t            mNumCDRecordsThisDisk;          // 24
+    uint64_t            mNumTotalRecords;               // 32
+    uint64_t            mNumBytesOfCD;                  // 40
+    uint64_t            mCDStartOffset;                 // 48
+    uint8_t*            mpZip64ExtensibleDataSector;
 
-    uint32_t        mnDerivedSizeOfExtensibleDataSector; // mSizeOfZiP64EndOfCDRecord + 12 - 56     
+    uint32_t            mnDerivedSizeOfExtensibleDataSector; // mSizeOfZiP64EndOfCDRecord + 12 - 56     
 };
 
 //////////////////////////////////////////////////////////////////////////////////////////
@@ -199,18 +199,18 @@ public:
 
     cZip64EndOfCDLocator() : mZip64EndOfCDLocatorTag(kZip64EndofCDLocatorTag), mDiskNumOfCD(0), mZip64EndofCDOffset(0), mNumTotalDisks(1) {}
 
-    bool            ParseRaw(uint8_t* pBuffer, uint32_t& nNumBytesProcessed);     // Returns the number of bytes parsed for everything below
-    static std::string   FieldNames(eToStringFormat format = kTabs);                   // returns tab delimited field names that correspond with the ones returned from ToString
-    std::string          ToString(eToStringFormat format = kTabs);
+    bool                ParseRaw(uint8_t* pBuffer, uint32_t& nNumBytesProcessed);     // Returns the number of bytes parsed for everything below
+    static std::string  FieldNames(eToStringFormat format = kTabs);                   // returns tab delimited field names that correspond with the ones returned from ToString
+    std::string         ToString(eToStringFormat format = kTabs);
 
-    bool            Write(cZZFile& file);   // assumes must be written at end of file
-    uint64_t        Size() { return kStaticDataSize; }
+    bool                Write(cZZFile& file);   // assumes must be written at end of file
+    uint64_t            Size() { return kStaticDataSize; }
 
     // offsets
-    uint32_t        mZip64EndOfCDLocatorTag;        // 0
-    uint32_t        mDiskNumOfCD;                   // 4
-    uint64_t        mZip64EndofCDOffset;            // 8
-    uint32_t        mNumTotalDisks;                 // 12
+    uint32_t            mZip64EndOfCDLocatorTag;        // 0
+    uint32_t            mDiskNumOfCD;                   // 4
+    uint64_t            mZip64EndofCDOffset;            // 8
+    uint32_t            mNumTotalDisks;                 // 12
 
 };
 
@@ -246,8 +246,8 @@ public:
         mFileCommentLength(0), mDiskNumFileStart(0), mInternalFileAttributes(0), mExternalFileAttributes(0), mLocalFileHeaderOffset(0) {}
 
     bool                    ParseRaw(uint8_t* pBuffer, uint32_t& nNumBytesProcessed);     // Returns the number of bytes parsed for everything below
-    static std::string           FieldNames(eToStringFormat format = kTabs);                   // returns tab delimited field names that correspond with the ones returned from ToString
-    std::string                  ToString(eToStringFormat format = kTabs);
+    static std::string      FieldNames(eToStringFormat format = kTabs);                   // returns tab delimited field names that correspond with the ones returned from ToString
+    std::string             ToString(eToStringFormat format = kTabs);
 
     bool                    Write(cZZFile& file);   // assumes must be written at end of file
 
@@ -271,9 +271,9 @@ public:
     uint16_t                mInternalFileAttributes;        // 36
     uint32_t                mExternalFileAttributes;        // 38
     uint64_t                mLocalFileHeaderOffset;         // 42       32bit for regular zip.  kept here as 64 bit (and from Zip64ExtendedInfo field) for Zip64
-    std::string                  mFileName;                      // 46
+    std::string             mFileName;                      // 46
     tExtensibleFieldList    mExtensibleFieldList;           // 46 + mFilenameLength;
-    std::string                  mFileComment;                   // 46 + mFilenameLength + mExtraFieldLength;
+    std::string             mFileComment;                   // 46 + mFilenameLength + mExtraFieldLength;
 };
 
 typedef std::list<cCDFileHeader> tCDFileHeaderList;

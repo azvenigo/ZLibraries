@@ -12,8 +12,6 @@
 #include <iostream>
 #include <iomanip>
 #include <filesystem>
-//#include <boost/filesystem.hpp>
-//#include <boost/date_time.hpp>
 #include "helpers/CrC32Fast.h"
 #include "helpers/FNMatch.h"
 #include "helpers/ThreadPool.h"
@@ -204,11 +202,7 @@ void ZipJob::RunDiffJob(void* pContext)
 
     eToStringFormat stringFormat = pZipJob->mOutputFormat;
 
-    //boost::posix_time::ptime  startTime = boost::posix_time::microsec_clock::local_time();
-
     uint64_t startTime = GetUSSinceEpoch();
-
-
 
     shared_ptr<cZZFile> pZZFile;
     if (!cZZFile::Open(pZipJob->msPackageURL, cZZFile::ZZFILE_READ, pZZFile, pZipJob->msName, pZipJob->msPassword, pZipJob->mbVerbose))
@@ -326,10 +320,7 @@ void ZipJob::RunDiffJob(void* pContext)
     bool bAllMatch = (nDifferentFiles == 0 && nSourceOnlyFiles == 0 && nTargetOnlyFiles == 0);
 
     uint64_t endTime = GetUSSinceEpoch();
-//    boost::posix_time::ptime endTime = boost::posix_time::microsec_clock::local_time();
     uint64_t diff = endTime - startTime;
-//    boost::posix_time::time_duration diff = endTime - startTime;
-
 
     // Write formatted header
     cout << StartPageHeader(stringFormat);
@@ -465,7 +456,6 @@ void ZipJob::RunDecompressionJob(void* pContext)
 
 
     pZipJob->mJobStatus.mStatus = JobStatus::eJobStatus::kRunning;
-    //boost::posix_time::ptime  startTime = boost::posix_time::microsec_clock::local_time();
     uint64_t startTime = GetUSSinceEpoch();
 
     ZZipAPI zipAPI;
@@ -543,15 +533,12 @@ void ZipJob::RunDecompressionJob(void* pContext)
             {
                 if (!pZipJob->mbSkipCRC)	// If doing CRC checking
                 {
-//                    boost::posix_time::ptime verificationStartTime = boost::posix_time::microsec_clock::local_time();
                     uint64_t verificationStartTime = GetUSSinceEpoch();
 
                     bool bNeedsUpdate = pZipJob->FileNeedsUpdate(fullPath.string(), cdHeader.mUncompressedSize, cdHeader.mCRC32);
 
-//                    boost::posix_time::ptime verificationEndTime = boost::posix_time::microsec_clock::local_time();
                     uint64_t verificationEndTime = GetUSSinceEpoch();
 
-//                    boost::posix_time::time_duration verificationDelta = verificationEndTime - verificationStartTime;
                     uint64_t verificationDelta = verificationEndTime - verificationStartTime;
 
                     nTotalTimeOnFileVerification += verificationDelta;

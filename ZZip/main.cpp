@@ -18,7 +18,6 @@
 #include <tchar.h>
 #include <locale>
 #include <string>
-//#include <boost/lexical_cast.hpp>
 #include "ZipHeaders.h"
 #include "zlibAPI.h"
 #include <filesystem>
@@ -47,41 +46,6 @@ using namespace CLP;
 
 int _tmain(int argc, _TCHAR* argv[])
 {
-       
-    
-/*    std::shared_ptr<cZZFile> file;
-    if (!cZZFile::Open("https://speedtest-ca.turnkeyinternet.net/1000mb.bin", false, file))
-    {
-        cout << "fail\n";
-    }
-
-    
-    size_t nSize = file->GetFileSize();
-    //size_t nSize = 1 * 1024 * 1024;
-
-    uint8_t* buf = new uint8_t[nSize];
-
-    uint64_t nStartTime = GetUSSinceEpoch();
-
-    uint32_t nRead;
-    if (!file->Read(0x0, nSize, buf, nRead))
-    {
-        cout << "fail\n";
-    }
-
-    uint64_t nEndTime = GetUSSinceEpoch();
-
-    double fBPS = (nSize * 1000000) / (nEndTime - nStartTime);
-    double fMiBPS = fBPS / (1024 * 1024);
-    cout << "Received Bytes:" << nSize << " in " << (nEndTime - nStartTime) / 1000 << "ms. Rate:" << fMiBPS << "MiB/s\n";
-
-  */  
-    
-
-    
-
-
-
 //	_CrtMemState s1;
 //	_CrtMemCheckpoint(&s1);
 

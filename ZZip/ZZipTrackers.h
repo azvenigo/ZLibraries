@@ -58,8 +58,8 @@ public:
     uint64_t                mBytesDownloaded;
     uint64_t                mBytesWrittenToDisk;
     int32_t                 mRetriesRemaining;
-    std::string                  mFilename;
-    std::string                  mResult;
+    std::string             mFilename;
+    std::string             mResult;
 };
 
 //////////////////////////////////////////////////////////////////////////////////////////
@@ -108,7 +108,7 @@ public:
 
     eDiffTaskStatus mDiffTaskStatus;
     uint64_t        mnSize;
-    std::string          mFilename;
+    std::string     mFilename;
 
 };
 
@@ -195,9 +195,9 @@ public:
         return 0;
     }
 
-    std::chrono::time_point<std::chrono::system_clock>   mStart;       // for time tracking
-    std::atomic<uint64_t>                           mnBytesProcessed;
-    std::atomic<uint64_t>                           mnBytesToProcess;
+    std::chrono::time_point<std::chrono::system_clock>  mStart;       // for time tracking
+    std::atomic<uint64_t>                               mnBytesProcessed;
+    std::atomic<uint64_t>                               mnBytesToProcess;
 };
 
 //////////////////////////////////////////////////////////////////////////////////////////
@@ -260,9 +260,9 @@ public:
         msErrorMessage = sErrorMessage;
     }
 
-    eJobStatus      mStatus;
-    int32_t         mErrorCode;
-    std::string         msErrorMessage;
+    eJobStatus  mStatus;
+    int32_t     mErrorCode;
+    std::string msErrorMessage;
 };
 
 

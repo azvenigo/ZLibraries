@@ -18,7 +18,6 @@
 #include <codecvt>
 #include <algorithm>
 #include <list>
-//#include <boost/lexical_cast.hpp>
 
 namespace StringHelpers
 {
@@ -29,16 +28,8 @@ namespace StringHelpers
     std::string	int_to_hex_string(uint64_t nVal);
     std::string	binary_to_hex(uint8_t* pBuf, int32_t nLength);
  
-    
     inline void makelower(std::string& rhs) { std::transform(rhs.begin(), rhs.end(), rhs.begin(), [](unsigned char c) { return (unsigned char) std::tolower(c); }); }
     inline void makeupper(std::string& rhs) { std::transform(rhs.begin(), rhs.end(), rhs.begin(), [](unsigned char c) { return (unsigned char) std::toupper(c); }); }
-
-
-    
-    
-
-
-
 
 
     //////////////////////////////////////////////////////////////////////////////////////////////

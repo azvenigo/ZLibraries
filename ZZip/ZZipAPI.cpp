@@ -21,16 +21,6 @@
 
 using namespace std;
 
-
-/*template <typename TP>
-std::time_t to_time_t(TP tp)
-{
-    using namespace std::chrono;
-    auto sctp = time_point_cast<system_clock::duration>(tp - TP::clock::now()
-        + system_clock::now());
-    return system_clock::to_time_t(sctp);
-}*/
-
 uint16_t zip_date_from_std_time(time_t& tt)
 {
     // format
@@ -132,9 +122,7 @@ bool ZZipAPI::OpenForReading()
         std::cerr << "Couldn't open file for reading: \"" << msZipURL << "\"\n";
         return false;
     }
-
-    //cout << "Parsing \"" << msZipURL.c_str() << "\"\n";
-
+     
     mZipCD.Init(*mpZZFile);
 
 
@@ -279,8 +267,6 @@ bool ZZipAPI::ExtractRawStream(const string& sFilename, const string& sOutputFil
 
     delete[] pStream;
 
-    //cout << "Extracted \"" << sFilename.c_str() << "\" to \"" << sOutputFilename.c_str() << "\"\n";
-
     return true;
 }
 
@@ -388,8 +374,6 @@ bool ZZipAPI::DecompressToFile(const string& sFilename, const string& sOutputFil
     }
 
     delete[] pCompStream;
-
-    //cout << "thread: " << this_thread::get_id() << " Extracted \"" << sFilename.c_str() << "\" to \"" << sOutputFilename.c_str() << "\"\n";
 
     return true;
 }
@@ -571,8 +555,6 @@ bool ZZipAPI::AddToZipFile(const string& sFilename, const string& sBaseFolder, P
 
     mZipCD.mCDFileHeaderList.push_back(newCDFileHeader);
 
-    //    cout << "thread: " << this_thread::get_id() << " Added \"" << sFileOrFolder.c_str() << "\"\n";
-
     return true;
 }
 
@@ -681,8 +663,6 @@ bool ZZipAPI::AddToZipFileFromBuffer(uint8_t* pInputBuffer, uint32_t nInputBuffe
     newCDFileHeader.mFilenameLength = newLocalHeader.mFilenameLength;
 
     mZipCD.mCDFileHeaderList.push_back(newCDFileHeader);
-
-    //    wcout << "thread: " << this_thread::get_id() << " Added \"" << sFilename.c_str() << "\"\n";
 
     return true;
 }

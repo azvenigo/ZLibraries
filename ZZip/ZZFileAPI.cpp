@@ -196,15 +196,9 @@ cHTTPFile::~cHTTPFile()
     cHTTPFile::Close();
 }
 
-
-static atomic<int64_t> gnLocks = 0;
-static atomic<int64_t> gnUnlocks = 0;
-
-
 void cHTTPFile::lock_cb(CURL* handle, curl_lock_data data, curl_lock_access access, void* userp)
 {
     cHTTPFile* pFile = (cHTTPFile*)userp;
-    gnLocks++;
     pFile->mCurlMutex.lock();
 
 }
@@ -212,10 +206,6 @@ void cHTTPFile::lock_cb(CURL* handle, curl_lock_data data, curl_lock_access acce
 void cHTTPFile::unlock_cb(CURL* handle, curl_lock_data data, void* userp)
 {
     cHTTPFile* pFile = (cHTTPFile*)userp;
-
-    gnUnlocks++;
-
-//    cout << "locks:" << gnLocks << "unlocks:" << gnUnlocks << "\n";
     pFile->mCurlMutex.unlock();
 }
 
@@ -303,7 +293,6 @@ bool cHTTPFile::OpenInternal(string sURL, bool bWrite, string sName, string sPas
     curl_easy_setopt(pCurl, CURLOPT_WRITEFUNCTION, write_data);
     curl_easy_setopt(pCurl, CURLOPT_SHARE, mpCurlShare);
     curl_easy_setopt(pCurl, CURLOPT_VERBOSE, (int) mbVerbose);
-//    curl_easy_setopt(pCurl, CURLOPT_VERBOSE, 1);
     curl_easy_setopt(pCurl, CURLOPT_NOBODY, 1);
 
     if (gbSkipCertCheck)
@@ -313,8 +302,6 @@ bool cHTTPFile::OpenInternal(string sURL, bool bWrite, string sName, string sPas
     else
     {
         curl_easy_setopt(pCurl, CURLOPT_SSL_OPTIONS, CURLSSLOPT_NATIVE_CA);
-        //    curl_easy_setopt(pCurl, CURLOPT_SSLCERTTYPE, "PEM");
-        //    curl_easy_setopt(pCurl, CURLOPT_CAINFO, "F:/dev/git/openssl-1.1.1k/certs/cacert-2022-07-19.pem");
     }
 
 
@@ -382,11 +369,8 @@ bool cHTTPFile::Read(int64_t nOffset, uint32_t nBytes, uint8_t* pDestination, ui
     uint8_t* pBufferWrite = pDestination;
     shared_ptr<HTTPCacheLine> cacheLine;
 
-    // 2022/9/17 - disabling http cache for now
     if (nBytesToRequest < kHTTPCacheLineSize && (uint64_t)nOffset + (uint64_t)kHTTPCacheLineSize < mnFileSize)
         bUseCache = true;
-
-
 
     if (bUseCache)
     {
@@ -419,13 +403,9 @@ bool cHTTPFile::Read(int64_t nOffset, uint32_t nBytes, uint8_t* pDestination, ui
         response.pDest = pBufferWrite;
 
         curl_easy_setopt(pCurl, CURLOPT_URL, msURL.c_str());
-//        curl_easy_setopt(pCurl, CURLOPT_PROXY, "http://localhost:8888");
-
         curl_easy_setopt(pCurl, CURLOPT_FOLLOWLOCATION, 1);
         curl_easy_setopt(pCurl, CURLOPT_VERBOSE, (int)mbVerbose);
         curl_easy_setopt(pCurl, CURLOPT_BUFFERSIZE, 512*1024);
-
-
         curl_easy_setopt(pCurl, CURLOPT_WRITEFUNCTION, write_data);
         curl_easy_setopt(pCurl, CURLOPT_SHARE, mpCurlShare);
         curl_easy_setopt(pCurl, CURLOPT_NOBODY, 0);
@@ -438,8 +418,6 @@ bool cHTTPFile::Read(int64_t nOffset, uint32_t nBytes, uint8_t* pDestination, ui
         else
         {
             curl_easy_setopt(pCurl, CURLOPT_SSL_OPTIONS, CURLSSLOPT_NATIVE_CA);
-            //    curl_easy_setopt(pCurl, CURLOPT_SSLCERTTYPE, "PEM");
-            //    curl_easy_setopt(pCurl, CURLOPT_CAINFO, "F:/dev/git/openssl-1.1.1k/certs/cacert-2022-07-19.pem");
         }
 
 
@@ -457,15 +435,6 @@ bool cHTTPFile::Read(int64_t nOffset, uint32_t nBytes, uint8_t* pDestination, ui
             std::cerr << "curl GET failed. Range:" << ss.str() << " url:" << msURL << " response: " << curl_easy_strerror(res) << "\n";
             return false;
         }
-
-        /*
-        size_t nKiB = nBytesToRequest / 1024;
-        double fMS = (nEndTime - nStartTime) / 1000.0;
-
-        double fRate = nKiB / (fMS/1000.0);
-        cout << "CURL:" << nKiB << "KiB in " << fMS << "ms. Rate:" << fRate << "KiB/s\n";
-        */
-
 
         gnTotalHTTPBytesRequested += nBytesToRequest;
         gnTotalRequestsIssued++;
