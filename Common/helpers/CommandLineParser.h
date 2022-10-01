@@ -176,6 +176,7 @@ namespace CLP
         // Registration Functions
 
         bool    RegisterParam(ParamDesc param);
+        bool    AddInfo(const std::string& sInfo) { mAdditionalInfo.push_back(sInfo); return true; }
 
         bool    RegisterModeDescription(const std::string& sModeDescription) { msModeDescription = sModeDescription; return true; }
 
@@ -189,7 +190,7 @@ namespace CLP
         size_t  GetNumPositionalParamsRegistered();
         size_t  GetNumPositionalParamsHandled();
 
-        void    GetModeUsageOutput(const std::string& sAppName, const std::string& sMode, TableOutput& usageTable, TableOutput& modeDescriptionTable, TableOutput& requiredParamTable, TableOutput& optionalParamTable);
+        void    GetModeUsageTables(const std::string& sAppName, const std::string& sMode, std::string& sCommandLineExample, TableOutput& modeDescriptionTable, TableOutput& requiredParamTable, TableOutput& optionalParamTable, TableOutput& additionalInfoTable);
 
     protected:
         bool    CanHandleArgument(const std::string& sArg); // returns true if the key for this argument is registered
@@ -198,7 +199,8 @@ namespace CLP
         bool    GetDescriptor(const std::string& sKey, ParamDesc** pDescriptorOut);
         bool    GetDescriptor(int64_t nIndex, ParamDesc** pDescriptorOut);
 
-        std::string  msModeDescription;
+        std::string             msModeDescription;
+        std::list<std::string>  mAdditionalInfo;
 
     private:
         // Positional parameters
@@ -241,6 +243,12 @@ namespace CLP
 
         // default mode (i.e. no command specified)
         bool    RegisterParam(ParamDesc param);         // default mode parameter
+
+
+        bool    AddInfo(const std::string& sInfo);
+
+        // Additional info
+        bool    AddInfo(const std::string& sMode, const std::string& sInfo);
 
     protected:
         bool  IsRegisteredMode(const std::string& sArg);  // checks first parameter against registered modes. empty if none found

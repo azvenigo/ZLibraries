@@ -51,32 +51,32 @@ int _tmain(int argc, _TCHAR* argv[])
 
     CommandLineParser parser;
 
-    parser.RegisterAppDescription("Performs various operations on ZIP archives whether local or remote.\n"\
-        "----------------------------------------------------------------------------\n"\
-        "note: In the following, ZIPPATH can be a fully qualified web URL or a local path.\n"\
-        "      For example the following are all ok:\n"\
-        "http://www.example.com/sample.zip\n"\
-        "https://www.example.com/sample.zip\n"\
-        "c:/example/sample.zip\n");
+    parser.RegisterAppDescription("Performs various operations on ZIP archives whether local or remote.");
 
     parser.RegisterMode("list", "Lists the content of a zip file.");
-    parser.RegisterParam("list", ParamDesc("ZIPPATH", &gsPackageURL, CLP::kPositional | CLP::kRequired, "Path or URL to a ZIP archive"));
+    parser.AddInfo("list", "    - ZIPFILE can be a fully qualified web URL or a local path.\n"\
+                               "    - For example the following are all ok:\n"\
+                               "    - http://www.example.com/sample.zip\n"\
+                               "    - https://www.example.com/sample.zip\n"\
+                               "    - c:/example/sample.zip\n");
+
+    parser.RegisterParam("list", ParamDesc("ZIPFILE", &gsPackageURL, CLP::kPositional | CLP::kRequired, "Path or URL to a ZIP archive"));
 
     parser.RegisterMode("create", "Creates a ZIP archive from a given folder or file.");
-    parser.RegisterParam("create", ParamDesc("ZIPPATH", &gsPackageURL, CLP::kPositional | CLP::kRequired, "Path of the ZIP archive to create."));
+    parser.RegisterParam("create", ParamDesc("ZIPFILE", &gsPackageURL, CLP::kPositional | CLP::kRequired, "Path of the ZIP archive to create."));
     parser.RegisterParam("create", ParamDesc("FOLDER", &gsBaseFolder, CLP::kPositional | CLP::kRequired, "Base folder of files add to the archive"));
 
     parser.RegisterMode("diff", "Compares the contents of a ZIP archive with a local folder and reports the differences." );
-    parser.RegisterParam("diff", ParamDesc("ZIPPATH", &gsPackageURL, CLP::kPositional | CLP::kRequired, "Path or URL to a ZIP archive"));
+    parser.RegisterParam("diff", ParamDesc("ZIPFILE", &gsPackageURL, CLP::kPositional | CLP::kRequired, "Path or URL to a ZIP archive"));
     parser.RegisterParam("diff", ParamDesc("FOLDER", &gsBaseFolder, CLP::kPositional | CLP::kRequired, "Base folder to diff against"));
 
     parser.RegisterMode("update", "Compares the contents of a ZIP archive with a local folder and extracts all files that are new or different.");
-    parser.RegisterParam("update", ParamDesc("ZIPPATH", &gsPackageURL, CLP::kPositional | CLP::kRequired, "Path or URL to a ZIP archive"));
+    parser.RegisterParam("update", ParamDesc("ZIPFILE", &gsPackageURL, CLP::kPositional | CLP::kRequired, "Path or URL to a ZIP archive"));
     parser.RegisterParam("update", ParamDesc("FOLDER", &gsBaseFolder, CLP::kPositional | CLP::kRequired, "Base folder to update"));
     parser.RegisterParam("update", ParamDesc("skipcrc", &gbSkipCRC, CLP::kNamed | CLP::kOptional, "Skip CRC checks for matching files and overwrite everything when doing an update. (Same behavior as extract.)"));
 
     parser.RegisterMode("extract", "Extracts files from a ZIP archive.");
-    parser.RegisterParam("extract", ParamDesc("ZIPPATH", &gsPackageURL, CLP::kPositional | CLP::kRequired, "Path or URL to a ZIP archive"));
+    parser.RegisterParam("extract", ParamDesc("ZIPFILE", &gsPackageURL, CLP::kPositional | CLP::kRequired, "Path or URL to a ZIP archive"));
     parser.RegisterParam("extract", ParamDesc("FOLDER", &gsBaseFolder, CLP::kPositional | CLP::kRequired, "Base folder to extract to"));
 
     parser.RegisterParam(ParamDesc("pattern", &gsPattern, CLP::kNamed | CLP::kOptional, "Wildcard pattern to use when filtering filenames"));
@@ -87,7 +87,7 @@ int _tmain(int argc, _TCHAR* argv[])
     parser.RegisterParam(ParamDesc("threads", &gNumThreads, CLP::kNamed | CLP::kOptional | CLP::kRangeRestricted, "Number of threads to use when updating or extracting. Defaults to number of CPU cores.", 1, 256));
     parser.RegisterParam(ParamDesc("skip_cert_check", &gbSkipCertCheck, CLP::kNamed | CLP::kOptional, "If true, bypasses certificate verification on secure connetion. (Careful!)"));
 
-    parser.RegisterParam(ParamDesc("verbose", &gbVerbose, CLP::kNamed | CLP::kOptional, "Noisy logging for diagnostic purposes. (note: can slow down operations significantly. Also forces single threaded operation.)"));
+    parser.RegisterParam(ParamDesc("verbose", &gbVerbose, CLP::kNamed | CLP::kOptional, "Noisy logging for diagnostic purposes. (Note: Single threaded and slow.)"));
 
 
     if (!parser.Parse(argc, argv))

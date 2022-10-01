@@ -142,11 +142,10 @@ int main(int argc, char* argv[])
     int64_t nFillValue = 0;
     bool bSkipExistingFiles = false;
 
-    string sDescription = "Creates one or more files in one or more folders.\n"
-        "note: default fill is cyclical data.\nEach 32bit offset is equal to the 32bit value.\nThis is highly compressible and easy to verify partially read data.";
 
     CommandLineParser parser;
-    parser.RegisterAppDescription(sDescription);
+    parser.RegisterAppDescription("Creates one or more files in one or more folders.");
+    parser.AddInfo("default fill is cyclical data.\nEach 32bit offset is equal to the 32bit value.\nThis is highly compressible and easy to verify partially read data.");
     parser.RegisterParam(ParamDesc("FILE_SIZE",    &nFileSize,          CLP::kPositional | CLP::kRequired,  "Size of file(s) to create."));
     parser.RegisterParam(ParamDesc("dest",         &sDestPath,          CLP::kNamed | CLP::kOptional,       "base path to where to create data files. defaults to working directory"));
     parser.RegisterParam(ParamDesc("filename",     &sFilename,          CLP::kNamed | CLP::kOptional,       "Name of file to create. Multiple files in a folder will have numbers included."));
