@@ -84,6 +84,13 @@ target_link_libraries(ZZip ${LINK_LIBS})
 if(MSVC)
    # Copy build to tools folder if release
    add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD COMMAND cmd.exe /c if "$(Configuration)" == "Release" "${CMAKE_COMMAND}" -E copy_if_different  "$(TargetPath)" "$(SolutionDir)Common\\Tools\\" )
+   
+   add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy_if_different "$(SolutionDir)Common/curl/bin/libcurl.dll" "$(SolutionDir)Common\\Tools\\")
+   add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy_if_different "$(SolutionDir)Common/libssh2/libssh2.dll" "$(SolutionDir)Common\\Tools\\")
+   add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy_if_different "$(SolutionDir)Common/openssl/libssl-1_1-x64.dll" "$(SolutionDir)Common\\Tools\\")
+   add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy_if_different "$(SolutionDir)Common/openssl/libcrypto-1_1-x64.dll" "$(SolutionDir)Common\\Tools\\")
+
+   
 endif()
 
 add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy_if_different "$(SolutionDir)Common/curl/bin/libcurl.dll" $<TARGET_FILE_DIR:${PROJECT_NAME}>)
