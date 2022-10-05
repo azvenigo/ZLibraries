@@ -294,6 +294,10 @@ bool cHTTPFile::OpenInternal(string sURL, bool bWrite, string sName, string sPas
     curl_easy_setopt(pCurl, CURLOPT_SHARE, mpCurlShare);
     curl_easy_setopt(pCurl, CURLOPT_VERBOSE, (int) mbVerbose);
     curl_easy_setopt(pCurl, CURLOPT_NOBODY, 1);
+    if (!msName.empty())
+        curl_easy_setopt(pCurl, CURLOPT_USERNAME, msName.c_str());
+    if (!msPassword.empty())
+        curl_easy_setopt(pCurl, CURLOPT_PASSWORD, msPassword.c_str());
 
     if (gbSkipCertCheck)
     {

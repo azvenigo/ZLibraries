@@ -123,7 +123,7 @@ namespace CLP
 
     private:
 
-        void        GetExample(std::string& sParameter, std::string& sType, std::string& sUsage);
+        void        GetExample(std::string& sParameter, std::string& sType, std::string& sDefault, std::string& sUsage);
 
         // Behavior Accessors
         bool        IsNamed()               const { return mBehaviorFlags & kNamed; }

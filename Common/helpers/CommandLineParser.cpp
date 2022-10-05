@@ -208,7 +208,7 @@ namespace CLP
     }
 
 
-    void ParamDesc::GetExample(std::string& sParameter, std::string& sType, std::string& sUsage)
+    void ParamDesc::GetExample(std::string& sParameter, std::string& sType, std::string& sDefault, std::string& sUsage)
     {
         // for unrequired params, surround with brackets
         if (IsOptional())
@@ -223,6 +223,7 @@ namespace CLP
             case ParamDesc::kString:
                 sParameter += ":";
                 sType = "$$";
+                sDefault = *((string*)mpValue);
                 break;
             case ParamDesc::kInt64:
             {
@@ -231,10 +232,15 @@ namespace CLP
                     sType = "(" + UserReadableFromInt(mnMinValue) + "-" + UserReadableFromInt(mnMaxValue) + ")";
                 else
                     sType = "##";
+                sDefault = UserReadableFromInt(*(int64_t*)mpValue);
             }
             break;
             case ParamDesc::kBool:
                 sType = "BOOL";
+                if ((*(bool*)mpValue) == true)
+                    sDefault = "1";
+                else
+                    sDefault = "0";
             default:
                 break;
             }
@@ -590,13 +596,15 @@ namespace CLP
         {
             string sName;
             string sType;
+            string sDefault;
             string sUsage;
 
-            desc.GetExample(sName, sType, sUsage);
+            desc.GetExample(sName, sType, sDefault, sUsage);
+             
             if (desc.IsOptional())
-                optionalParamTable.AddRow(sName, sType, sUsage);
+                optionalParamTable.AddRow(sName, sType, sDefault, sUsage);
             else
-                requiredParamTable.AddRow(sName, sType, sUsage);
+                requiredParamTable.AddRow(sName, sType, sDefault, sUsage);
         }
     }
 
@@ -911,7 +919,7 @@ namespace CLP
             if (bHasRequiredParameters)
             {
                 requiredParamTable.AddRow(" ");
-                requiredParamTable.AddRow("*******Required******", "*Type*", "*Description*");
+                requiredParamTable.AddRow("*******Required******", "***Type***", "***Default***", "***Description***");
                 requiredParamTable.SetBorders(0, 0, '*', '*');
                 requiredParamTable.SetSeparator(' ', 1);
             }
@@ -919,7 +927,7 @@ namespace CLP
             if (bHasOptionalParameters)
             {
                 optionalParamTable.AddRow(" ");
-                optionalParamTable.AddRow("*******Options*******", "*Type*", "*Description*");
+                optionalParamTable.AddRow("*******Options*******", "***Type***", "***Default***", "***Description***");
                 optionalParamTable.SetBorders(0, 0, '*', '*');
                 optionalParamTable.SetSeparator(' ', 1);
             }
