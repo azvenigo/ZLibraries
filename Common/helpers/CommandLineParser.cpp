@@ -68,7 +68,7 @@ namespace CLP
 
     static const int sizeEntryTableSize = sizeof(sizeEntryTable) / sizeof(sSizeEntry);
 
-    bool StringCompare(const std::string& a, const std::string& b, bool bCaseSensitive = true)
+    bool StringCompare(const std::string& a, const std::string& b, bool bCaseSensitive)
     {
         if (bCaseSensitive)
             return a.compare(b) == 0;
@@ -142,6 +142,9 @@ namespace CLP
     //         1048576 -> 1MiB
     string UserReadableFromInt(int64_t nValue)
     {
+        if (nValue == 0)
+            return "0";
+
         char buf[128];
         if (nValue % kPiB == 0)  
             sprintf(buf, "%" PRId64 "PiB", nValue / kPiB);
@@ -222,7 +225,7 @@ namespace CLP
             {
             case ParamDesc::kString:
                 sParameter += ":";
-                sType = "$$";
+                sType = "$";
                 sDefault = *((string*)mpValue);
                 break;
             case ParamDesc::kInt64:
@@ -231,12 +234,12 @@ namespace CLP
                 if (IsRangeRestricted())
                     sType = "(" + UserReadableFromInt(mnMinValue) + "-" + UserReadableFromInt(mnMaxValue) + ")";
                 else
-                    sType = "##";
+                    sType = "#";
                 sDefault = UserReadableFromInt(*(int64_t*)mpValue);
             }
             break;
             case ParamDesc::kBool:
-                sType = "BOOL";
+                sType = "bool";
                 if ((*(bool*)mpValue) == true)
                     sDefault = "1";
                 else
@@ -251,18 +254,18 @@ namespace CLP
             switch (mValueType)
             {
             case ParamDesc::kString:
-                sType = "$$";
+                sType = "$";
                 break;
             case ParamDesc::kInt64:
             {
                 if (IsRangeRestricted())
                     sType = "(" + UserReadableFromInt(mnMinValue) + "-" + UserReadableFromInt(mnMaxValue) + ")";
                 else
-                    sType = "##";
+                    sType = "#";
             }
             break;
             case ParamDesc::kBool:
-                sType = "BOOL";
+                sType = "bool";
             default:
                 break;
             }
@@ -960,7 +963,7 @@ namespace CLP
             if (bHasRequiredParameters)
             {
                 requiredParamTable.AddRow(" ");
-                requiredParamTable.AddRow("*******Required******", "*Type*", "*Description*");
+                requiredParamTable.AddRow("*******Required******", "***Type***", "***Default***", "***Description***");
                 requiredParamTable.SetBorders(0, 0, '*', '*');
                 requiredParamTable.SetSeparator(' ', 1);
             }
@@ -968,7 +971,7 @@ namespace CLP
             if (bHasOptionalParameters)
             {
                 optionalParamTable.AddRow(" ");
-                optionalParamTable.AddRow("*******Options*******", "*Type*", "*Description*");
+                optionalParamTable.AddRow("*******Options*******", "***Type***", "***Default***", "***Description***");
                 optionalParamTable.SetBorders(0, 0, '*', '*');
                 optionalParamTable.SetSeparator(' ', 1);
             }
@@ -993,11 +996,11 @@ namespace CLP
         keyTable.AddRow("   [] ", "Optional");
         keyTable.AddRow("    - ", "Named '-key:value' pair. (examples: -size:1KB  -verbose)");
         keyTable.AddRow("    ", "Can be anywhere on command line, in any order.");
-        keyTable.AddRow("   ## ", "NUMBER");
+        keyTable.AddRow("   # ", "NUMBER");
         keyTable.AddRow("    ", "Can be hex (0x05) or decimal");
         keyTable.AddRow("    ", "Can include commas (1,000)");
         keyTable.AddRow("    ", "Can include scale labels (10k, 64KiB, etc.)");
-        keyTable.AddRow("   $$ ", "STRING");
+        keyTable.AddRow("   $ ", "STRING");
 
 
         size_t nMinTableWidth = std::max({ (size_t) 120, 

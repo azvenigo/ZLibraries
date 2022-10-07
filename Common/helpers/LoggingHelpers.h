@@ -30,7 +30,7 @@ inline std::string HexValueOut(uint64_t nVal, bool bIncludeDecimal = true)
     return std::string(buf);
 }
 
-inline void DumpMemoryToCout(uint8_t* pBuf, uint32_t nBytes, uint32_t nBaseMemoryOffset = 0, uint32_t nColumns = 32)
+inline void DumpMemoryToCout(uint8_t* pBuf, uint32_t nBytes, uint64_t nBaseMemoryOffset = 0, uint32_t nColumns = 32)
 {
     char byteToAscii[] = { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F' };
 
@@ -46,7 +46,7 @@ inline void DumpMemoryToCout(uint8_t* pBuf, uint32_t nBytes, uint32_t nBaseMemor
                 std::cout << " |" << sAscii << "|";
 
             nBytesOnLine = 0;
-            std::cout << "\n" << HexValueOut((uint32_t)(nBaseMemoryOffset + (pWalker - pBuf)), false) << ": ";
+            std::cout << "\n" << HexValueOut((uint64_t)(nBaseMemoryOffset + (pWalker - pBuf)), false) << ": ";
             sAscii.clear();
         }
         else if (nBytesOnLine % 4 == 0)  // extra space every 4 bytes

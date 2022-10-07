@@ -263,4 +263,11 @@ namespace CLP
         tModeStringToParserMap  mModeToCommandLineParser;
 
     };
+
+    // Utility functions
+    std::string UserReadableFromInt(int64_t nValue);
+    int64_t     IntFromUserReadable(std::string sReadable);
+    bool        StringToBool(std::string sValue);
+    bool        StringCompare(const std::string& a, const std::string& b, bool bCaseSensitive = true);
+
 };  // namespace CLP

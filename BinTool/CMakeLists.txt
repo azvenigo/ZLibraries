@@ -5,7 +5,7 @@ cmake_minimum_required(VERSION 3.7.1)
 
 ################################################################################
 
-project(BinCopy)
+project(BinTool)
 
 ####################
 # CHECK IS 64BIT BUILD
@@ -17,9 +17,9 @@ endif()
 
 
 ####################
-# BinCopy
+# BinTool
 
-set(BINCOPY_SOURCES main.cpp)
+set(BINTOOL_SOURCES main.cpp)
 set(COMMON_FILES ../Common/helpers/CommandLineParser.cpp ../Common/helpers/CommandLineParser.h)
 
 
@@ -36,14 +36,14 @@ list(APPEND INCLUDE_DIRS ../Common)
 ####################
 # source and include sets
 
-set(INCLUDES ${INCLUDES} ${BINCOPY_HEADERS} ${COMMON_HEADERS} )
-set(SOURCES ${BINCOPY_SOURCES} ${COMMON_FILES})
+set(INCLUDES ${INCLUDES} ${BINTOOL_HEADERS} ${COMMON_HEADERS} )
+set(SOURCES ${BINTOOL_SOURCES} ${COMMON_FILES})
 
 
 ####################
 # GUI groups
 
-#source_group(BinCopy FILES ${BINCOPY_SOURCES} ${BINCOPY_HEADERS})
+#source_group(BinTool FILES ${BINTOOL_SOURCES} ${BINTOOL_HEADERS})
 source_group(Common FILES ${COMMON_FILES})
 
 
@@ -75,8 +75,8 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${EXTRA_FLAGS} ${EXTRA_CXX_FLAGS}")
 link_directories(${LINK_DIRS})
 include_directories(${INCLUDE_DIRS})
 
-add_executable(BinCopy ${SOURCES} ${INCLUDES})
-target_link_libraries(BinCopy ${LINK_LIBS})
+add_executable(BinTool ${SOURCES} ${INCLUDES})
+target_link_libraries(BinTool ${LINK_LIBS})
     
 if(MSVC)
     # Copy build to tools folder if release
