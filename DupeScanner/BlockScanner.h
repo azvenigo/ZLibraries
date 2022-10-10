@@ -16,7 +16,7 @@
 #include <list>
 #include <future>
 #include <thread>
-#include "sha256.h"
+#include "helpers/sha256.h"
 
 using namespace std;
 

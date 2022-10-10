@@ -4,12 +4,12 @@
 #include <iomanip>
 #include <fstream>
 #include <string>
-#include "sha256.h"
 #include <assert.h>
 #include <chrono>
 #include "helpers/InlineFormatter.h"
 #include "helpers/ThreadPool.h"
 #include "helpers/LoggingHelpers.h"
+#include "helpers/sha256.h"
 #include <filesystem>
 
 using namespace std;

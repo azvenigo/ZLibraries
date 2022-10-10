@@ -1,5 +1,6 @@
 #include <memory.h>
 #include "sha256.h"
+#include <string>
 
 
 
@@ -15,7 +16,9 @@ SHA256Hash::SHA256Hash()
     Init();
 }
 
-#ifdef WIN32
+
+
+#ifdef USE_INTRINSICS
 
 
 void SHA256Hash::Init()
@@ -112,7 +115,8 @@ void SHA256Hash::Final()
     h0123 = _mm_shuffle_epi8(h0123, byteswapindex);
     h4567 = _mm_shuffle_epi8(h4567, byteswapindex);
 
-    mHash = _mm256_set_m128i(h0123, h4567);
+//    mHash = _mm256_set_m128i(h0123, h4567);
+    mHash = _mm256_set_m128i(h4567, h0123);
 }
 
 void SHA256Hash::ProcessBlock(uint8_t* pBuf)
@@ -209,6 +213,23 @@ void SHA256Hash::ProcessBlock(uint8_t* pBuf)
 }
 
 
+std::string SHA256Hash::ToString()
+{
+    char hash[256];
+    _mm256_store_si256((__m256i*) hash, Get());
+
+    char buf[64];
+    char byteToAscii[] = { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F' };
+    uint8_t* pWalker = (uint8_t*)&hash;
+    for (int i = 0; i < 32; i++)
+    {
+        uint8_t c = *pWalker++;
+        buf[i * 2] = byteToAscii[c >> 4];
+        buf[i * 2 + 1] = byteToAscii[c & 0x0F];
+    }
+
+    return std::string(buf, 64);
+}
 
 
 
@@ -356,5 +377,23 @@ void SHA256Hash::Final()
         mHash[i + 28] = (mContext.state[7] >> (24 - i * 8)) & 0x000000ff;
     }
 }
+
+
+std::string SHA256Hash::ToString()
+{
+    char buf[64];
+    char byteToAscii[] = { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F' };
+
+    uint8_t* pWalker = (uint8_t*)&mHash;
+    for (int i = 0; i < 32; i++)
+    {
+        uint8_t c = *pWalker++;
+        buf[i * 2] = byteToAscii[c >> 4];
+        buf[i * 2 + 1] = byteToAscii[c & 0x0F];
+    }
+
+    return std::string(buf, 64);
+}
+
 
 #endif

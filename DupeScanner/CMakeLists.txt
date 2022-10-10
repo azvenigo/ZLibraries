@@ -19,8 +19,8 @@ endif()
 ####################
 # DupeScanner
 
-set(DUPESCANNER_SOURCES BlockScanner.cpp DupeScanner.cpp sha256.cpp BlockScanner.h sha256.h)
-set(COMMON_FILES ../Common/helpers/CommandLineParser.cpp ../Common/helpers/CommandLineParser.h)
+set(DUPESCANNER_SOURCES BlockScanner.cpp DupeScanner.cpp)
+set(COMMON_FILES ../Common/helpers/CommandLineParser.cpp ../Common/helpers/CommandLineParser.h ../Common/helpers/sha256.h ../Common/helpers/sha256.cpp)
 
 
 ####################

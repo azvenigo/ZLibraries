@@ -5,6 +5,8 @@
 #include <filesystem>
 #include "helpers/CommandLineParser.h"
 #include "helpers/LoggingHelpers.h"
+#include "helpers/Crc32Fast.h"
+#include "helpers/sha256.h"
 #include <filesystem>
 #include <fstream>
 
@@ -261,8 +263,7 @@ bool Dump(const std::string& sSourcePath, int64_t nSourceOffset, int64_t nBytes,
         return false;
     }
 
-    srcFile.seekg(0, std::ios::end);
-    int64_t nSourceSize = srcFile.tellg();
+    int64_t nSourceSize = std::filesystem::file_size(sSourcePath);
     srcFile.seekg(nSourceOffset, std::ios::beg);
 
     if (nSourceOffset > nSourceSize)
@@ -284,6 +285,53 @@ bool Dump(const std::string& sSourcePath, int64_t nSourceOffset, int64_t nBytes,
     srcFile.read((char*)pBuf, nBytes);
 
     DumpMemoryToCout(pBuf, (uint32_t) nBytes, (uint64_t) nSourceOffset, (uint32_t) nColumns);
+
+    delete[] pBuf;
+    return true;
+}
+
+bool Hash(const std::string sSourcePath)
+{
+    SHA256Hash sha256Hash;
+    uint32_t crc32 = 0;
+
+
+    std::ifstream srcFile;
+    srcFile.open(sSourcePath, ios::binary);
+    if (!srcFile)
+    {
+        cerr << "Failed to open source file:" << sSourcePath.c_str() << "\n";
+        return false;
+    }
+
+    int64_t nBytesLeft = std::filesystem::file_size(sSourcePath);
+
+    size_t nBufferSize = 256 * 1024;
+    uint8_t* pBuf = new uint8_t[nBufferSize];
+
+    while (nBytesLeft > 0)
+    {
+        int64_t nBytesToRead = nBufferSize;
+        if (nBytesLeft < nBytesToRead)
+            nBytesToRead = nBytesLeft;
+
+        if (!srcFile.read((char*) pBuf, nBytesToRead))
+        {
+            cerr << "Failed to read " << nBytesToRead << " bytes from input file.\n";
+            return false;
+        }
+
+        sha256Hash.Compute(pBuf, nBytesToRead);
+        crc32 = crc32_16bytes(pBuf, nBytesToRead, crc32);
+
+        nBytesLeft -= nBytesToRead;
+    }
+
+    sha256Hash.Final();
+
+    cout << "Hashes of \"" << sSourcePath << "\":\n";
+    cout << "SHA256:0x" << sha256Hash.ToString() << "\n";
+    cout << "CRC32: 0x" << std::uppercase << std::hex << crc32 << std::dec << "\n";
 
     delete[] pBuf;
     return true;
@@ -321,6 +369,7 @@ int main(int argc, char* argv[])
     parser.RegisterParam("dump", ParamDesc("FILE", &sSourcePath, CLP::kPositional | CLP::kRequired, "File to read from."));
     parser.RegisterParam("dump", ParamDesc("OFFSET", &nSourceOffset, CLP::kNamed , "Starting offset"));
     parser.RegisterParam("dump", ParamDesc("BYTES", &nBytes, CLP::kNamed, "Number of bytes to dump."));
+    parser.RegisterParam("dump", ParamDesc("COLUMNS", &nColumns, CLP::kNamed, "Number of columns"));
 
 
     parser.RegisterMode("extract", "Extracts bytes from a file into a new file");
@@ -330,8 +379,15 @@ int main(int argc, char* argv[])
     parser.RegisterParam("extract", ParamDesc("BYTES", &nBytes, CLP::kPositional | CLP::kRequired, "Number of bytes to extract."));
     parser.RegisterParam("extract", ParamDesc("dump", &bDumpAfterExtract, CLP::kNamed, "Dump extracted bytes to cout after extraction."));
 
+
+    parser.RegisterMode("hash", "Compute SHA256 & CRC32 hashes of file.");
+    parser.RegisterParam("hash", ParamDesc("FILE", &sSourcePath, CLP::kPositional | CLP::kRequired, "File to use"));
+
+
+
+
+
     parser.RegisterParam(ParamDesc("verbose", &bVerbose, CLP::kNamed , "details"));
-    parser.RegisterParam(ParamDesc("COLUMNS", &nColumns, CLP::kNamed, "Number of columns"));
 
     parser.RegisterAppDescription("Various binary operations on files");
 
@@ -340,9 +396,7 @@ int main(int argc, char* argv[])
         return -1;
     }
 
-    string sMode = parser.GetAppMode();
-
-    if (CLP::StringCompare(sMode, "copy", false))
+    if (parser.IsCurrentMode("copy"))
     {
         if (bOverwrite)
         {
@@ -355,7 +409,7 @@ int main(int argc, char* argv[])
                 return -1;
         }
     }
-    else if (CLP::StringCompare(sMode, "extract", false))
+    else if (parser.IsCurrentMode("extract"))
     {
         if (!Extract(sSourcePath, sDestPath, nSourceOffset, nBytes, bVerbose))
             return -1;
@@ -364,9 +418,14 @@ int main(int argc, char* argv[])
             Dump(sDestPath, 0, nBytes, nColumns, bVerbose);
 
     }
-    else if (CLP::StringCompare(sMode, "dump", false))
+    else if (parser.IsCurrentMode("dump"))
     {
         if (!Dump(sSourcePath, nSourceOffset, nBytes, nColumns, bVerbose))
+            return -1;
+    }
+    else if (parser.IsCurrentMode("hash"))
+    {
+        if (!Hash(sSourcePath))
             return -1;
     }
 

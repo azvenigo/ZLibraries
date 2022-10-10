@@ -2,9 +2,14 @@
 
 #include <stdint.h>
 #include <cstring>
-
+#include <string>
 
 #ifdef WIN32
+#define USE_INTRINSICS
+#endif
+
+
+#ifdef USE_INTRINSICS
 #include <intrin.h>
 
 static const union {
@@ -43,8 +48,9 @@ public:
     void Compute(uint8_t* pBuf, size_t length);
     void Final();
 
+    std::string ToString();
 
-#ifdef WIN32
+#ifdef USE_INTRINSICS
     __m256i Get() { return mHash; }
     inline bool operator==(const SHA256Hash& rhs) { return _mm256_testc_si256(mHash, rhs.mHash) != 0; }
 #else
@@ -58,7 +64,7 @@ protected:
     size_t              bufferCount; 
     uint64_t            mnBytesProcessed;
 
-#ifdef WIN32
+#ifdef USE_INTRINSICS
     void ProcessBlock(uint8_t* pBuf);
 
     // Intermediate hash

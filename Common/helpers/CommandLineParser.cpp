@@ -176,6 +176,10 @@ namespace CLP
         return string(buf);
     }
 
+    void makelower(std::string& rhs) { std::transform(rhs.begin(), rhs.end(), rhs.begin(), [](unsigned char c) { return (unsigned char)std::tolower(c); }); }
+    void makeupper(std::string& rhs) { std::transform(rhs.begin(), rhs.end(), rhs.begin(), [](unsigned char c) { return (unsigned char)std::toupper(c); }); }
+
+
 
     ParamDesc::ParamDesc(const string& sName, string* pString, eBehavior behavior, const string& sUsage)
     {
@@ -556,8 +560,10 @@ namespace CLP
     }
 
 
-    void CLModeParser::GetModeUsageTables(const string& sMode, string& sCommandLineExample, TableOutput& modeDescriptionTable, TableOutput& requiredParamTable, TableOutput& optionalParamTable, TableOutput& additionalInfoTable)
+    void CLModeParser::GetModeUsageTables(string sMode, string& sCommandLineExample, TableOutput& modeDescriptionTable, TableOutput& requiredParamTable, TableOutput& optionalParamTable, TableOutput& additionalInfoTable)
     {
+        makelower(sMode);
+
         if (!sMode.empty() && !msModeDescription.empty())
         {
             modeDescriptionTable.AddRow(string("Help for: " + sMode));
@@ -615,12 +621,18 @@ namespace CLP
         msAppDescription = sDescription;
     }
 
-
-    bool CommandLineParser::IsRegisteredMode(const string& sArg)
+    bool CommandLineParser::IsCurrentMode(string sMode)
     {
+        makelower(sMode);
+        return msMode == sMode;
+    }
+
+    bool CommandLineParser::IsRegisteredMode(string sMode)
+    {
+        makelower(sMode);
         for (tModeStringToParserMap::iterator it = mModeToCommandLineParser.begin(); it != mModeToCommandLineParser.end(); it++)
         {
-            if ((*it).first == sArg)
+            if ((*it).first == sMode)
                 return true;
         }
 
@@ -655,10 +667,12 @@ namespace CLP
     }
 
 
-    bool CommandLineParser::RegisterMode(const string& sMode, const string& sModeDescription)
+    bool CommandLineParser::RegisterMode(string sMode, const string& sModeDescription)
     {
+        makelower(sMode);
         if (mModeToCommandLineParser.find(sMode) != mModeToCommandLineParser.end())
         {
+            assert(false);
             cerr << "Mode already registered:" << sMode << "\n";
             return false;
         }
@@ -666,10 +680,12 @@ namespace CLP
         return mModeToCommandLineParser[sMode].RegisterModeDescription(sModeDescription);
     }
 
-    bool CommandLineParser::RegisterParam(const string& sMode, ParamDesc param)
+    bool CommandLineParser::RegisterParam(string sMode, ParamDesc param)
     {
+        makelower(sMode);
         if (mModeToCommandLineParser.find(sMode) == mModeToCommandLineParser.end())
         {
+            assert(false);
             cerr << "Unregistered mode:" << sMode << "\n";
             return false;
         }
@@ -687,10 +703,12 @@ namespace CLP
     }
 
 
-    bool CommandLineParser::AddInfo(const std::string& sMode, const std::string& sInfo)
+    bool CommandLineParser::AddInfo(std::string sMode, const std::string& sInfo)
     {
+        makelower(sMode);
         if (mModeToCommandLineParser.find(sMode) == mModeToCommandLineParser.end())
         {
+            assert(false);
             cerr << "Unregistered mode:" << sMode << "\n";
             return false;
         }
@@ -745,6 +763,7 @@ namespace CLP
         {
             // If "help" requested
             string sFirst(argv[1]);
+            makelower(sFirst);
             if (sFirst == "?" || sFirst == "help" || sFirst == "-h")
             {
                 if (bMultiMode)
@@ -757,6 +776,7 @@ namespace CLP
                     else
                     {
                         string sMode = argv[2];
+                        makelower(sMode);
                         if (IsRegisteredMode(sMode))
                         {
                             // case 2a
