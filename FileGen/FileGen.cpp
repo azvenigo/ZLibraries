@@ -129,6 +129,48 @@ void CreateValueFile(string sPath, int64_t nTotalSize, int64_t nFillValue)
     delete[] buf;
 }
 
+void CreateCompressibleFile(string sPath, int64_t nTotalSize, int64_t nCompressFactor)
+{
+    if (bVerbose)
+        cout << "Creating Compressible file size:" << nTotalSize << "Compress factor:" << nCompressFactor << " path:" << sPath.c_str() << "...";
+    const int kBufferElements = 64 * 1024;
+    uint32_t* bufcycl = new uint32_t[kBufferElements];
+
+    // cyclical data
+    std::fstream outFile;
+    outFile.open(sPath.c_str(), ios_base::out | ios::binary);
+    if (outFile.fail())
+    {
+        cout << "Error creating file:" << errno << "\n";
+        return;
+    }
+
+    for (int64_t i = 0; i < nTotalSize; i += kBufferElements * sizeof(uint32_t))
+    {
+        for (int j = 0; j < kBufferElements; j++)
+        {
+            uint32_t nVal = (uint32_t)(i + (j * sizeof(uint32_t)));
+
+            if (j % nCompressFactor == 0)
+                *(bufcycl + j) = RANDU64(0, 0xffffffff);
+            else
+                *(bufcycl + j) = 0;
+        }
+
+        int32_t nBytesToWrite = kBufferElements * sizeof(uint32_t);
+        if (i + nBytesToWrite > nTotalSize)
+            nBytesToWrite = (int32_t)(nTotalSize - i);
+
+        outFile.write((char*)bufcycl, nBytesToWrite);
+    }
+
+    if (bVerbose)
+        cout << "done\n";
+    outFile.close();
+
+    delete[] bufcycl;
+}
+
 int main(int argc, char* argv[])
 {
     string sDestPath;
@@ -141,19 +183,33 @@ int main(int argc, char* argv[])
     bool bFillSpecificValue = false;
     int64_t nFillValue = 0;
     bool bSkipExistingFiles = false;
+    bool bCompressFactorFill = false;
+    int64_t nCompressFactor = 10;
 
 
     CommandLineParser parser;
     parser.RegisterAppDescription("Creates one or more files in one or more folders.");
-    parser.AddInfo("default fill is cyclical data.\nEach 32bit offset is equal to the 32bit value.\nThis is highly compressible and easy to verify partially read data.");
-    parser.RegisterParam(ParamDesc("FILE_SIZE",    &nFileSize,          CLP::kPositional | CLP::kRequired,  "Size of file(s) to create."));
+
+    parser.RegisterMode("rand", "Fill the file with random (uncompressible) data.");
+
+    parser.RegisterMode("cycl", "Fill the file with cyclical data where each 32bit offset into the file is equal to the 32bit value at that offset.");
+
+    parser.RegisterMode("compressible", "Fill the file with random values every so often to achieve roughly a compressable ratio.");
+    parser.RegisterParam("compressible", ParamDesc("FACTOR", &nCompressFactor, CLP::kPositional | CLP::kRequired, "Goal compression factor. (roughly)"));
+
+    parser.RegisterMode("value", "Fill the file specific value.");
+    parser.RegisterParam("value", ParamDesc("FILLVALUE", &nFillValue, CLP::kPositional | CLP::kRequired, "specific value to fill the file with"));
+
+
+
+    parser.RegisterParam(ParamDesc("FILENAME",      &sFilename,         CLP::kPositional| CLP::kRequired, "Name of file to create. Multiple files in a folder will have numbers included."));
+    parser.RegisterParam(ParamDesc("SIZE",          &nFileSize,         CLP::kPositional | CLP::kRequired,  "Size of file(s) to create."));
+
     parser.RegisterParam(ParamDesc("dest",         &sDestPath,          CLP::kNamed | CLP::kOptional,       "base path to where to create data files. defaults to working directory"));
-    parser.RegisterParam(ParamDesc("filename",     &sFilename,          CLP::kNamed | CLP::kOptional,       "Name of file to create. Multiple files in a folder will have numbers included."));
     parser.RegisterParam(ParamDesc("folders",      &nFolders,           CLP::kNamed | CLP::kOptional,       "number of folders to generate. default is 0"));
     parser.RegisterParam(ParamDesc("files",        &nFilesPerFolder,    CLP::kNamed | CLP::kOptional,       "number of files in each folder. default is 1"));
+
     parser.RegisterParam(ParamDesc("skipexisting", &bSkipExistingFiles, CLP::kNamed | CLP::kOptional,       "skips overwriting destination file (even with different values or size) if it already exists."));
-    parser.RegisterParam(ParamDesc("rand",         &bRandomFill,        CLP::kNamed | CLP::kOptional,       "fill the file with randomized (incompressible) data."));
-    parser.RegisterParam(ParamDesc("fillvalue",    &nFillValue,         CLP::kNamed | CLP::kOptional,       "fill the file with specific value."));
     parser.RegisterParam(ParamDesc("verbose",      &bVerbose,           CLP::kNamed | CLP::kOptional,       "hear all the gritty details about everthing that's happening. (Can slow down operation due to command line output.)"));
 
     if (!parser.Parse(argc, argv, bVerbose))
@@ -162,7 +218,10 @@ int main(int argc, char* argv[])
         return -1;
     }
     
-    bFillSpecificValue = parser.GetParamWasFound("fillvalue");
+    bFillSpecificValue = CLP::StringCompare(parser.GetAppMode(), "value", false);
+    bRandomFill = CLP::StringCompare(parser.GetAppMode(), "rand", false);
+    bCompressFactorFill = CLP::StringCompare(parser.GetAppMode(), "compressible", false);
+
 
     size_t nLastDot = sFilename.find_last_of('.');
     if (nLastDot != string::npos)
@@ -198,25 +257,27 @@ int main(int argc, char* argv[])
 
         for (int64_t i = 0; i < nFilesPerFolder; i++)
         {
-            string sPaddingFileName;
+            string sGeneratedFilename;
             if (nFilesPerFolder > 1)
             {
                 char buf[512];
                 sprintf(buf, "%s%d.%s", sFilename.c_str(), (int) i, sExtension.c_str());
-                sPaddingFileName = sPath + string(buf);
+                sGeneratedFilename = sPath + string(buf);
             }
             else
-                sPaddingFileName = sPath + sFilename + "." + sExtension;
+                sGeneratedFilename = sPath + sFilename + "." + sExtension;
 
-            if (bSkipExistingFiles && fs::exists(sPaddingFileName))
+            if (bSkipExistingFiles && fs::exists(sGeneratedFilename))
                 continue;
 
             if (bRandomFill)
-                CreateRandFile(sPaddingFileName, nFileSize);
+                CreateRandFile(sGeneratedFilename, nFileSize);
             else if (bFillSpecificValue)
-                CreateValueFile(sPaddingFileName, nFileSize, nFillValue);
+                CreateValueFile(sGeneratedFilename, nFileSize, nFillValue);
+            else if (bCompressFactorFill)
+                CreateCompressibleFile(sGeneratedFilename, nFileSize, nCompressFactor);
             else
-                CreateCyclFile(sPaddingFileName, nFileSize);
+                CreateCyclFile(sGeneratedFilename, nFileSize);
         }
  
     }

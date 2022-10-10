@@ -190,7 +190,7 @@ namespace CLP
         size_t  GetNumPositionalParamsRegistered();
         size_t  GetNumPositionalParamsHandled();
 
-        void    GetModeUsageTables(const std::string& sAppName, const std::string& sMode, std::string& sCommandLineExample, TableOutput& modeDescriptionTable, TableOutput& requiredParamTable, TableOutput& optionalParamTable, TableOutput& additionalInfoTable);
+        void    GetModeUsageTables(const std::string& sMode, std::string& sCommandLineExample, TableOutput& modeDescriptionTable, TableOutput& requiredParamTable, TableOutput& optionalParamTable, TableOutput& additionalInfoTable);
 
     protected:
         bool    CanHandleArgument(const std::string& sArg); // returns true if the key for this argument is registered

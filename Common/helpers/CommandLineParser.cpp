@@ -241,9 +241,9 @@ namespace CLP
             case ParamDesc::kBool:
                 sType = "bool";
                 if ((*(bool*)mpValue) == true)
-                    sDefault = "1";
+                    sDefault = "true";
                 else
-                    sDefault = "0";
+                    sDefault = "false";
             default:
                 break;
             }
@@ -556,14 +556,14 @@ namespace CLP
     }
 
 
-    void CLModeParser::GetModeUsageTables(const string& sAppName, const string& sMode, string& sCommandLineExample, TableOutput& modeDescriptionTable, TableOutput& requiredParamTable, TableOutput& optionalParamTable, TableOutput& additionalInfoTable)
+    void CLModeParser::GetModeUsageTables(const string& sMode, string& sCommandLineExample, TableOutput& modeDescriptionTable, TableOutput& requiredParamTable, TableOutput& optionalParamTable, TableOutput& additionalInfoTable)
     {
         if (!sMode.empty() && !msModeDescription.empty())
         {
             modeDescriptionTable.AddRow(string("Help for: " + sMode));
 
             modeDescriptionTable.AddRow(" ");
-            modeDescriptionTable.AddRow("*****Description*****");
+            modeDescriptionTable.AddRow("-Command Description-");
             modeDescriptionTable.AddMultilineRow(msModeDescription);
         }
 
@@ -573,8 +573,6 @@ namespace CLP
             additionalInfoTable.AddMultilineRow(info);
         }
 
-
-        sCommandLineExample = sAppName + " " + sMode;
 
         // create example command line with positional params first followed by named
         for (auto& desc : mParameterDescriptors)
@@ -913,7 +911,7 @@ namespace CLP
             if (bHasAdditionalInfo)
             {
                 additionalInfoTable.AddRow(" ");
-                additionalInfoTable.AddRow("***Additional Info****");
+                additionalInfoTable.AddRow("---Additional Info----");
 
                 additionalInfoTable.SetSeparator(' ', 1);
                 additionalInfoTable.SetBorders(0, '-', '*', '*');
@@ -922,7 +920,7 @@ namespace CLP
             if (bHasRequiredParameters)
             {
                 requiredParamTable.AddRow(" ");
-                requiredParamTable.AddRow("*******Required******", "***Type***", "***Default***", "***Description***");
+                requiredParamTable.AddRow("-------Required------", "---Type---", "---Default---", "---Description---");
                 requiredParamTable.SetBorders(0, 0, '*', '*');
                 requiredParamTable.SetSeparator(' ', 1);
             }
@@ -930,15 +928,15 @@ namespace CLP
             if (bHasOptionalParameters)
             {
                 optionalParamTable.AddRow(" ");
-                optionalParamTable.AddRow("*******Options*******", "***Type***", "***Default***", "***Description***");
+                optionalParamTable.AddRow("-------Options-------", "---Type---", "---Default---", "---Description---");
                 optionalParamTable.SetBorders(0, 0, '*', '*');
                 optionalParamTable.SetSeparator(' ', 1);
             }
 
 
-            string sDummy;
-            mModeToCommandLineParser[msMode].GetModeUsageTables(msAppName, msMode, sCommandLineExample, descriptionTable, requiredParamTable, optionalParamTable, additionalInfoTable);
-            mGeneralCommandLineParser.GetModeUsageTables(msAppName, "", sDummy, descriptionTable, requiredParamTable, optionalParamTable, additionalInfoTable);
+            sCommandLineExample = msAppName + " " + msMode;
+            mModeToCommandLineParser[msMode].GetModeUsageTables(msMode, sCommandLineExample, descriptionTable, requiredParamTable, optionalParamTable, additionalInfoTable);
+            mGeneralCommandLineParser.GetModeUsageTables("", sCommandLineExample, descriptionTable, requiredParamTable, optionalParamTable, additionalInfoTable);
         }
         else
         {
@@ -954,7 +952,7 @@ namespace CLP
             if (bHasAdditionalInfo)
             {
                 additionalInfoTable.AddRow(" ");
-                additionalInfoTable.AddRow("***Additional Info****");
+                additionalInfoTable.AddRow("---Additional Info----");
 
                 additionalInfoTable.SetSeparator(' ', 1);
                 additionalInfoTable.SetBorders(0, '-', '*', '*');
@@ -963,7 +961,7 @@ namespace CLP
             if (bHasRequiredParameters)
             {
                 requiredParamTable.AddRow(" ");
-                requiredParamTable.AddRow("*******Required******", "***Type***", "***Default***", "***Description***");
+                requiredParamTable.AddRow("-------Required------", "---Type---", "---Default---", "---Description---");
                 requiredParamTable.SetBorders(0, 0, '*', '*');
                 requiredParamTable.SetSeparator(' ', 1);
             }
@@ -971,18 +969,19 @@ namespace CLP
             if (bHasOptionalParameters)
             {
                 optionalParamTable.AddRow(" ");
-                optionalParamTable.AddRow("*******Options*******", "***Type***", "***Default***", "***Description***");
+                optionalParamTable.AddRow("-------Options-------", "---Type---", "---Default---", "---Description---");
                 optionalParamTable.SetBorders(0, 0, '*', '*');
                 optionalParamTable.SetSeparator(' ', 1);
             }
 
-            mGeneralCommandLineParser.GetModeUsageTables(msAppName, "", sCommandLineExample, descriptionTable, requiredParamTable, optionalParamTable, additionalInfoTable);
+            sCommandLineExample = msAppName;
+            mGeneralCommandLineParser.GetModeUsageTables("", sCommandLineExample, descriptionTable, requiredParamTable, optionalParamTable, additionalInfoTable);
         }
 
         if (bHasOptionalParameters)
             sCommandLineExample += " [options]";
 
-        usageTable.AddRow("********Usage*********");
+        usageTable.AddRow("--------Usage---------");
         usageTable.AddRow(sCommandLineExample);
         usageTable.SetSeparator(' ', 1);
         usageTable.SetBorders(0, 0, '*', '*');
@@ -992,15 +991,16 @@ namespace CLP
         keyTable.SetSeparator(' ', 1);
         keyTable.SetBorders('-', '*', '*', '*');
 
-        keyTable.AddRow("***Key***");
-        keyTable.AddRow("   [] ", "Optional");
-        keyTable.AddRow("    - ", "Named '-key:value' pair. (examples: -size:1KB  -verbose)");
-        keyTable.AddRow("    ", "Can be anywhere on command line, in any order.");
-        keyTable.AddRow("   # ", "NUMBER");
-        keyTable.AddRow("    ", "Can be hex (0x05) or decimal");
-        keyTable.AddRow("    ", "Can include commas (1,000)");
-        keyTable.AddRow("    ", "Can include scale labels (10k, 64KiB, etc.)");
-        keyTable.AddRow("   $ ", "STRING");
+        keyTable.AddRow("--------Keys---------");
+        keyTable.AddRow("         [] ", "Optional");
+        keyTable.AddRow("          - ", "Named '-key:value' pair. (examples: -size:1KB  -verbose)");
+        keyTable.AddRow("            ", "Can be anywhere on command line, in any order.");
+        keyTable.AddRow("          # ", "NUMBER");
+        keyTable.AddRow("            ", "Can be hex (0x05) or decimal");
+        keyTable.AddRow("            ", "Can include commas (1,000)");
+        keyTable.AddRow("            ", "Can include scale labels (10k, 64KiB, etc.)");
+        keyTable.AddRow("          $ ", "STRING");
+        keyTable.AddRow("        bool", "Boolean value can be 1/0, t/f, y/n, yes/no. Presence of the flag means true.");
 
 
         size_t nMinTableWidth = std::max({ (size_t) 120, 
@@ -1039,7 +1039,8 @@ namespace CLP
         TableOutput descriptionTable;
         descriptionTable.SetBorders('*', '*', '*', '*');
         descriptionTable.SetSeparator(' ', 1);
-        descriptionTable.AddRow("*Application Description*");
+        descriptionTable.AddRow(" ");
+        descriptionTable.AddRow("-Application Description-");
         descriptionTable.AddMultilineRow(msAppDescription);
         descriptionTable.AddRow(" ");
 
@@ -1048,8 +1049,8 @@ namespace CLP
         commandsTable.SetBorders(0, '*', '*', '*');
         commandsTable.SetSeparator(' ', 1);
 
-        commandsTable.AddRow("*Commands*");
-        commandsTable.AddRow("help COMMAND", "Context specific help");
+        commandsTable.AddRow("-------Commands--------");
+        commandsTable.AddRow("help COMMAND", "Context specific help about the commands below");
         for (tModeStringToParserMap::iterator it = mModeToCommandLineParser.begin(); it != mModeToCommandLineParser.end(); it++)
         {
             string sCommand = (*it).first;
