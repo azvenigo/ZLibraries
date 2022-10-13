@@ -337,6 +337,95 @@ bool Hash(const std::string sSourcePath)
     return true;
 }
 
+bool Diff(const std::string& sFile1, const std::string& sFile2, bool bVerbose)
+{
+    if (bVerbose)
+        cout << "Diffing FILE1:" << sFile1 << " vs FILE2:" << sFile2 << "\n";
+
+    std::ifstream file1;
+    file1.open(sFile1, ios::binary);
+    if (!file1)
+    {
+        cerr << "ERROR: FILE1:" << sFile1 << " not found.\n";
+        return false;
+    }
+
+
+    std::ifstream file2;
+    file2.open(sFile2, ios::binary);
+    if (!file2)
+    {
+        cerr << "ERROR: FILE2:" << sFile2 << " not found.\n";
+        return false;
+    }
+
+    size_t nFile1Size = std::filesystem::file_size(sFile1);
+    size_t nFile2Size = std::filesystem::file_size(sFile2);
+
+    if (nFile1Size != nFile2Size)
+    {
+        cout << "FILE1 Size: " << nFile1Size << "\n";
+        cout << "FILE2 Size: " << nFile2Size << "\n";
+        cout << "Result: DIFFERENT\n";
+
+        return true;
+    }
+
+    size_t nBufferSize = 1024 * 1024;
+    uint8_t* pBuf1 = new uint8_t[nBufferSize];
+    uint8_t* pBuf2 = new uint8_t[nBufferSize];
+
+    size_t nBytesLeft = nFile1Size;
+    bool bSame = true;
+
+    while (nBytesLeft > 0)
+    {
+        size_t nBytesToRead = nBufferSize;
+        if (nBytesLeft < nBytesToRead)
+            nBytesToRead = nBytesLeft;
+
+        if (!file1.read((char*)pBuf1, nBytesToRead))
+        {
+            cerr << "Failed to read " << nBytesToRead << " bytes from FILE1.\n";
+            bSame = false;
+            break;
+        }
+
+        if (!file2.read((char*)pBuf2, nBytesToRead))
+        {
+            cerr << "Failed to read " << nBytesToRead << " bytes from FILE2.\n";
+            bSame = false;
+            break;
+        }
+
+        if (bVerbose)
+            cout << "Comparing offset: " << nFile1Size - nBytesLeft << "\n";
+
+        if (memcmp(pBuf1, pBuf2, nBytesToRead) != 0)
+        {
+            bSame = false;
+            break;
+        }
+
+        nBytesLeft -= nBytesToRead;
+    }
+
+    if (bSame)
+    {
+        cout << "Result: SAME\n";
+        if (bVerbose)
+            cout << "All " << nFile1Size << " bytes match.\n";
+    }
+    else
+    {
+        cout << "Result: DIFFERENT\n";
+    }
+
+    delete[] pBuf1;
+    delete[] pBuf2;
+
+    return true;
+}
 
 
 int main(int argc, char* argv[])
@@ -383,6 +472,9 @@ int main(int argc, char* argv[])
     parser.RegisterMode("hash", "Compute SHA256 & CRC32 hashes of file.");
     parser.RegisterParam("hash", ParamDesc("FILE", &sSourcePath, CLP::kPositional | CLP::kRequired, "File to use"));
 
+    parser.RegisterMode("diff", "Simple binary diff of two files.");
+    parser.RegisterParam("diff", ParamDesc("FILE1", &sSourcePath, CLP::kPositional | CLP::kRequired, "File 1"));
+    parser.RegisterParam("diff", ParamDesc("FILE2", &sDestPath, CLP::kPositional | CLP::kRequired, "File 1"));
 
 
 
@@ -426,6 +518,11 @@ int main(int argc, char* argv[])
     else if (parser.IsCurrentMode("hash"))
     {
         if (!Hash(sSourcePath))
+            return -1;
+    }
+    else if (parser.IsCurrentMode("diff"))
+    {
+        if (!Diff(sSourcePath, sDestPath, bVerbose))
             return -1;
     }
 
