@@ -41,7 +41,7 @@ bool cZZFile::Open(const string& sURL, bool bWrite, shared_ptr<cZZFile>& pFile, 
 
 
     cZZFile* pNewFile = nullptr;
-    if (sURL.substr(0, 4) == "http")
+    if (sURL.substr(0, 4) == "http" || sURL.substr(0, 4) == "sftp")
     {
         pNewFile = new cHTTPFile();
     }
