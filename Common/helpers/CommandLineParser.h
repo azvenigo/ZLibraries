@@ -7,17 +7,31 @@
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // CommandlineParser 
-// Made to simplify command line parsing. 
-// Can manage "single mode" command line 
+// Class to make command line parsing as simple (but flexible) as possible.
+// 
+// Simplest use case example: 
+// (parses a filename from a commandline. If one isn't provided it shows that the parameter is missing and returns false.)
+// 
+//   string fileName;
+//   CommandLineParser parser;
+//   parser.RegisterParam(ParamDesc("FILENAME", &fileName, ParamDesc::kPositional | ParamDesc::kRequired, "This is a description of the parameter."));
+//   if (!parser.Parse(argc, argv))
+//      return false;
+// 
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Two modes of operation:
+// 
+// "single mode" command line 
 // > Example: "app.exe file1.txt"
 // 
-// Can manage "multi mode" command line where first parameter is a command with different parameter schemes
+// "multi mode" command line where first parameter is a command with different parameter schemes
 // > Example: "app.exe print file1.txt"
 //            "app.exe concat file1.txt file2.txt -verbose"
+//            "app.exe list file1.txt -maxlines:3k"
 // 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Additional Details:
-// > Handles required and optional parameters
+// > Handles required and optional parameters. 
 // > Is able to check that numbers fall within specified ranges
 // > Shows descriptive error messages if any required parameters are missing, unrecognized or are outside of acceptible ranges
 // > Can parse human readable number input such as 12MiB, 1KB, 2GB, etc.
@@ -41,8 +55,6 @@
 // Usage Example:
 // 
 //   string  sourcePath;
-//   string  destPath;
-//   string  searchString;
 //   int64_t nThreads;
 //   int64_t nBlockSize;
 //   bool    bCaseSensitive;
@@ -50,7 +62,6 @@
 //   CommandLineParser parser;
 //
 //   parser.RegisterParam(ParamDesc("SOURCE",       &sourcePath,        ParamDesc::kPositional | ParamDesc::kRequired, "File/folder to index by blocks."));
-//   parser.RegisterParam(ParamDesc("DESTINATION",  &destPath,          ParamDesc::kPositional | ParamDesc::kRequired, "File/folder to scan at byte granularity."));
 //   parser.RegisterParam(ParamDesc("threads",      &nThreads,          ParamDesc::kNamed | ParamDesc::kOptional | ParamDesc::kRangeRestricted, "Number of threads to spawn.", 1, 256));
 //   parser.RegisterParam(ParamDesc("blocksize",    &nBlockSize,        ParamDesc::kNamed | ParamDesc::kOptional | ParamDesc::kRangeRestricted, "Granularity of blocks to use for scanning.", 16, 32*1024*1024));
 //   parser.RegisterParam(ParamDesc("case",         &bCaseSensitive,    ParamDesc::kNamed | ParamDesc::kOptional));
@@ -264,11 +275,4 @@ namespace CLP
         tModeStringToParserMap  mModeToCommandLineParser;
 
     };
-
-    // Utility functions
-    std::string UserReadableFromInt(int64_t nValue);
-    int64_t     IntFromUserReadable(std::string sReadable);
-    bool        StringToBool(std::string sValue);
-    bool        StringCompare(const std::string& a, const std::string& b, bool bCaseSensitive = true);
-
 };  // namespace CLP

@@ -14,6 +14,7 @@
 #include <iostream>
 #include <iomanip>
 #include "helpers/FNMatch.h"
+#include "helpers/StringHelpers.h"
 
 using namespace std;
 
@@ -58,7 +59,7 @@ cExtensibleFieldEntry::cExtensibleFieldEntry(const cExtensibleFieldEntry& from)
 
 string cExtensibleFieldEntry::ToString()
 {
-    return "Header:" + HeaderToString() + " Size:" + to_string(mnSize) + " Data: [" + binary_to_hex(mpData.get(), mnSize) + "]";
+    return "Header:" + HeaderToString() + " Size:" + to_string(mnSize) + " Data: [" + StringHelpers::FromBin(mpData.get(), mnSize) + "]";
 }
 
 bool ParseExtendedFields(uint8_t* pSearch, int32_t nSize, tExtensibleFieldList& list)
@@ -158,7 +159,7 @@ string cLocalFileHeader::ToString(eToStringFormat format)
         to_string(mCompressionMethod),
         to_string(mLastModificationTime),
         to_string(mLastModificationDate),
-        int_to_hex_string(mCRC32),
+        StringHelpers::ToHexString(mCRC32),
         to_string(mCompressedSize),
         to_string(mUncompressedSize),
         to_string(mFilenameLength),
@@ -599,7 +600,7 @@ string cCDFileHeader::ToString(eToStringFormat format)
         to_string(mCompressedSize),
         to_string(mUncompressedSize),
         to_string(mLocalFileHeaderOffset),
-        int_to_hex_string(mCRC32),
+        StringHelpers::ToHexString(mCRC32),
         to_string(mVersionMadeBy),
         to_string(mMinVersionToExtract),
         to_string(mGeneralPurposeBitFlag),

@@ -1,4 +1,5 @@
 #include "CommandLineParser.h"
+#include "StringHelpers.h"
 #include <algorithm>
 #include <stdlib.h>
 #include <iostream>
@@ -13,173 +14,6 @@ using namespace std;
 
 namespace CLP
 {
-
-    struct sSizeEntry
-    {
-        const char* label;
-        int64_t     value;
-    };
-
-    static const int64_t kK = 1000LL;
-    static const int64_t kKB = 1000LL;
-    static const int64_t kKiB = 1024LL;
-
-    static const int64_t kM = 1000LL * 1000LL;
-    static const int64_t kMB = 1000LL * 1000LL;
-    static const int64_t kMiB = 1024LL * 1024LL;
-
-    static const int64_t kG = 1000LL * 1000LL * 1000LL;
-    static const int64_t kGB = 1000LL * 1000LL * 1000LL;
-    static const int64_t kGiB = 1024LL * 1024LL * 1024LL;
-
-    static const int64_t kT = 1000LL * 1000LL * 1000LL * 1000LL;
-    static const int64_t kTB = 1000LL * 1000LL * 1000LL * 1000LL;
-    static const int64_t kTiB = 1024LL * 1024LL * 1024LL * 1024LL;
-
-    static const int64_t kP = 1000LL * 1000LL * 1000LL * 1000LL * 1000LL;
-    static const int64_t kPB = 1000LL * 1000LL * 1000LL * 1000LL * 1000LL;
-    static const int64_t kPiB = 1024LL * 1024LL * 1024LL * 1024LL * 1024LL;
-
-
-    static const sSizeEntry sizeEntryTable[] =
-    {
-        { "B"     , 1 },
-
-        { "K"     , kK},
-        { "KB"    , kKB},
-        { "KIB"   , kKiB},
-
-        { "M"     , kM},
-        { "MB"    , kMB},
-        { "MIB"   , kMiB},
-
-        { "G"     , kG},
-        { "GB"    , kGB},
-        { "GIB"   , kGiB},
-
-        { "T"     , kT},
-        { "TB"    , kTB},
-        { "TIB"   , kTiB},
-
-        { "P"     , kP},
-        { "PB"    , kPB},
-        { "PIB"   , kPiB}
-    };
-
-    static const int sizeEntryTableSize = sizeof(sizeEntryTable) / sizeof(sSizeEntry);
-
-    bool StringCompare(const std::string& a, const std::string& b, bool bCaseSensitive)
-    {
-        if (bCaseSensitive)
-            return a.compare(b) == 0;
-
-        return ((a.size() == b.size()) && std::equal(a.begin(), a.end(), b.begin(), [](auto char1, auto char2) { return std::toupper(char1) == std::toupper(char2); }));
-    }
-
-    // many ways to say "true"
-    bool StringToBool(string sValue)
-    {
-        std::transform(sValue.begin(), sValue.end(), sValue.begin(), [](unsigned char c){ return (unsigned char) std::tolower(c); });
-        return sValue == "1" ||
-            sValue == "t" ||
-            sValue == "true" ||
-            sValue == "y" ||
-            sValue == "yes" ||
-            sValue == "on";
-    }
-
-    // Converts user readable numbers into ints
-    // Supports hex (0x12345)
-    // Strips commas (1,000,000)
-    // Supports trailing scaling labels  (k, kb, kib, m, mb, mib, etc.)
-    int64_t IntFromUserReadable(string sReadable)
-    {
-        std::transform(sReadable.begin(), sReadable.end(), sReadable.begin(), [](unsigned char c){ return (unsigned char) std::toupper(c); });
-
-        // strip any commas in case human readable string has those
-        sReadable.erase(std::remove(sReadable.begin(), sReadable.end(), ','), sReadable.end());
-
-
-        // Determine if this is a hex value
-        int32_t nNumberBase = 10;
-        if (sReadable.substr(0, 2) == "0X")
-        {
-            nNumberBase = 16;
-            sReadable = sReadable.substr(2);
-        }
-
-
-        int32_t nReadableLength = (int32_t)sReadable.length();
-
-        // count how many chars in the trailing label (if any)
-        int32_t nLabelChars = 0;
-        for (int32_t i = nReadableLength - 1; i >= 0; i--)
-        {
-            char c = sReadable[i];
-            if (c < 'A' || c > 'Z')
-                break;
-
-            nLabelChars++;
-        }
-
-        for (int i = 0; i < sizeEntryTableSize; i++)
-        {
-            const sSizeEntry& entry = sizeEntryTable[i];
-
-            if (sReadable.substr(nReadableLength - nLabelChars).compare(entry.label) == 0)
-            {
-                int64_t nOut = strtoll(sReadable.substr(0, nReadableLength - nLabelChars).c_str(), NULL, nNumberBase);
-                return nOut * entry.value;
-            }
-        }
-
-        int64_t nOut = strtoll(sReadable.c_str(), NULL, nNumberBase);
-        return nOut;
-    }
-
-    // If the number is a power of two, converts to a more readable form
-    // example 32768   -> 32KiB
-    //         1048576 -> 1MiB
-    string UserReadableFromInt(int64_t nValue)
-    {
-        if (nValue == 0)
-            return "0";
-
-        char buf[128];
-        if (nValue % kPiB == 0)  
-            sprintf(buf, "%" PRId64 "PiB", nValue / kPiB);
-        else if (nValue % kPB == 0)
-            sprintf(buf, "%" PRId64 "PB", nValue / kPB);
-
-        else if (nValue % kTiB == 0)
-            sprintf(buf, "%" PRId64 "TiB", nValue / kTiB);
-        else if (nValue % kTB == 0)
-            sprintf(buf, "%" PRId64 "TB", nValue / kTB);
-
-        else if (nValue % kGiB == 0)
-            sprintf(buf, "%" PRId64 "GiB", nValue / kGiB);
-        else if (nValue % kGB == 0)
-            sprintf(buf, "%" PRId64 "GB", nValue / kGB);
-
-        else if (nValue % kMiB == 0)
-            sprintf(buf, "%" PRId64 "MiB", nValue / kMiB);
-        else if (nValue % kMB == 0)
-            sprintf(buf, "%" PRId64 "MB", nValue / kMB);
-
-        else if (nValue % kKiB == 0)
-            sprintf(buf, "%" PRId64 "KiB", nValue / kKiB);
-        else if (nValue % kKB == 0)
-            sprintf(buf, "%" PRId64 "KB", nValue / kKB);
-
-        else sprintf(buf, "%" PRId64, nValue);
-
-        return string(buf);
-    }
-
-    void makelower(std::string& rhs) { std::transform(rhs.begin(), rhs.end(), rhs.begin(), [](unsigned char c) { return (unsigned char)std::tolower(c); }); }
-    void makeupper(std::string& rhs) { std::transform(rhs.begin(), rhs.end(), rhs.begin(), [](unsigned char c) { return (unsigned char)std::toupper(c); }); }
-
-
 
     ParamDesc::ParamDesc(const string& sName, string* pString, eBehavior behavior, const string& sUsage)
     {
@@ -236,10 +70,10 @@ namespace CLP
             {
                 sParameter += ":";
                 if (IsRangeRestricted())
-                    sType = "(" + UserReadableFromInt(mnMinValue) + "-" + UserReadableFromInt(mnMaxValue) + ")";
+                    sType = "(" + StringHelpers::ToUserReadable(mnMinValue) + "-" + StringHelpers::ToUserReadable(mnMaxValue) + ")";
                 else
                     sType = "#";
-                sDefault = UserReadableFromInt(*(int64_t*)mpValue);
+                sDefault = StringHelpers::ToUserReadable(*(int64_t*)mpValue);
             }
             break;
             case ParamDesc::kBool:
@@ -263,7 +97,7 @@ namespace CLP
             case ParamDesc::kInt64:
             {
                 if (IsRangeRestricted())
-                    sType = "(" + UserReadableFromInt(mnMinValue) + "-" + UserReadableFromInt(mnMaxValue) + ")";
+                    sType = "(" + StringHelpers::ToUserReadable(mnMinValue) + "-" + StringHelpers::ToUserReadable(mnMaxValue) + ")";
                 else
                     sType = "#";
             }
@@ -394,7 +228,7 @@ namespace CLP
             {
                 case ParamDesc::kBool:
                 {
-                    *((bool*)pDesc->mpValue) = StringToBool(sValue);    // set the registered bool
+                    *((bool*)pDesc->mpValue) = StringHelpers::ToBool(sValue);    // set the registered bool
                     pDesc->mbFound = true;
                     if (bVerbose)
                         cout << "Set " << sKey << " = " << sValue << "\n";
@@ -403,7 +237,7 @@ namespace CLP
                 break;
                 case ParamDesc::kInt64:
                 {
-                    int64_t nValue = IntFromUserReadable(sValue);
+                    int64_t nValue = StringHelpers::ToInt(sValue);
                     if (pDesc->IsRangeRestricted())
                     {
                         if (nValue < pDesc->mnMinValue || nValue > pDesc->mnMaxValue)
@@ -446,7 +280,7 @@ namespace CLP
                 {
                 case ParamDesc::kBool:
                 {
-                    *((bool*)pPositionalDesc->mpValue) = StringToBool(sArg);    // set the registered bool
+                    *((bool*)pPositionalDesc->mpValue) = StringHelpers::ToBool(sArg);    // set the registered bool
                     pPositionalDesc->mbFound = true;
                     if (bVerbose)
                         cout << "Set " << pPositionalDesc->msName << " = " << sArg << "\n";
@@ -456,12 +290,12 @@ namespace CLP
                 case ParamDesc::kInt64:
                 {
                     pPositionalDesc->mbFound = true;
-                    int64_t nValue = IntFromUserReadable(sArg);
+                    int64_t nValue = StringHelpers::ToInt(sArg);
                     if (pPositionalDesc->IsRangeRestricted())
                     {
                         if (nValue < pPositionalDesc->mnMinValue || nValue > pPositionalDesc->mnMaxValue)
                         {
-                            cerr << "Error: Value for parameter \"" << sArg << "\" is:" << nValue << ". Allowed values from min:" << UserReadableFromInt(pPositionalDesc->mnMinValue) << " to max:" << UserReadableFromInt(pPositionalDesc->mnMaxValue) << "\n";
+                            cerr << "Error: Value for parameter \"" << sArg << "\" is:" << nValue << ". Allowed values from min:" << StringHelpers::ToUserReadable(pPositionalDesc->mnMinValue) << " to max:" << StringHelpers::ToUserReadable(pPositionalDesc->mnMaxValue) << "\n";
                             return false;
                         }
                     }
@@ -491,7 +325,7 @@ namespace CLP
     {
         for (auto& desc : mParameterDescriptors)
         {
-            if (desc.IsNamed() && StringCompare(desc.msName, sKey, desc.IsCaseSensitive()))
+            if (desc.IsNamed() && StringHelpers::Compare(desc.msName, sKey, desc.IsCaseSensitive()))
             {
                 if (pDescriptorOut)
                 {
@@ -562,7 +396,7 @@ namespace CLP
 
     void CLModeParser::GetModeUsageTables(string sMode, string& sCommandLineExample, TableOutput& modeDescriptionTable, TableOutput& requiredParamTable, TableOutput& optionalParamTable, TableOutput& additionalInfoTable)
     {
-        makelower(sMode);
+        StringHelpers::makelower(sMode);
 
         if (!sMode.empty() && !msModeDescription.empty())
         {
@@ -623,13 +457,13 @@ namespace CLP
 
     bool CommandLineParser::IsCurrentMode(string sMode)
     {
-        makelower(sMode);
+        StringHelpers::makelower(sMode);
         return msMode == sMode;
     }
 
     bool CommandLineParser::IsRegisteredMode(string sMode)
     {
-        makelower(sMode);
+        StringHelpers::makelower(sMode);
         for (tModeStringToParserMap::iterator it = mModeToCommandLineParser.begin(); it != mModeToCommandLineParser.end(); it++)
         {
             if ((*it).first == sMode)
@@ -669,7 +503,7 @@ namespace CLP
 
     bool CommandLineParser::RegisterMode(string sMode, const string& sModeDescription)
     {
-        makelower(sMode);
+        StringHelpers::makelower(sMode);
         if (mModeToCommandLineParser.find(sMode) != mModeToCommandLineParser.end())
         {
             assert(false);
@@ -682,7 +516,7 @@ namespace CLP
 
     bool CommandLineParser::RegisterParam(string sMode, ParamDesc param)
     {
-        makelower(sMode);
+        StringHelpers::makelower(sMode);
         if (mModeToCommandLineParser.find(sMode) == mModeToCommandLineParser.end())
         {
             assert(false);
@@ -705,7 +539,7 @@ namespace CLP
 
     bool CommandLineParser::AddInfo(std::string sMode, const std::string& sInfo)
     {
-        makelower(sMode);
+        StringHelpers::makelower(sMode);
         if (mModeToCommandLineParser.find(sMode) == mModeToCommandLineParser.end())
         {
             assert(false);
@@ -763,7 +597,7 @@ namespace CLP
         {
             // If "help" requested
             string sFirst(argv[1]);
-            makelower(sFirst);
+            StringHelpers::makelower(sFirst);
             if (sFirst == "?" || sFirst == "help" || sFirst == "-h")
             {
                 if (bMultiMode)
@@ -776,7 +610,7 @@ namespace CLP
                     else
                     {
                         string sMode = argv[2];
-                        makelower(sMode);
+                        StringHelpers::makelower(sMode);
                         if (IsRegisteredMode(sMode))
                         {
                             // case 2a

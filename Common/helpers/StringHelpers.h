@@ -21,15 +21,94 @@
 
 namespace StringHelpers
 {
+
     //////////////////////////////////////////////////////////////////////////////////////////////
     // Common conversions
     // some commonly used conversions
-    std::string	int_to_hex_string(uint32_t nVal);
-    std::string	int_to_hex_string(uint64_t nVal);
-    std::string	binary_to_hex(uint8_t* pBuf, int32_t nLength);
- 
-    inline void makelower(std::string& rhs) { std::transform(rhs.begin(), rhs.end(), rhs.begin(), [](unsigned char c) { return (unsigned char) std::tolower(c); }); }
-    inline void makeupper(std::string& rhs) { std::transform(rhs.begin(), rhs.end(), rhs.begin(), [](unsigned char c) { return (unsigned char) std::toupper(c); }); }
+    inline void     makelower(std::string& rhs) { std::transform(rhs.begin(), rhs.end(), rhs.begin(), [](unsigned char c) { return (unsigned char)std::tolower(c); }); }
+    inline void     makeupper(std::string& rhs) { std::transform(rhs.begin(), rhs.end(), rhs.begin(), [](unsigned char c) { return (unsigned char)std::toupper(c); }); }
+
+    //////////////////////////////////////////////////////////////////////////////////////////////
+    static const int64_t kAuto = 0LL;
+    static const int64_t kBytes = 1LL;
+    static const int64_t kK = 1000LL;
+    static const int64_t kKB = 1000LL;
+    static const int64_t kKiB = 1024LL;
+
+    static const int64_t kM = 1000LL * 1000LL;
+    static const int64_t kMB = 1000LL * 1000LL;
+    static const int64_t kMiB = 1024LL * 1024LL;
+
+    static const int64_t kG = 1000LL * 1000LL * 1000LL;
+    static const int64_t kGB = 1000LL * 1000LL * 1000LL;
+    static const int64_t kGiB = 1024LL * 1024LL * 1024LL;
+
+    static const int64_t kT = 1000LL * 1000LL * 1000LL * 1000LL;
+    static const int64_t kTB = 1000LL * 1000LL * 1000LL * 1000LL;
+    static const int64_t kTiB = 1024LL * 1024LL * 1024LL * 1024LL;
+
+    static const int64_t kP = 1000LL * 1000LL * 1000LL * 1000LL * 1000LL;
+    static const int64_t kPB = 1000LL * 1000LL * 1000LL * 1000LL * 1000LL;
+    static const int64_t kPiB = 1024LL * 1024LL * 1024LL * 1024LL * 1024LL;
+
+
+    struct sSizeEntry
+    {
+        const char* label;
+        int64_t     value;
+    };
+
+    static const sSizeEntry sizeEntryTable[] =
+    {
+        { "B"     , 1 },
+
+        { "K"     , kK},
+        { "KB"    , kKB},
+        { "KIB"   , kKiB},
+
+        { "M"     , kM},
+        { "MB"    , kMB},
+        { "MIB"   , kMiB},
+
+        { "G"     , kG},
+        { "GB"    , kGB},
+        { "GIB"   , kGiB},
+
+        { "T"     , kT},
+        { "TB"    , kTB},
+        { "TIB"   , kTiB},
+
+        { "P"     , kP},
+        { "PB"    , kPB},
+        { "PIB"   , kPiB}
+    };
+
+
+
+    static const int sizeEntryTableSize = sizeof(sizeEntryTable) / sizeof(sSizeEntry);
+
+
+
+
+    bool            ToBool(std::string sVal);
+    double          ToDouble(std::string sVal);
+
+    std::string     ToHexString(uint32_t nVal);
+    std::string	    ToHexString(uint64_t nVal);
+
+
+    std::string	    FromInt(int64_t nVal);
+    std::string	    FromBin(uint8_t* pBuf, int32_t nLength);
+    std::string	    FromDouble(double fVal);
+
+    std::string     wstring2string(const std::wstring& sVal);
+    std::wstring    string2wstring(const std::string& sVal);
+
+    std::string     FormatFriendlyBytes(uint64_t nBytes, int64_t sizeType = kAuto);
+    std::string     ToUserReadable(int64_t nValue);
+    int64_t         ToInt(std::string sReadable);
+
+    void            SplitToken(std::string& sBefore, std::string& sAfter, const std::string& token);
 
 
     //////////////////////////////////////////////////////////////////////////////////////////////
@@ -139,67 +218,8 @@ namespace StringHelpers
 	}
     
 
-    //////////////////////////////////////////////////////////////////////////////////////////////
-    struct sSizeEntry
-    {
-        const char* label;
-        int64_t     value;
-    };
-
-    static const int64_t kAuto = 0LL;
-    static const int64_t kBytes = 1LL;
-    static const int64_t kK = 1000LL;
-    static const int64_t kKB = 1000LL;
-    static const int64_t kKiB = 1024LL;
-
-    static const int64_t kM = 1000LL * 1000LL;
-    static const int64_t kMB = 1000LL * 1000LL;
-    static const int64_t kMiB = 1024LL * 1024LL;
-
-    static const int64_t kG = 1000LL * 1000LL * 1000LL;
-    static const int64_t kGB = 1000LL * 1000LL * 1000LL;
-    static const int64_t kGiB = 1024LL * 1024LL * 1024LL;
-
-    static const int64_t kT = 1000LL * 1000LL * 1000LL * 1000LL;
-    static const int64_t kTB = 1000LL * 1000LL * 1000LL * 1000LL;
-    static const int64_t kTiB = 1024LL * 1024LL * 1024LL * 1024LL;
-
-    static const int64_t kP = 1000LL * 1000LL * 1000LL * 1000LL * 1000LL;
-    static const int64_t kPB = 1000LL * 1000LL * 1000LL * 1000LL * 1000LL;
-    static const int64_t kPiB = 1024LL * 1024LL * 1024LL * 1024LL * 1024LL;
-
-
-    static const sSizeEntry sizeEntryTable[] =
-    {
-        { "B"     , 1 },
-
-        { "K"     , kK},
-        { "KB"    , kKB},
-        { "KIB"   , kKiB},
-
-        { "M"     , kM},
-        { "MB"    , kMB},
-        { "MIB"   , kMiB},
-
-        { "G"     , kG},
-        { "GB"    , kGB},
-        { "GIB"   , kGiB},
-
-        { "T"     , kT},
-        { "TB"    , kTB},
-        { "TIB"   , kTiB},
-
-        { "P"     , kP},
-        { "PB"    , kPB},
-        { "PIB"   , kPiB}
-    };
-
-    static const int sizeEntryTableSize = sizeof(sizeEntryTable) / sizeof(sSizeEntry);
-
-
-
-    std::string FormatFriendlyBytes(uint64_t nBytes, int64_t sizeType = kAuto);
-    std::string UserReadableFromInt(int64_t nValue);
-    int64_t IntFromUserReadable(std::string sReadable);
+    bool Compare(const std::string& a, const std::string& b, bool bCaseSensitive);
 };
+
+
 

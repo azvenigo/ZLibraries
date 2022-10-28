@@ -20,7 +20,7 @@ endif()
 # DupeScanner
 
 set(DUPESCANNER_SOURCES BlockScanner.cpp DupeScanner.cpp)
-set(COMMON_FILES ../Common/helpers/CommandLineParser.cpp ../Common/helpers/CommandLineParser.h ../Common/helpers/sha256.h ../Common/helpers/sha256.cpp)
+set(COMMON_FILES ../Common/helpers/CommandLineParser.cpp ../Common/helpers/CommandLineParser.h ../Common/helpers/sha256.h ../Common/helpers/sha256.cpp ../Common/helpers/StringHelpers.h ../Common/helpers/StringHelpers.cpp)
 
 
 ####################

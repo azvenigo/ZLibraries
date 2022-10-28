@@ -3,6 +3,7 @@
 #include "helpers/CommandLineParser.h"
 #include "helpers/InlineFormatter.h"
 #include "helpers/RandHelpers.h"
+#include "helpers/StringHelpers.h"
 #include <filesystem>
 
 InlineFormatter gFormatter;
@@ -218,9 +219,9 @@ int main(int argc, char* argv[])
         return -1;
     }
     
-    bFillSpecificValue = CLP::StringCompare(parser.GetAppMode(), "value", false);
-    bRandomFill = CLP::StringCompare(parser.GetAppMode(), "rand", false);
-    bCompressFactorFill = CLP::StringCompare(parser.GetAppMode(), "compressible", false);
+    bFillSpecificValue = StringHelpers::Compare(parser.GetAppMode(), "value", false);
+    bRandomFill = StringHelpers::Compare(parser.GetAppMode(), "rand", false);
+    bCompressFactorFill = StringHelpers::Compare(parser.GetAppMode(), "compressible", false);
 
 
     size_t nLastDot = sFilename.find_last_of('.');

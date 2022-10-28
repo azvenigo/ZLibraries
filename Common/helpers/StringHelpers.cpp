@@ -12,7 +12,19 @@
 #include <inttypes.h>
 using namespace std;
 
-string StringHelpers::int_to_hex_string(uint32_t nVal)
+#pragma warning(disable : 4244)
+
+string	StringHelpers::wstring2string(const wstring& sVal)
+{
+    return string(sVal.begin(), sVal.end());
+}
+
+wstring StringHelpers::string2wstring(const string& sVal)
+{
+    return wstring(sVal.begin(), sVal.end());
+}
+
+string StringHelpers::ToHexString(uint32_t nVal)
 {
 	char buf[64];
 	sprintf_s(&buf[0], 64, "0x%X", nVal);
@@ -21,7 +33,8 @@ string StringHelpers::int_to_hex_string(uint32_t nVal)
 	return sRet;
 }
 
-string StringHelpers::int_to_hex_string(uint64_t nVal)
+
+string StringHelpers::ToHexString(uint64_t nVal)
 {
 	char buf[64];
 	sprintf_s(&buf[0], 64, "0x%llX", nVal);
@@ -30,7 +43,7 @@ string StringHelpers::int_to_hex_string(uint64_t nVal)
 	return sRet;
 }
 
-string StringHelpers::binary_to_hex(uint8_t* pBuf, int32_t nLength)
+string StringHelpers::FromBin(uint8_t* pBuf, int32_t nLength)
 {
 	string sRet;
 	char buf[64];
@@ -42,6 +55,54 @@ string StringHelpers::binary_to_hex(uint8_t* pBuf, int32_t nLength)
 
 	return sRet;
 }
+
+string	StringHelpers::FromInt(int64_t nVal)
+{
+    char buf[32];
+    sprintf_s(buf, "%lld", nVal);
+
+    return string(buf);
+}
+
+double StringHelpers::ToDouble(string sVal)
+{
+    return strtod(sVal.c_str(), NULL);
+}
+
+string	StringHelpers::FromDouble(double fVal)
+{
+    char buf[32];
+    sprintf_s(buf, "%f", (float)fVal);
+
+    return string(buf);
+}
+
+bool StringHelpers::ToBool(std::string sValue)
+{
+    std::transform(sValue.begin(), sValue.end(), sValue.begin(), [](unsigned char c) { return (unsigned char)std::tolower(c); });
+    return sValue == "1" ||
+        sValue == "t" ||
+        sValue == "true" ||
+        sValue == "y" ||
+        sValue == "yes" ||
+        sValue == "on";
+}
+
+void StringHelpers::SplitToken(string& sBefore, string& sAfter, const string& token)
+{
+    size_t pos = sAfter.find(token);
+    if (pos == string::npos)
+    {
+        sBefore = sAfter;
+        sAfter = "";
+        return;
+    }
+
+    sBefore = sAfter.substr(0, pos).c_str();
+    sAfter = sAfter.substr(pos + token.length()).c_str();
+}
+
+
 
 string StringHelpers::FormatFriendlyBytes(uint64_t nBytes, int64_t sizeType)
 {
@@ -96,15 +157,22 @@ string StringHelpers::FormatFriendlyBytes(uint64_t nBytes, int64_t sizeType)
     return string(buf);
 }
 
+bool StringHelpers::Compare(const std::string& a, const std::string& b, bool bCaseSensitive)
+{
+    if (bCaseSensitive)
+        return a.compare(b) == 0;
+
+    return ((a.size() == b.size()) && std::equal(a.begin(), a.end(), b.begin(), [](auto char1, auto char2) { return std::toupper(char1) == std::toupper(char2); }));
+}
 
 
 // Converts user readable numbers into ints
 // Supports hex (0x12345)
 // Strips commas (1,000,000)
 // Supports trailing scaling labels  (k, kb, kib, m, mb, mib, etc.)
-int64_t StringHelpers::IntFromUserReadable(string sReadable)
+int64_t StringHelpers::ToInt(string sReadable)
 {
-    std::transform(sReadable.begin(), sReadable.end(), sReadable.begin(), [](unsigned char c) { return (unsigned char)std::toupper(c); });
+    makeupper(sReadable);
 
     // strip any commas in case human readable string has those
     sReadable.erase(std::remove(sReadable.begin(), sReadable.end(), ','), sReadable.end());
@@ -150,7 +218,7 @@ int64_t StringHelpers::IntFromUserReadable(string sReadable)
 // If the number is a power of two, converts to a more readable form
 // example 32768   -> 32KiB
 //         1048576 -> 1MiB
-string StringHelpers::UserReadableFromInt(int64_t nValue)
+string StringHelpers::ToUserReadable(int64_t nValue)
 {
     char buf[128];
     if (nValue % kPiB == 0)
