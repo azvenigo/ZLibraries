@@ -18,9 +18,14 @@
 #include <codecvt>
 #include <algorithm>
 #include <list>
+#include <vector>
+#include <map>
 
 namespace StringHelpers
 {
+
+    const char kCharSplitToken = 240; // extended ascii character 
+    const char kCharEqualityToken = 247; // extended ascii character
 
     //////////////////////////////////////////////////////////////////////////////////////////////
     // Common conversions
@@ -107,6 +112,13 @@ namespace StringHelpers
     std::string     FormatFriendlyBytes(uint64_t nBytes, int64_t sizeType = kAuto);
     std::string     ToUserReadable(int64_t nValue);
     int64_t         ToInt(std::string sReadable);
+
+    std::string     FromVector(std::vector<std::string>& stringVector);
+    void            ToVector(const std::string& sEncoded, std::vector<std::string>& outStringVector);
+
+    std::string     FromMap(const std::map<std::string, std::string>& stringMap);
+    void            ToMap(const std::string& sEncoded, std::map<std::string, std::string>& outStringMap);
+
 
     void            SplitToken(std::string& sBefore, std::string& sAfter, const std::string& token);
 
