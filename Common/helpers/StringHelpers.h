@@ -24,8 +24,8 @@
 namespace StringHelpers
 {
 
-    const char kCharSplitToken = 240; // extended ascii character 
-    const char kCharEqualityToken = 247; // extended ascii character
+    const char kCharSplitToken = -16; // extended ascii character 
+    const char kCharEqualityToken = -9; // extended ascii character
 
     //////////////////////////////////////////////////////////////////////////////////////////////
     // Common conversions
@@ -231,6 +231,70 @@ namespace StringHelpers
     
 
     bool Compare(const std::string& a, const std::string& b, bool bCaseSensitive);
+
+    // URL encoding
+    inline bool URL_Safe(char c)
+    {
+        if (c >= 'A' && c <= 'Z')
+            return true;
+        if (c >= 'a' && c <= 'z')
+            return true;
+        if (c >= '0' && c <= '9')
+            return true;
+        return false;
+    }
+
+    inline std::string URL_Encode(const std::string& sRaw)
+    {
+        char byteToAscii[] = { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F' };
+
+        std::string sResult;
+        for (auto c : sRaw)
+        {
+            if (URL_Safe(c))
+                sResult += c;
+            else
+            {
+                sResult += "%";
+                sResult += byteToAscii[c >> 4];
+                sResult += byteToAscii[c & 0x0F];
+            }
+        }
+        return sResult;
+    }
+
+    inline std::string URL_Decode(const std::string& sEncoded)
+    {
+        std::string sResult;
+        for (int i = 0; i < sEncoded.length(); i++)
+        {
+            char c = *(sEncoded.c_str()+i);
+
+            if (c == '%')
+            {
+                char upper = *(sEncoded.c_str() + i + 1);
+                if (upper >= 'A' && upper <= 'F')
+                    upper -= 'A';
+                else
+                    upper -= '0';
+
+                char lower = *(sEncoded.c_str() + i + 2);
+                if (lower >= 'A' && lower <= 'F')
+                    lower = lower - 'A' + 0xA;
+                else
+                    lower -= '0';
+
+                char value = (upper << 4) + lower;
+                sResult += value;
+                i += 2;
+            }
+            else
+                sResult += c;
+        }
+        return sResult;
+    }
+
+
 };
 
 

@@ -3,7 +3,7 @@
 #include <map>
 #include <vector>
 
-#define NDEBUG
+//#define NDEBUG
 
 #include "json.hpp"
 
