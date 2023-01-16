@@ -20,11 +20,12 @@
 #include <list>
 #include <vector>
 #include <map>
+#include <set>
 
 namespace StringHelpers
 {
 
-    const char kCharSplitToken = -16; // extended ascii character 
+    const char kCharSplitToken = -77; // extended ascii character |
     const char kCharEqualityToken = -9; // extended ascii character
 
     //////////////////////////////////////////////////////////////////////////////////////////////
@@ -91,9 +92,7 @@ namespace StringHelpers
 
 
     static const int sizeEntryTableSize = sizeof(sizeEntryTable) / sizeof(sSizeEntry);
-
-
-
+    typedef std::set<std::string>                       tStringSet;
 
     bool            ToBool(std::string sVal);
     double          ToDouble(std::string sVal);
@@ -104,7 +103,7 @@ namespace StringHelpers
 
     std::string	    FromInt(int64_t nVal);
     std::string	    FromBin(uint8_t* pBuf, int32_t nLength);
-    std::string	    FromDouble(double fVal);
+    std::string	    FromDouble(double fVal, int64_t nPrecision = kAuto);
 
     std::string     wstring2string(const std::wstring& sVal);
     std::wstring    string2wstring(const std::string& sVal);
@@ -119,6 +118,8 @@ namespace StringHelpers
     std::string     FromMap(const std::map<std::string, std::string>& stringMap);
     void            ToMap(const std::string& sEncoded, std::map<std::string, std::string>& outStringMap);
 
+    std::string     FromSet(tStringSet& stringSet);
+    void            ToSet(const std::string& sEncoded, tStringSet& outStringSet);
 
     void            SplitToken(std::string& sBefore, std::string& sAfter, const std::string& token);
 

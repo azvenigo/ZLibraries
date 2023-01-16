@@ -2,8 +2,10 @@
 #include <string>
 #include <map>
 #include <vector>
+#include <set>
 #include <iostream>
 #include "LoggingHelpers.h"
+#include "StringHelpers.h"
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // CommandlineParser 
@@ -120,7 +122,6 @@ namespace CLP
     const static uint32_t kCaseInsensitive      = 0;    // default
     const static uint32_t kCaseSensitive        = 8;    // if set the named key must match case 
 
-
     class ParamDesc
     {
     public:
@@ -128,9 +129,10 @@ namespace CLP
         friend class CommandLineParser;
 
         // named string
-        ParamDesc(const std::string& sName, std::string* pString, eBehavior behavior, const std::string& sUsage = "");
+        ParamDesc(const std::string& sName, std::string* pString, eBehavior behavior, const std::string& sUsage = "", const StringHelpers::tStringSet& allowedStrings = {});
         ParamDesc(const std::string& sName, bool* pBool, eBehavior behavior, const std::string& sUsage = "");
         ParamDesc(const std::string& sName, int64_t* pInt, eBehavior behavior, const std::string& sUsage = "", int64_t nRangeMin = 0, int64_t nRangeMax = 0);
+        ParamDesc(const std::string& sName, float* pFloat, eBehavior behavior, const std::string& sUsage = "", float fRangeMin = 0.0, float fRangeMax = 0.0);
 
     private:
 
@@ -155,24 +157,30 @@ namespace CLP
             kUnknown    = 0,
             kInt64      = 1,
             kBool       = 2,
-            kString     = 3
+            kString     = 3,
+            kFloat      = 4
         };
-        eParamValueType mValueType;
-        void*           mpValue;        // Memory location of value to be filled in
 
-        std::string     msName;         // For named parameters like "-catlives:9" or "-VERBOSE".  Also used for help text for all parameters
-        int64_t         mnPosition;     // positional parameter index.  For unnamed (i.e. positional) parameters
-        eBehavior       mBehaviorFlags;
+        eParamValueType             mValueType;
+        void*                       mpValue;        // Memory location of value to be filled in
+
+        std::string                 msName;         // For named parameters like "-catlives:9" or "-VERBOSE".  Also used for help text for all parameters
+        int64_t                     mnPosition;     // positional parameter index.  For unnamed (i.e. positional) parameters
+        eBehavior                   mBehaviorFlags;
 
         // range restricted parameters
-        int64_t         mnMinValue;
-        int64_t         mnMaxValue;
+        int64_t                     mnMinInt;
+        int64_t                     mnMaxInt;
+        float                       mfMinFloat;
+        float                       mfMaxFloat;
+
+        StringHelpers::tStringSet   mAllowedStrings;
 
         // Parameter usage for help text
-        std::string     msUsage;
+        std::string                 msUsage;
 
         // Tracking for checking whether all required parameters were found
-        bool            mbFound;
+        bool                        mbFound;
 
     };
 

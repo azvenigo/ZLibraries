@@ -12,6 +12,9 @@
 #include <inttypes.h>
 #include <assert.h>
 #include <iostream>
+#include <sstream>
+#include <iomanip>
+
 using namespace std;
 
 #pragma warning(disable : 4244)
@@ -71,14 +74,15 @@ double StringHelpers::ToDouble(string sVal)
     return stod(sVal, NULL);
 }
 
-string	StringHelpers::FromDouble(double fVal)
+string	StringHelpers::FromDouble(double fVal, int64_t nPrecision)
 {
+    if (nPrecision == kAuto)
+        return std::to_string(fVal);
 
-/*    char buf[32];
-    sprintf(buf, "%f", (double)fVal);
+    std::stringstream ss;
+    ss << std::fixed << std::setprecision(nPrecision) << fVal;
 
-    return string(buf);*/
-    return std::to_string(fVal);
+    return ss.str();
 }
 
 bool StringHelpers::ToBool(string sValue)
@@ -286,6 +290,39 @@ void StringHelpers::ToVector(const string& sEncoded, vector<string>& outStringVe
         current = sEncoded.find(kCharSplitToken, previous);
     }
     outStringVector.push_back(sEncoded.substr(previous, current - previous));
+}
+
+string StringHelpers::FromSet(tStringSet& stringSet)
+{
+    string sValue;
+    for (auto s : stringSet)
+    {
+        assert(s.find(kCharSplitToken) == string::npos);   // cannot encode extended ascii character kSplitToken
+
+        if (!s.empty())
+        {
+            sValue += s + kCharSplitToken;
+        }
+    }
+
+    if (!sValue.empty())
+        sValue = sValue.substr(0, sValue.length() - 1);	// remove the trailing kCharSplitToken
+
+    return sValue;
+}
+
+void StringHelpers::ToSet(const std::string& sEncoded, tStringSet& outStringSet)
+{
+    std::size_t current, previous = 0;
+
+    current = sEncoded.find(kCharSplitToken);
+    while (current != std::string::npos)
+    {
+        outStringSet.insert(sEncoded.substr(previous, current - previous));
+        previous = current + 1;
+        current = sEncoded.find(kCharSplitToken, previous);
+    }
+    outStringSet.insert(sEncoded.substr(previous, current - previous));
 }
 
 

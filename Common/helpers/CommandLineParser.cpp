@@ -1,5 +1,4 @@
 #include "CommandLineParser.h"
-#include "StringHelpers.h"
 #include <algorithm>
 #include <stdlib.h>
 #include <iostream>
@@ -11,11 +10,12 @@
 #include <algorithm>
 
 using namespace std;
+using namespace StringHelpers;
 
 namespace CLP
 {
 
-    ParamDesc::ParamDesc(const string& sName, string* pString, eBehavior behavior, const string& sUsage)
+    ParamDesc::ParamDesc(const string& sName, string* pString, eBehavior behavior, const string& sUsage, const tStringSet& allowedStrings)
     {
         mValueType = kString;
         msName = sName;
@@ -23,6 +23,7 @@ namespace CLP
         mBehaviorFlags = behavior;
         mbFound = false;
         msUsage = sUsage;
+        mAllowedStrings = allowedStrings;
     }
 
 
@@ -42,12 +43,23 @@ namespace CLP
         msName = sName;
         mpValue = (void*)pInt;
         mBehaviorFlags = behavior;
-        mnMinValue = nRangeMin;
-        mnMaxValue = nRangeMax;
+        mnMinInt = nRangeMin;
+        mnMaxInt = nRangeMax;
         mbFound = false;
         msUsage = sUsage;
     }
 
+    ParamDesc::ParamDesc(const string& sName, float* pFloat, eBehavior behavior, const string& sUsage, float fRangeMin, float fRangeMax)
+    {
+        mValueType = kFloat;
+        msName = sName;
+        mpValue = (void*)pFloat;
+        mBehaviorFlags = behavior;
+        mfMinFloat = fRangeMin;
+        mfMaxFloat = fRangeMax;
+        mbFound = false;
+        msUsage = sUsage;
+    }
 
     void ParamDesc::GetExample(std::string& sParameter, std::string& sType, std::string& sDefault, std::string& sUsage)
     {
@@ -63,17 +75,30 @@ namespace CLP
             {
             case ParamDesc::kString:
                 sParameter += ":";
-                sType = "$";
+                if (IsRangeRestricted())
+                    sType = "{" + FromSet(mAllowedStrings) + "}";
+                else
+                    sType = "$";
                 sDefault = *((string*)mpValue);
                 break;
             case ParamDesc::kInt64:
             {
                 sParameter += ":";
                 if (IsRangeRestricted())
-                    sType = "(" + StringHelpers::ToUserReadable(mnMinValue) + "-" + StringHelpers::ToUserReadable(mnMaxValue) + ")";
+                    sType = "(" + std::to_string(mnMinInt) + "-" + std::to_string(mnMaxInt) + ")";
                 else
                     sType = "#";
-                sDefault = StringHelpers::ToUserReadable(*(int64_t*)mpValue);
+                sDefault = std::to_string(*(int64_t*)mpValue);
+            }
+            break;
+            case ParamDesc::kFloat:
+            {
+                sParameter += ":";
+                if (IsRangeRestricted())
+                    sType = "(" + StringHelpers::FromDouble(mfMinFloat, 2) + "-" + StringHelpers::FromDouble(mfMaxFloat, 2) + ")";
+                else
+                    sType = "#.#";
+                sDefault = StringHelpers::FromDouble(*(float*)mpValue, 2);
             }
             break;
             case ParamDesc::kBool:
@@ -92,14 +117,25 @@ namespace CLP
             switch (mValueType)
             {
             case ParamDesc::kString:
-                sType = "$";
+                if (IsRangeRestricted())
+                    sType = "{" + FromSet(mAllowedStrings) + "}";
+                else
+                    sType = "$";
                 break;
             case ParamDesc::kInt64:
             {
                 if (IsRangeRestricted())
-                    sType = "(" + StringHelpers::ToUserReadable(mnMinValue) + "-" + StringHelpers::ToUserReadable(mnMaxValue) + ")";
+                    sType = "(" + std::to_string(mnMinInt) + "-" + std::to_string(mnMaxInt) + ")";
                 else
                     sType = "#";
+            }
+            break;
+            case ParamDesc::kFloat:
+            {
+                if (IsRangeRestricted())
+                    sType = "(" + StringHelpers::FromDouble(mfMinFloat, 2) + "-" + StringHelpers::FromDouble(mfMaxFloat, 2) + ")";
+                else
+                    sType = "#.#";
             }
             break;
             case ParamDesc::kBool:
@@ -157,7 +193,7 @@ namespace CLP
         {
             if (p.IsRequired() && !p.mbFound)
             {
-                cerr << "Error: Required parameter not found:" << p.msName << "\n";
+                cerr << "Error: Required parameter not set:" << p.msName << "\n";
                 nErrors++;
             }
         }
@@ -240,9 +276,9 @@ namespace CLP
                     int64_t nValue = StringHelpers::ToInt(sValue);
                     if (pDesc->IsRangeRestricted())
                     {
-                        if (nValue < pDesc->mnMinValue || nValue > pDesc->mnMaxValue)
+                        if (nValue < pDesc->mnMinInt || nValue > pDesc->mnMaxInt)
                         {
-                            cerr << "Error: Value for parameter \"" << sArg << "\" is:" << nValue << ". Allowed range:(" << pDesc->mnMinValue << "-" << pDesc->mnMaxValue << ")\n";
+                            cerr << "Error: Value for \"" << sArg << "\" OUT OF RANGE. Allowed range:(" << pDesc->mnMinInt << "-" << pDesc->mnMaxInt << ")\n";
                             return false;
                         }
                     }
@@ -254,10 +290,37 @@ namespace CLP
                     return true;
                 }
                 break;
+                case ParamDesc::kFloat:
+                {
+                    float fValue = (float)StringHelpers::ToDouble(sValue);
+                    if (pDesc->IsRangeRestricted())
+                    {
+                        if (fValue < pDesc->mfMinFloat || fValue > pDesc->mfMaxFloat)
+                        {
+                            cerr << "Error: Value for \"" << sArg << "\" OUT OF RANGE. Allowed range:(" << pDesc->mfMinFloat << "-" << pDesc->mfMaxFloat << ")\n";
+                            return false;
+                        }
+                    }
+
+                    *((float*)pDesc->mpValue) = fValue;    // set the registered float
+                    pDesc->mbFound = true;
+                    if (bVerbose)
+                        cout << "Set " << sKey << " = " << fValue << "\n";
+                    return true;
+                }
+                break;
                 default:    // ParamDesc::kString
                 {
-                    *((string*)pDesc->mpValue) = sValue;     // set the registered string
+                    if (pDesc->IsRangeRestricted())
+                    {
+                        if (pDesc->mAllowedStrings.find(sValue) == pDesc->mAllowedStrings.end())
+                        {
+                            cerr << "Error: Value for \"" << sArg << "\" NOT ALLOWED. Allowed values:{" << FromSet(pDesc->mAllowedStrings) << "}\n";
+                            return false;
+                        }
+                    }
                     pDesc->mbFound = true;
+                    *((string*)pDesc->mpValue) = sValue;     // set the registered string
                     if (bVerbose)
                         cout << "Set " << sKey << " = " << sValue << "\n";
                     return true;
@@ -293,9 +356,9 @@ namespace CLP
                     int64_t nValue = StringHelpers::ToInt(sArg);
                     if (pPositionalDesc->IsRangeRestricted())
                     {
-                        if (nValue < pPositionalDesc->mnMinValue || nValue > pPositionalDesc->mnMaxValue)
+                        if (nValue < pPositionalDesc->mnMinInt || nValue > pPositionalDesc->mnMaxInt)
                         {
-                            cerr << "Error: Value for parameter \"" << sArg << "\" is:" << nValue << ". Allowed values from min:" << StringHelpers::ToUserReadable(pPositionalDesc->mnMinValue) << " to max:" << StringHelpers::ToUserReadable(pPositionalDesc->mnMaxValue) << "\n";
+                            cerr << "Error: Value for \"" << sArg << "\" OUT OF RANGE. Allowed range:(" << pPositionalDesc->mnMinInt << "-" << pPositionalDesc->mnMaxInt << ")\n";
                             return false;
                         }
                     }
@@ -306,8 +369,36 @@ namespace CLP
                     return true;
                 }
                 break;
+                case ParamDesc::kFloat:
+                {
+                    pPositionalDesc->mbFound = true;
+                    float fValue = (float)StringHelpers::ToDouble(sArg);
+                    if (pPositionalDesc->IsRangeRestricted())
+                    {
+                        if (fValue < pPositionalDesc->mfMinFloat || fValue > pPositionalDesc->mfMaxFloat)
+                        {
+                            cerr << "Error: Value for \"" << sArg << "\" OUT OF RANGE. Allowed range:(" << pPositionalDesc->mfMinFloat << "-" << pPositionalDesc->mfMaxFloat << ")\n";
+                            return false;
+                        }
+                    }
+
+                    *((float*)pPositionalDesc->mpValue) = fValue;    // set the registered float
+                    if (bVerbose)
+                        cout << "Set " << pPositionalDesc->msName << " = " << fValue << "\n";
+                    return true;
+                }
+                break;
                 default:    // ParamDesc::kString
                 {
+                    if (pPositionalDesc->IsRangeRestricted())
+                    {
+                        if (pPositionalDesc->mAllowedStrings.find(sArg) == pPositionalDesc->mAllowedStrings.end())
+                        {
+                            cerr << "Error: Value for \"" << sArg << "\" NOT ALLOWED. Allowed values:{" << FromSet(pPositionalDesc->mAllowedStrings) << "}\n";
+                            return false;
+                        }
+                    }
+
                     pPositionalDesc->mbFound = true;
                     *((string*)pPositionalDesc->mpValue) = sArg;     // set the registered string
                     if (bVerbose)
@@ -672,7 +763,7 @@ namespace CLP
                     }
                 }
 
-                if (!mModeToCommandLineParser[msMode].CheckAllRequirementsMet())
+                if (nErrors > 0 || !mModeToCommandLineParser[msMode].CheckAllRequirementsMet())
                 {
                     cout << "\n\"" << msAppName << " help\" - to see usage.\n";
                     return false;
