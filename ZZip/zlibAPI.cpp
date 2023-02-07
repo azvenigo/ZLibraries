@@ -21,7 +21,7 @@
 #include "inffixed.h"
 #include "inflate.h"
 #include "zlibAPI.h"
-#include "helpers/crc32Fast.h"
+#include "helpers/Crc32Fast.h"
 
 
 ZDecompressor::ZDecompressor()

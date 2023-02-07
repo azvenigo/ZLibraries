@@ -150,8 +150,6 @@ void CreateCompressibleFile(string sPath, int64_t nTotalSize, int64_t nCompressF
     {
         for (int j = 0; j < kBufferElements; j++)
         {
-            uint32_t nVal = (uint32_t)(i + (j * sizeof(uint32_t)));
-
             if (j % nCompressFactor == 0)
                 *(bufcycl + j) = RANDU64(0, 0xffffffff);
             else

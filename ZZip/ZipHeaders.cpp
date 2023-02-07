@@ -10,6 +10,7 @@
 #include "ZipHeaders.h"
 #include <time.h>
 #include <ctime>
+#include <cstring>
 #include <filesystem>
 #include <iostream>
 #include <iomanip>
@@ -694,7 +695,6 @@ bool cZipCD::Init(cZZFile& zzFile)
     // Found a Zip64 locator, now read zip64 end of CD record
     if (bFoundZip64EndOfCDLocator)
     {
-        bool bFoundZip64EndOfCDRecord = false;
         for (int32_t nSeek = nReadSizeofCDRec - sizeof(kZip64EndofCDTag); nSeek >= 0; nSeek--)
         {
             uint32_t* pTag = (uint32_t*)(pBuf + nSeek);
@@ -703,7 +703,6 @@ bool cZipCD::Init(cZZFile& zzFile)
                 //                cout << "Found kZip64EndofCDTag.\n";
                 uint32_t nNumBytesProcessed = 0;
                 mZip64EndOfCDRecord.ParseRaw(pBuf + nSeek, nNumBytesProcessed);
-                bFoundZip64EndOfCDRecord = true;
 
                 mbIsZip64 = true;       // Treat archive as zip64
                 break;
@@ -745,7 +744,7 @@ bool cZipCD::Init(cZZFile& zzFile)
 
 
     int32_t nBufOffset = 0;
-    for (int32_t i = 0; i < nCDRecords; i++)
+    for (size_t i = 0; i < nCDRecords; i++)
     {
         cCDFileHeader fileHeader;
         uint32_t nNumBytesProcessed = 0;

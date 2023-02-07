@@ -52,7 +52,7 @@ public:
 
     uint16_t                    mnHeader;
     uint16_t                    mnSize;
-    std::shared_ptr<uint8_t>    mpData;
+    std::shared_ptr<uint8_t[]>  mpData;
 };
 
 typedef std::list<cExtensibleFieldEntry> tExtensibleFieldList;
