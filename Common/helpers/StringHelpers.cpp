@@ -66,7 +66,7 @@ string StringHelpers::FromBin(uint8_t* pBuf, int32_t nLength)
 string	StringHelpers::FromInt(int64_t nVal)
 {
     char buf[32];
-    sprintf(buf, "%" PRIX64, nVal);
+    sprintf(buf, "%" PRIi64, nVal);
 
     return string(buf);
 }

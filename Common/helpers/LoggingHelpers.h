@@ -159,6 +159,25 @@ public:
             AddRow(s);
     }
 
+    std::string ElementAt(size_t row, size_t col)
+    {
+        if (row > mRows.size() || col > mColumns)
+            return "";
+        
+        auto& rowIterator = mRows.begin();
+        size_t r = 0;
+        for (r = 0; r < row; r++)
+        {
+            rowIterator++;
+        }
+
+        tStringArray& rowArray = *rowIterator;
+        if (col > rowArray.size())
+            return "";
+
+        return rowArray[col];
+    }
+
     // Output
 
     size_t GetRowCount() const
@@ -306,6 +325,32 @@ public:
 
         return os;
     }
+
+    TableOutput Transpose()
+    {
+        TableOutput transposedTable;
+
+
+        for (size_t colCounter = 0; colCounter < mColumns; colCounter++)
+        {
+            tStringArray newRow;
+            for (size_t rowCounter = 0; rowCounter < mRows.size(); rowCounter++)
+                newRow.push_back(ElementAt(rowCounter, colCounter));
+
+            transposedTable.mRows.push_back(newRow);
+        }
+        transposedTable.mColumns = mRows.size();
+        transposedTable.mT = mT;
+        transposedTable.mL = mL;
+        transposedTable.mR = mR;
+        transposedTable.mB = mB;
+        transposedTable.mSeparator = mSeparator;
+        transposedTable.mColumnPadding = mColumnPadding;
+        transposedTable.mMinimumOutputWidth = mMinimumOutputWidth;
+
+        return transposedTable;
+    }
+
 
 protected:
 

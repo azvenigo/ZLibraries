@@ -80,8 +80,10 @@ include_directories(${INCLUDE_DIRS})
 
 add_executable(ZZip ${SOURCES} ${INCLUDES})
 target_link_libraries(ZZip ${LINK_LIBS})
-    
-add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_CURRENT_LIST_DIR}/Common/curl/bin/libcurl.dll" $<TARGET_FILE_DIR:${PROJECT_NAME}>)
-add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_CURRENT_LIST_DIR}/Common/libssh2/libssh2.dll" $<TARGET_FILE_DIR:${PROJECT_NAME}>)
-add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_CURRENT_LIST_DIR}/Common/openssl/libssl-1_1-x64.dll" $<TARGET_FILE_DIR:${PROJECT_NAME}>)
-add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_CURRENT_LIST_DIR}/Common/openssl/libcrypto-1_1-x64.dll" $<TARGET_FILE_DIR:${PROJECT_NAME}>)
+
+if(MSVC)    
+    add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_CURRENT_LIST_DIR}/../Common/curl/bin/libcurl.dll" $<TARGET_FILE_DIR:${PROJECT_NAME}>)
+    add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_CURRENT_LIST_DIR}/../Common/libssh2/libssh2.dll" $<TARGET_FILE_DIR:${PROJECT_NAME}>)
+    add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_CURRENT_LIST_DIR}/../Common/openssl/libssl-1_1-x64.dll" $<TARGET_FILE_DIR:${PROJECT_NAME}>)
+    add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_CURRENT_LIST_DIR}/../Common/openssl/libcrypto-1_1-x64.dll" $<TARGET_FILE_DIR:${PROJECT_NAME}>)
+endif()

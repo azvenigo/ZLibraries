@@ -200,7 +200,7 @@ bool Insert(const std::string& sSourcePath, const std::string& sDestPath, int64_
     tmpDstFile.open(tempFilename, ios::binary);
     if (!tmpDstFile)
     {
-        cerr << "Failed to open temporary dest file:" << tempFilename.c_str() << "\n";
+        cerr << "Failed to open temporary dest file:" << tempFilename.string() << "\n";
         return false;
     }
 
