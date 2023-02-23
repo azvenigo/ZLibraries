@@ -137,6 +137,7 @@ namespace CLP
     private:
 
         void        GetExample(std::string& sParameter, std::string& sType, std::string& sDefault, std::string& sUsage);
+        std::string ValueToString();
 
         // Behavior Accessors
         bool        IsNamed()               const { return mBehaviorFlags & kNamed; }
@@ -209,6 +210,7 @@ namespace CLP
         size_t  GetNumPositionalParamsRegistered();
         size_t  GetNumPositionalParamsHandled();
 
+        void    ShowFoundParameters();
         void    GetModeUsageTables(std::string sMode, std::string& sCommandLineExample, TableOutput& modeDescriptionTable, TableOutput& requiredParamTable, TableOutput& optionalParamTable, TableOutput& additionalInfoTable);
 
     protected:
@@ -227,7 +229,7 @@ namespace CLP
     };
 
 
-    typedef  std::map<std::string, CLModeParser> tModeStringToParserMap;
+    typedef  std::map<std::string, CLModeParser> tModeToParser;
 
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     // CommandLineParser 
@@ -240,47 +242,51 @@ namespace CLP
     {
     public:
         // Registration Functions
-        void    RegisterAppDescription(const std::string& sDescription);
-        bool    Parse(int argc, char* argv[], bool bVerbose = false);
-        void    ListModes();
-        void    OutputHelp();
+        void                RegisterAppDescription(const std::string& sDescription);
+        bool                Parse(int argc, char* argv[], bool bVerbose = false);
+        void                ListModes();
+        void                OutputHelp();
 
         // Accessors
-        std::string  GetAppMode() { return msMode; }         // empty string if default mode
-        std::string  GetAppPath() { return msAppPath; }
-        std::string  GetAppName() { return msAppName; }
-        bool    IsCurrentMode(std::string sMode);           // true if current mode matches (case insensitive)
-        bool    IsRegisteredMode(std::string sMode);        // true if this mode has been registered
+        std::string     GetAppMode() { return msMode; }         // empty string if default mode
+        std::string     GetAppPath() { return msAppPath; }
+        std::string     GetAppName() { return msAppName; }
+        bool            IsCurrentMode(std::string sMode);           // true if current mode matches (case insensitive)
+        bool            IsRegisteredMode(std::string sMode);        // true if this mode has been registered
 
-        bool    GetParamWasFound(const std::string& sKey);  // returns true if the parameter was found when parsing
-        bool    GetParamWasFound(int64_t nIndex);           // returns true if the parameter was found when parsing
+        bool            GetParamWasFound(const std::string& sKey);  // returns true if the parameter was found when parsing
+        bool            GetParamWasFound(int64_t nIndex);           // returns true if the parameter was found when parsing
 
-        size_t  GetOptionalParameterCount();
-        size_t  GetRequiredParameterCount();
+        size_t          GetOptionalParameterCount();
+        size_t          GetRequiredParameterCount();
 
 
         // multi-mode behavior registration
-        bool    RegisterMode(std::string sMode, const std::string& sModeDescription);
-        bool    RegisterParam(std::string sMode, ParamDesc param);    // will return false if sMode hasn't been registered yet
+        bool            RegisterMode(std::string sMode, const std::string& sModeDescription);
+        bool            RegisterParam(std::string sMode, ParamDesc param);    // will return false if sMode hasn't been registered yet
 
         // default mode (i.e. no command specified)
-        bool    RegisterParam(ParamDesc param);         // default mode parameter
+        bool            RegisterParam(ParamDesc param);         // default mode parameter
 
 
-        bool    AddInfo(const std::string& sInfo);
+        bool            AddInfo(const std::string& sInfo);
 
         // Additional info
-        bool    AddInfo(std::string sMode, const std::string& sInfo);
+        bool            AddInfo(std::string sMode, const std::string& sInfo);
 
     protected:
-        std::string  msMode;
-        std::string  msAppPath;                      // full path to the app.exe
-        std::string  msAppName;                      // just the app.exe
-        std::string  msAppDescription;
+        bool            ContainsArgument(std::string sArgument, int argc, char* argv[], bool bCaseSensitive = false);    // true if included argument is anywhere on the command line
+        std::string     GetFirstPositionalArgument(int argc, char* argv[]);                                                 // first argument that's not a named. (named starts with '-')
 
-        bool         mbVerbose;
-        CLModeParser   mGeneralCommandLineParser;      // if no registered modes, defaults to this one
-        tModeStringToParserMap  mModeToCommandLineParser;
+        std::string     msMode;
+        std::string     msAppPath;                      // full path to the app.exe
+        std::string     msAppName;                      // just the app.exe
+        std::string     msAppDescription;
+
+        bool            mbVerbose;
+        CLModeParser    mGeneralCommandLineParser;      // if no registered modes, defaults to this one
+
+        tModeToParser   mModeToCommandLineParser;
 
     };
 };  // namespace CLP

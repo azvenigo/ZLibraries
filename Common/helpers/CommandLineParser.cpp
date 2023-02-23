@@ -61,6 +61,23 @@ namespace CLP
         msUsage = sUsage;
     }
 
+    std::string ParamDesc::ValueToString()
+    {
+        switch (mValueType)
+        {
+        case ParamDesc::kString:    return *((string*)mpValue);
+        case ParamDesc::kInt64:     return std::to_string(*(int64_t*)mpValue);
+        case ParamDesc::kFloat:     return StringHelpers::FromDouble(*(float*)mpValue, 2);
+        case ParamDesc::kBool:
+            if ((*(bool*)mpValue) == true)
+                return "true";
+            else
+                return "false";
+        }
+
+        return "unknown_value";
+    }
+
     void ParamDesc::GetExample(std::string& sParameter, std::string& sType, std::string& sDefault, std::string& sUsage)
     {
         // for unrequired params, surround with brackets
@@ -71,6 +88,7 @@ namespace CLP
         {
             sParameter += "-";
             sParameter += msName;
+            sDefault = ValueToString();
             switch (mValueType)
             {
             case ParamDesc::kString:
@@ -79,7 +97,6 @@ namespace CLP
                     sType = "{" + FromSet(mAllowedStrings) + "}";
                 else
                     sType = "$";
-                sDefault = *((string*)mpValue);
                 break;
             case ParamDesc::kInt64:
             {
@@ -88,7 +105,6 @@ namespace CLP
                     sType = "(" + std::to_string(mnMinInt) + "-" + std::to_string(mnMaxInt) + ")";
                 else
                     sType = "#";
-                sDefault = std::to_string(*(int64_t*)mpValue);
             }
             break;
             case ParamDesc::kFloat:
@@ -98,15 +114,10 @@ namespace CLP
                     sType = "(" + StringHelpers::FromDouble(mfMinFloat, 2) + "-" + StringHelpers::FromDouble(mfMaxFloat, 2) + ")";
                 else
                     sType = "#.#";
-                sDefault = StringHelpers::FromDouble(*(float*)mpValue, 2);
             }
             break;
             case ParamDesc::kBool:
                 sType = "bool";
-                if ((*(bool*)mpValue) == true)
-                    sDefault = "true";
-                else
-                    sDefault = "false";
             default:
                 break;
             }
@@ -193,12 +204,29 @@ namespace CLP
         {
             if (p.IsRequired() && !p.mbFound)
             {
-                cerr << "Error: Required parameter not set:" << p.msName << "\n";
                 nErrors++;
             }
         }
 
         return nErrors == 0;
+    }
+
+    void CLModeParser::ShowFoundParameters()
+    {
+        for (auto p : mParameterDescriptors)
+        {
+            if (p.mbFound)
+            {
+                cout << "Parameter " << p.msName << " = \"" << p.ValueToString() << "\"\n";
+            }
+            else
+            {
+                if (p.IsRequired())
+                {
+                    cerr << "Error: Required parameter not set:" << p.msName << "\n";
+                }
+            }
+        }
     }
 
 
@@ -555,7 +583,7 @@ namespace CLP
     bool CommandLineParser::IsRegisteredMode(string sMode)
     {
         StringHelpers::makelower(sMode);
-        for (tModeStringToParserMap::iterator it = mModeToCommandLineParser.begin(); it != mModeToCommandLineParser.end(); it++)
+        for (tModeToParser::iterator it = mModeToCommandLineParser.begin(); it != mModeToCommandLineParser.end(); it++)
         {
             if ((*it).first == sMode)
                 return true;
@@ -686,32 +714,30 @@ namespace CLP
 
         if (argc > 1)
         {
+            bool bShowHelp = ContainsArgument("-h", argc, argv) || ContainsArgument("-?", argc, argv);
+            string sMode = GetFirstPositionalArgument(argc, argv); // mode
+            if (bMultiMode && !IsRegisteredMode(sMode))
+                bShowHelp = true;
+
             // If "help" requested
-            string sFirst(argv[1]);
-            StringHelpers::makelower(sFirst);
-            if (sFirst == "?" || sFirst == "help" || sFirst == "-h")
+            StringHelpers::makelower(sMode);
+            if (bShowHelp)
             {
                 if (bMultiMode)
                 {
-                    if (argc == 2)  // case 1
+                    StringHelpers::makelower(sMode);
+                    if (IsRegisteredMode(sMode))
                     {
-                        ListModes();
+                        // case 2a
+                        msMode = sMode;
+                        OutputHelp();
                         return false;
                     }
                     else
                     {
-                        string sMode = argv[2];
-                        StringHelpers::makelower(sMode);
-                        if (IsRegisteredMode(sMode))
-                        {
-                            // case 2a
-                            msMode = sMode;
-                            OutputHelp();
-                            return false;
-                        }
+                        ListModes();
+                        return false;
 
-                        // case 2b
-                        cerr << "Error: Unknown help context '" << sMode << "'\n";
                     }
                 }
                 else
@@ -735,10 +761,10 @@ namespace CLP
             // 2) Single mode for each param
             //      general handle
             //      Check all general reqs
-            if (IsRegisteredMode(sFirst))
+            if (IsRegisteredMode(sMode))
             {
                 // Case 1
-                msMode = sFirst;
+                msMode = sMode;
                 for (int i = 2; i < argc; i++)
                 {
                     std::string sParam(argv[i]);
@@ -763,9 +789,12 @@ namespace CLP
                     }
                 }
 
-                if (nErrors > 0 || !mModeToCommandLineParser[msMode].CheckAllRequirementsMet())
+                if (nErrors > 0 || !mModeToCommandLineParser[msMode].CheckAllRequirementsMet() || !mGeneralCommandLineParser.CheckAllRequirementsMet())
                 {
-                    cout << "\n\"" << msAppName << " help\" - to see usage.\n";
+                    mModeToCommandLineParser[msMode].ShowFoundParameters();
+                    mGeneralCommandLineParser.ShowFoundParameters();
+
+                    cout << "\n\"" << msAppName << " -? " << msMode << "\" - to see usage.\n";
                     return false;
                 }
 
@@ -792,14 +821,8 @@ namespace CLP
 
                 if (!mGeneralCommandLineParser.CheckAllRequirementsMet())
                 {
-                    cout << "\n\"" << msAppName << " help\" - to see usage.\n";
-                    return false;
-                }
-
-                // no parameters passed, see if general parser has required params 
-                if (!mGeneralCommandLineParser.CheckAllRequirementsMet())
-                {
-                    cout << "\n\"" << msAppName << " help\" - to see usage.\n";
+                    mGeneralCommandLineParser.ShowFoundParameters();
+                    cout << "\n\"" << msAppName << " -?\" - to see usage.\n";
                     return false;
                 }
 
@@ -818,7 +841,7 @@ namespace CLP
 
         if (!mGeneralCommandLineParser.CheckAllRequirementsMet())   // single mode
         {
-            cout << "\n\"" << msAppName << " help\" - to see usage.\n";
+            cout << "\n\"" << msAppName << " -?\" - to see usage.\n";
             return false;
         }
 
@@ -826,6 +849,25 @@ namespace CLP
         // no parameters and none required
         return true;
     }
+
+    bool CommandLineParser::ContainsArgument(std::string sArgument, int argc, char* argv[], bool bCaseSensitive)
+    {
+        for (int i = 1; i < argc; i++)
+            if (StringHelpers::Compare(argv[i], sArgument, bCaseSensitive))
+                return true;
+
+        return false;
+    }
+
+    std::string CommandLineParser::GetFirstPositionalArgument(int argc, char* argv[])
+    {
+        for (int i = 1; i < argc; i++)
+            if (argv[i][0] != '-')
+                return argv[i];
+
+        return "";
+    }
+
 
     void CommandLineParser::OutputHelp()
     {
@@ -984,6 +1026,16 @@ namespace CLP
         TableOutput descriptionTable;
         descriptionTable.SetBorders('*', '*', '*', '*');
         descriptionTable.SetSeparator(' ', 1);
+
+        std::string sModes(msAppName + " {");
+        for (tModeToParser::iterator it = mModeToCommandLineParser.begin(); it != mModeToCommandLineParser.end(); it++)
+        {
+            sModes += (*it).first + "|";
+        }
+        sModes[sModes.length() - 1] = '}';  // change last | into }
+
+        descriptionTable.AddRow(sModes);
+
         descriptionTable.AddRow(" ");
         descriptionTable.AddRow("-Application Description-");
         descriptionTable.AddMultilineRow(msAppDescription);
@@ -995,8 +1047,8 @@ namespace CLP
         commandsTable.SetSeparator(' ', 1);
 
         commandsTable.AddRow("-------Commands--------");
-        commandsTable.AddRow("help COMMAND", "Context specific help about the commands below");
-        for (tModeStringToParserMap::iterator it = mModeToCommandLineParser.begin(); it != mModeToCommandLineParser.end(); it++)
+        commandsTable.AddRow("-? [command]", "List of commands or context specific help");
+        for (tModeToParser::iterator it = mModeToCommandLineParser.begin(); it != mModeToCommandLineParser.end(); it++)
         {
             string sCommand = (*it).first;
             string sModeDescription = ((*it).second).GetModeDescription();
