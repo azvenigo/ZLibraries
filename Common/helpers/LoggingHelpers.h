@@ -164,7 +164,7 @@ public:
         if (row > mRows.size() || col > mColumns)
             return "";
         
-        auto& rowIterator = mRows.begin();
+        auto rowIterator = mRows.begin();
         size_t r = 0;
         for (r = 0; r < row; r++)
         {
