@@ -87,6 +87,8 @@ namespace CLP
                 return "true";
             else
                 return "false";
+        default:
+            break;
         }
 
         return "unknown_value";
