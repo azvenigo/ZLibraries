@@ -6,11 +6,6 @@
 #include "helpers/StringHelpers.h"
 #include <filesystem>
 
-
-#define NOMINMAX
-#include <Windows.h>
-
-
 InlineFormatter gFormatter;
 
 namespace fs = std::filesystem;

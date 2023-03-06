@@ -1,6 +1,7 @@
 #pragma once
 #include <stdint.h>
 #include <string>
+#include <cstring>
 #include <sstream>
 #include <any>
 #include <iostream>
@@ -219,9 +220,6 @@ public:
                 nCount++;
             nEscapeChar = s.find("\x1b", nEscapeChar + kEscapeLength);
         } while (nEscapeChar != std::string::npos);
-
-
-        size_t nResult = s.length() - nCount * kEscapeLength;
 
         return s.length() -nCount * kEscapeLength;
     }

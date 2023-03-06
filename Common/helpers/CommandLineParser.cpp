@@ -710,6 +710,8 @@ namespace CLP
         msMode.clear();
         mbVerbose = bVerbose;
         msAppPath = argv[0];
+
+    #ifdef _WIN64
         // Ensure the msAppPath extension includes ".exe" since it can be launched without
         if (msAppPath.length() > 4)
         {
@@ -719,6 +721,7 @@ namespace CLP
             if (sExtension != ".exe")
                 msAppPath += ".exe";
         }
+    #endif
 
         // Extract  application name
         int32_t nLastSlash = (int32_t)msAppPath.find_last_of('/');
