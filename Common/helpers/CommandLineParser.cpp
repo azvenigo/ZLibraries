@@ -9,11 +9,25 @@
 #include <sstream>
 #include <algorithm>
 
+
+#ifdef _WIN64
+#define NOMINMAX
+#include <Windows.h> // For enabling ANSI color output
+#endif
+
+
 using namespace std;
 using namespace StringHelpers;
 
 namespace CLP
 {
+
+// Color settings
+#define COL_SECTION COL_CYAN
+#define COL_ERROR   COL_RED
+#define COL_APP     COL_YELLOW
+#define COL_PARAM   COL_YELLOW
+
 
     ParamDesc::ParamDesc(const string& sName, string* pString, eBehavior behavior, const string& sUsage, const tStringSet& allowedStrings)
     {
@@ -81,8 +95,9 @@ namespace CLP
     void ParamDesc::GetExample(std::string& sParameter, std::string& sType, std::string& sDefault, std::string& sUsage)
     {
         // for unrequired params, surround with brackets
+        sParameter = COL_PARAM;
         if (IsOptional())
-            sParameter = "[";
+            sParameter += "[";
 
         if (IsNamed())
         {
@@ -96,7 +111,7 @@ namespace CLP
                 if (IsRangeRestricted())
                     sType = "{" + FromSet(mAllowedStrings) + "}";
                 else
-                    sType = "$";
+                    sType = "STRING";
                 break;
             case ParamDesc::kInt64:
             {
@@ -117,7 +132,7 @@ namespace CLP
             }
             break;
             case ParamDesc::kBool:
-                sType = "bool";
+                sType = "BOOL";
             default:
                 break;
             }
@@ -131,7 +146,7 @@ namespace CLP
                 if (IsRangeRestricted())
                     sType = "{" + FromSet(mAllowedStrings) + "}";
                 else
-                    sType = "$";
+                    sType = "STRING";
                 break;
             case ParamDesc::kInt64:
             {
@@ -150,7 +165,7 @@ namespace CLP
             }
             break;
             case ParamDesc::kBool:
-                sType = "bool";
+                sType = "BOOL";
             default:
                 break;
             }
@@ -158,6 +173,8 @@ namespace CLP
 
         if (IsOptional())
             sParameter += "]";
+
+        sParameter += COL_RESET;
 
         sUsage = msUsage;
     }
@@ -217,13 +234,13 @@ namespace CLP
         {
             if (p.mbFound)
             {
-                cout << "Parameter " << p.msName << " = \"" << p.ValueToString() << "\"\n";
+                cout << "Parameter " << COL_PARAM << p.msName << COL_RESET << " = \"" << p.ValueToString() << "\"\n";
             }
             else
             {
                 if (p.IsRequired())
                 {
-                    cerr << "Error: Required parameter not set:" << p.msName << "\n";
+                    cerr << COL_ERROR << "Error: " << COL_RESET << "Required parameter not set:" << COL_PARAM << p.msName << "\n" << COL_RESET;
                 }
             }
         }
@@ -284,7 +301,7 @@ namespace CLP
             ParamDesc* pDesc = nullptr;
             if (!GetDescriptor(sKey, &pDesc))
             {
-                cerr << "Error: Unknown parameter '" << sKey << "' for mode:" << msModeDescription << "\n";
+                cerr << COL_ERROR << "Error: " << COL_RESET << "Unknown parameter '" << COL_ERROR << sKey << COL_RESET << "' for mode:" << COL_PARAM << msModeDescription<< "\n" << COL_RESET;
                 return false;
             }
 
@@ -306,7 +323,7 @@ namespace CLP
                     {
                         if (nValue < pDesc->mnMinInt || nValue > pDesc->mnMaxInt)
                         {
-                            cerr << "Error: Value for \"" << sArg << "\" OUT OF RANGE. Allowed range:(" << pDesc->mnMinInt << "-" << pDesc->mnMaxInt << ")\n";
+                            cerr << COL_ERROR << "Error: Value for \"" << sArg << "\" OUT OF RANGE." << COL_RESET << " Allowed range:(" << COL_PARAM << pDesc->mnMinInt << "-" << pDesc->mnMaxInt << COL_RESET << ")\n";
                             return false;
                         }
                     }
@@ -325,7 +342,7 @@ namespace CLP
                     {
                         if (fValue < pDesc->mfMinFloat || fValue > pDesc->mfMaxFloat)
                         {
-                            cerr << "Error: Value for \"" << sArg << "\" OUT OF RANGE. Allowed range:(" << pDesc->mfMinFloat << "-" << pDesc->mfMaxFloat << ")\n";
+                            cerr << COL_ERROR << "Error: Value for \"" << sArg << "\" OUT OF RANGE." << COL_RESET << " Allowed range:(" << COL_PARAM << pDesc->mfMinFloat << "-" << pDesc->mfMaxFloat << COL_RESET << ")\n";
                             return false;
                         }
                     }
@@ -343,7 +360,7 @@ namespace CLP
                     {
                         if (pDesc->mAllowedStrings.find(sValue) == pDesc->mAllowedStrings.end())
                         {
-                            cerr << "Error: Value for \"" << sArg << "\" NOT ALLOWED. Allowed values:{" << FromSet(pDesc->mAllowedStrings) << "}\n";
+                            cerr << COL_ERROR << "Error: Value for \"" << sArg << "\" NOT ALLOWED." << COL_RESET << " Allowed values:{" << COL_PARAM << FromSet(pDesc->mAllowedStrings) << COL_RESET << "}\n";
                             return false;
                         }
                     }
@@ -362,7 +379,7 @@ namespace CLP
             ParamDesc* pPositionalDesc = nullptr;
             if (!GetDescriptor(GetNumPositionalParamsHandled(), &pPositionalDesc))  // num handled is also the index of the next one
             {
-                cerr << "Error: Too many parameters! Max is:" << GetNumPositionalParamsRegistered() << " parameter:" << sArg << "\n";
+                cerr << COL_ERROR << "Error: Too many parameters! Max is:" << GetNumPositionalParamsRegistered() << " parameter:" << sArg << "\n" << COL_RESET;
                 return false;
             }
             else
@@ -386,7 +403,7 @@ namespace CLP
                     {
                         if (nValue < pPositionalDesc->mnMinInt || nValue > pPositionalDesc->mnMaxInt)
                         {
-                            cerr << "Error: Value for \"" << sArg << "\" OUT OF RANGE. Allowed range:(" << pPositionalDesc->mnMinInt << "-" << pPositionalDesc->mnMaxInt << ")\n";
+                            cerr << COL_ERROR << "Error: Value for \"" << sArg << "\" OUT OF RANGE." << COL_RESET << " Allowed range:(" << COL_PARAM << pPositionalDesc->mnMinInt << "-" << pPositionalDesc->mnMaxInt << COL_RESET << ")\n";
                             return false;
                         }
                     }
@@ -405,7 +422,7 @@ namespace CLP
                     {
                         if (fValue < pPositionalDesc->mfMinFloat || fValue > pPositionalDesc->mfMaxFloat)
                         {
-                            cerr << "Error: Value for \"" << sArg << "\" OUT OF RANGE. Allowed range:(" << pPositionalDesc->mfMinFloat << "-" << pPositionalDesc->mfMaxFloat << ")\n";
+                            cerr << COL_ERROR << "Error: Value for \"" << sArg << "\" OUT OF RANGE." << COL_RESET << " Allowed range:(" << COL_PARAM << pPositionalDesc->mfMinFloat << "-" << pPositionalDesc->mfMaxFloat << COL_RESET << ")\n";
                             return false;
                         }
                     }
@@ -422,7 +439,7 @@ namespace CLP
                     {
                         if (pPositionalDesc->mAllowedStrings.find(sArg) == pPositionalDesc->mAllowedStrings.end())
                         {
-                            cerr << "Error: Value for \"" << sArg << "\" NOT ALLOWED. Allowed values:{" << FromSet(pPositionalDesc->mAllowedStrings) << "}\n";
+                            cerr << COL_ERROR << "Error: Value for \"" << sArg << "\" NOT ALLOWED." << COL_RESET << " Allowed values:{" << COL_PARAM << FromSet(pPositionalDesc->mAllowedStrings) << COL_RESET << "}\n";
                             return false;
                         }
                     }
@@ -519,10 +536,11 @@ namespace CLP
 
         if (!sMode.empty() && !msModeDescription.empty())
         {
-            modeDescriptionTable.AddRow(string("Help for: " + sMode));
+            modeDescriptionTable.AddRow(string("Help for: " COL_APP ) + sMode.c_str() + string(COL_RESET));
+
 
             modeDescriptionTable.AddRow(" ");
-            modeDescriptionTable.AddRow("-Command Description-");
+            modeDescriptionTable.AddRow(COL_SECTION "-Command Description-" COL_RESET);
             modeDescriptionTable.AddMultilineRow(msModeDescription);
         }
 
@@ -534,6 +552,7 @@ namespace CLP
 
 
         // create example command line with positional params first followed by named
+        sCommandLineExample += COL_PARAM;
         for (auto& desc : mParameterDescriptors)
         {
             if (desc.IsPositional() && desc.IsRequired())
@@ -544,6 +563,7 @@ namespace CLP
             if (desc.IsNamed() && desc.IsRequired())
                 sCommandLineExample += " " + desc.msName;
         }
+        sCommandLineExample += COL_RESET;
 
         // Create table of params and usages
 
@@ -566,6 +586,20 @@ namespace CLP
             else
                 requiredParamTable.AddRow(sName, sType, sDefault, sUsage);
         }
+    }
+
+    CommandLineParser::CommandLineParser()
+    {
+#ifdef _WIN64
+        // enable color output on windows
+        HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+
+        DWORD mode = 0;
+        GetConsoleMode(hConsole, &mode);
+        mode |= ENABLE_VIRTUAL_TERMINAL_PROCESSING;
+
+        SetConsoleMode(hConsole, mode);
+#endif
     }
 
 
@@ -626,7 +660,7 @@ namespace CLP
         if (mModeToCommandLineParser.find(sMode) != mModeToCommandLineParser.end())
         {
             assert(false);
-            cerr << "Mode already registered:" << sMode << "\n";
+            cerr << COL_RED << "Mode already registered:" << sMode << "\n" << COL_RESET;
             return false;
         }
 
@@ -639,7 +673,7 @@ namespace CLP
         if (mModeToCommandLineParser.find(sMode) == mModeToCommandLineParser.end())
         {
             assert(false);
-            cerr << "Unregistered mode:" << sMode << "\n";
+            cerr << COL_RED << "Unregistered mode:" << sMode << "\n" << COL_RESET;
             return false;
         }
         return mModeToCommandLineParser[sMode].RegisterParam(param);
@@ -662,7 +696,7 @@ namespace CLP
         if (mModeToCommandLineParser.find(sMode) == mModeToCommandLineParser.end())
         {
             assert(false);
-            cerr << "Unregistered mode:" << sMode << "\n";
+            cerr << COL_RED << "Unregistered mode:" << sMode << "\n" << COL_RESET;
             return false;
         }
         return mModeToCommandLineParser[sMode].AddInfo(sInfo);
@@ -784,7 +818,7 @@ namespace CLP
                     else
                     {
                         // case 1c
-                        cerr << "Error: Unknown parameter '" << sParam << "'\n";
+                        cerr << COL_ERROR << "Error: Unknown parameter '" << sParam << "'\n" << COL_RESET;
                         nErrors++;
                     }
                 }
@@ -794,7 +828,7 @@ namespace CLP
                     mModeToCommandLineParser[msMode].ShowFoundParameters();
                     mGeneralCommandLineParser.ShowFoundParameters();
 
-                    cout << "\n\"" << msAppName << " -? " << msMode << "\" - to see usage.\n";
+                    cout << "\n\"" << COL_APP << msAppName << " " << COL_PARAM << msMode << " -?" << COL_RESET << "\" - to see usage.\n";
                     return false;
                 }
 
@@ -814,7 +848,7 @@ namespace CLP
                     }
                     else
                     {
-                        cerr << "Error: Unknown parameter '" << sParam << "'\n";
+                        cerr << COL_ERROR << "Error: Unknown parameter '" << sParam << "'\n" << COL_RESET;
                         nErrors++;
                     }
                 }
@@ -822,7 +856,7 @@ namespace CLP
                 if (!mGeneralCommandLineParser.CheckAllRequirementsMet())
                 {
                     mGeneralCommandLineParser.ShowFoundParameters();
-                    cout << "\n\"" << msAppName << " -?\" - to see usage.\n";
+                    cout << "\n\"" << COL_APP << msAppName << COL_PARAM << " -?\" - to see usage.\n" << COL_RESET;
                     return false;
                 }
 
@@ -841,7 +875,7 @@ namespace CLP
 
         if (!mGeneralCommandLineParser.CheckAllRequirementsMet())   // single mode
         {
-            cout << "\n\"" << msAppName << " -?\" - to see usage.\n";
+            cout << "\n\"" << COL_APP << msAppName << COL_PARAM << " -?\" - to see usage.\n" << COL_RESET;
             return false;
         }
 
@@ -898,7 +932,7 @@ namespace CLP
             if (bHasAdditionalInfo)
             {
                 additionalInfoTable.AddRow(" ");
-                additionalInfoTable.AddRow("---Additional Info----");
+                additionalInfoTable.AddRow(COL_SECTION "---Additional Info----" COL_RESET);
 
                 additionalInfoTable.SetSeparator(' ', 1);
                 additionalInfoTable.SetBorders(0, '-', '*', '*');
@@ -907,7 +941,7 @@ namespace CLP
             if (bHasRequiredParameters)
             {
                 requiredParamTable.AddRow(" ");
-                requiredParamTable.AddRow("-------Required------", "---Type---", "---Default---", "---Description---");
+                requiredParamTable.AddRow(COL_SECTION "-------Required------", "---Type---", "---Default---", "---Description---" COL_RESET);
                 requiredParamTable.SetBorders(0, 0, '*', '*');
                 requiredParamTable.SetSeparator(' ', 1);
             }
@@ -915,13 +949,13 @@ namespace CLP
             if (bHasOptionalParameters)
             {
                 optionalParamTable.AddRow(" ");
-                optionalParamTable.AddRow("-------Options-------", "---Type---", "---Default---", "---Description---");
+                optionalParamTable.AddRow(COL_SECTION "-------Options-------", "---Type---", "---Default---", "---Description---" COL_RESET);
                 optionalParamTable.SetBorders(0, 0, '*', '*');
                 optionalParamTable.SetSeparator(' ', 1);
             }
 
 
-            sCommandLineExample = msAppName + " " + msMode;
+            sCommandLineExample = COL_APP + msAppName + " " + COL_PARAM + msMode + COL_RESET;
             mModeToCommandLineParser[msMode].GetModeUsageTables(msMode, sCommandLineExample, descriptionTable, requiredParamTable, optionalParamTable, additionalInfoTable);
             mGeneralCommandLineParser.GetModeUsageTables("", sCommandLineExample, descriptionTable, requiredParamTable, optionalParamTable, additionalInfoTable);
         }
@@ -939,7 +973,7 @@ namespace CLP
             if (bHasAdditionalInfo)
             {
                 additionalInfoTable.AddRow(" ");
-                additionalInfoTable.AddRow("---Additional Info----");
+                additionalInfoTable.AddRow(COL_SECTION "---Additional Info----" COL_RESET);
 
                 additionalInfoTable.SetSeparator(' ', 1);
                 additionalInfoTable.SetBorders(0, '-', '*', '*');
@@ -948,7 +982,7 @@ namespace CLP
             if (bHasRequiredParameters)
             {
                 requiredParamTable.AddRow(" ");
-                requiredParamTable.AddRow("-------Required------", "---Type---", "---Default---", "---Description---");
+                requiredParamTable.AddRow(COL_SECTION "-------Required------", "---Type---", "---Default---", "---Description---" COL_RESET);
                 requiredParamTable.SetBorders(0, 0, '*', '*');
                 requiredParamTable.SetSeparator(' ', 1);
             }
@@ -956,7 +990,7 @@ namespace CLP
             if (bHasOptionalParameters)
             {
                 optionalParamTable.AddRow(" ");
-                optionalParamTable.AddRow("-------Options-------", "---Type---", "---Default---", "---Description---");
+                optionalParamTable.AddRow(COL_SECTION "-------Options-------", "---Type---", "---Default---", "---Description---" COL_RESET);
                 optionalParamTable.SetBorders(0, 0, '*', '*');
                 optionalParamTable.SetSeparator(' ', 1);
             }
@@ -966,9 +1000,9 @@ namespace CLP
         }
 
         if (bHasOptionalParameters)
-            sCommandLineExample += " [options]";
+            sCommandLineExample += COL_PARAM " [Options]" COL_RESET;
 
-        usageTable.AddRow("--------Usage---------");
+        usageTable.AddRow(COL_SECTION "--------Usage---------" COL_RESET);
         usageTable.AddRow(sCommandLineExample);
         usageTable.SetSeparator(' ', 1);
         usageTable.SetBorders(0, 0, '*', '*');
@@ -978,16 +1012,15 @@ namespace CLP
         keyTable.SetSeparator(' ', 1);
         keyTable.SetBorders('-', '*', '*', '*');
 
-        keyTable.AddRow("--------Keys---------");
-        keyTable.AddRow("         [] ", "Optional");
-        keyTable.AddRow("          - ", "Named '-key:value' pair. (examples: -size:1KB  -verbose)");
-        keyTable.AddRow("            ", "Can be anywhere on command line, in any order.");
-        keyTable.AddRow("          # ", "NUMBER");
-        keyTable.AddRow("            ", "Can be hex (0x05) or decimal");
-        keyTable.AddRow("            ", "Can include commas (1,000)");
-        keyTable.AddRow("            ", "Can include scale labels (10k, 64KiB, etc.)");
-        keyTable.AddRow("          $ ", "STRING");
-        keyTable.AddRow("        bool", "Boolean value can be 1/0, t/f, y/n, yes/no. Presence of the flag means true.");
+        keyTable.AddRow(COL_SECTION "--------Keys---------" COL_RESET);
+        keyTable.AddRow(COL_SECTION "         [] ", "Optional" COL_RESET);
+        keyTable.AddRow(COL_SECTION "          - ", "Named '-key:value' pair. (examples: -size:1KB  -verbose)" COL_RESET);
+        keyTable.AddRow(COL_SECTION "            ", "Can be anywhere on command line, in any order." COL_RESET);
+        keyTable.AddRow(COL_SECTION "          # ", "NUMBER" COL_RESET);
+        keyTable.AddRow(COL_SECTION "            ", "Can be hex (0x05) or decimal or floating point." COL_RESET);
+        keyTable.AddRow(COL_SECTION "            ", "Can include commas (1,000)" COL_RESET);
+        keyTable.AddRow(COL_SECTION "            ", "Can include scale labels (10k, 64KiB, etc.)" COL_RESET);
+        keyTable.AddRow(COL_SECTION "        BOOL", "Boolean value can be 1/0, t/f, y/n, yes/no. Presence of the flag means true." COL_RESET);
 
 
         size_t nMinTableWidth = std::max({ (size_t) 120, 
@@ -1027,17 +1060,17 @@ namespace CLP
         descriptionTable.SetBorders('*', '*', '*', '*');
         descriptionTable.SetSeparator(' ', 1);
 
-        std::string sModes(msAppName + " {");
+        std::string sModes( string(COL_APP) + msAppName + string(COL_RESET) + " {");
         for (tModeToParser::iterator it = mModeToCommandLineParser.begin(); it != mModeToCommandLineParser.end(); it++)
         {
-            sModes += (*it).first + "|";
+            sModes += string(COL_PARAM) + (*it).first + string(COL_RESET) + "|";
         }
         sModes[sModes.length() - 1] = '}';  // change last | into }
 
         descriptionTable.AddRow(sModes);
 
         descriptionTable.AddRow(" ");
-        descriptionTable.AddRow("-Application Description-");
+        descriptionTable.AddRow(COL_SECTION "-Application Description-" COL_RESET);
         descriptionTable.AddMultilineRow(msAppDescription);
         descriptionTable.AddRow(" ");
 
@@ -1046,14 +1079,14 @@ namespace CLP
         commandsTable.SetBorders(0, '*', '*', '*');
         commandsTable.SetSeparator(' ', 1);
 
-        commandsTable.AddRow("-------Commands--------");
-        commandsTable.AddRow("-? [command]", "List of commands or context specific help");
+        commandsTable.AddRow(COL_SECTION "-------Commands--------" COL_RESET);
+        commandsTable.AddRow(COL_PARAM "-? [command]" COL_RESET, "List of commands or context specific help");
         for (tModeToParser::iterator it = mModeToCommandLineParser.begin(); it != mModeToCommandLineParser.end(); it++)
         {
             string sCommand = (*it).first;
             string sModeDescription = ((*it).second).GetModeDescription();
             if (!sCommand.empty())
-                commandsTable.AddRow(sCommand, sModeDescription);
+                commandsTable.AddRow(COL_PARAM + sCommand + COL_RESET, sModeDescription);
         }
 
 

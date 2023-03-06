@@ -6,6 +6,11 @@
 #include "helpers/StringHelpers.h"
 #include <filesystem>
 
+
+#define NOMINMAX
+#include <Windows.h>
+
+
 InlineFormatter gFormatter;
 
 namespace fs = std::filesystem;
@@ -170,8 +175,13 @@ void CreateCompressibleFile(string sPath, int64_t nTotalSize, int64_t nCompressF
     delete[] bufcycl;
 }
 
+
 int main(int argc, char* argv[])
 {
+//    HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+//    SetConsoleMode(hConsole, ENABLE_VIRTUAL_TERMINAL_PROCESSING);
+
+
     string sDestPath;
     string sFilename("data");
     string sExtension("bin");

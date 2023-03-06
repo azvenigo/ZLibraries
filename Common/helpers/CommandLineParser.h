@@ -241,6 +241,8 @@ namespace CLP
     class CommandLineParser
     {
     public:
+        CommandLineParser();
+
         // Registration Functions
         void                RegisterAppDescription(const std::string& sDescription);
         bool                Parse(int argc, char* argv[], bool bVerbose = false);
