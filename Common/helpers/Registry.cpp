@@ -9,7 +9,7 @@ using namespace std;
 
 namespace REG
 {
-    bool Registry::Load(const std::string& sFilename)
+    bool Registry::ViewImage(const std::string& sFilename)
     {
         std::ifstream inFile(sFilename);
         if (!inFile)
@@ -21,7 +21,7 @@ namespace REG
         //mJSON.parse(inFile);
         inFile >> *this;
 
-        ZDEBUG_OUT(dump());
+//        ZDEBUG_OUT(dump());
 
         msRegistryFilename = sFilename;
         return true;
@@ -75,27 +75,27 @@ namespace REG
     */
 /*    void Registry::Set(const std::string& sGroup, const std::string& sKey, int64_t nValue)
     {
-        mGroupToStringMap[sGroup][sKey] = StringHelpers::FromInt(nValue);
+        mGroupToStringMap[sGroup][sKey] = SH::FromInt(nValue);
     }
 
     void Registry::Set(const std::string& sGroup, const std::string& sKey, double fValue)
     {
-        mGroupToStringMap[sGroup][sKey] = StringHelpers::FromDouble(fValue);
+        mGroupToStringMap[sGroup][sKey] = SH::FromDouble(fValue);
     }
 
     void Registry::Set(const std::string& sGroup, const std::string& sKey, bool bValue)
     {
-        mGroupToStringMap[sGroup][sKey] = StringHelpers::FromInt((int64_t)bValue);
+        mGroupToStringMap[sGroup][sKey] = SH::FromInt((int64_t)bValue);
     }
 
     void Registry::Set(const std::string& sGroup, const std::string& sKey, tStringVector& stringVector)
     {
-        mGroupToStringMap[sGroup][sKey] = StringHelpers::FromVector(stringVector);
+        mGroupToStringMap[sGroup][sKey] = SH::FromVector(stringVector);
     }
 
     void Registry::Set(const std::string& sGroup, const std::string& sKey, tStringToStringMap& stringMap)
     {
-        mGroupToStringMap[sGroup][sKey] = StringHelpers::FromMap(stringMap);
+        mGroupToStringMap[sGroup][sKey] = SH::FromMap(stringMap);
     }
 
     bool Registry::Get(const std::string& sGroup, const std::string& sKey, string& sValue)
@@ -121,7 +121,7 @@ namespace REG
         if (!Get(sGroup, sKey, sValue))
             return false;
 
-        nValue = StringHelpers::ToInt(sValue);
+        nValue = SH::ToInt(sValue);
         return true;
     }
 
@@ -131,7 +131,7 @@ namespace REG
         if (!Get(sGroup, sKey, sValue))
             return false;
 
-        fValue = StringHelpers::ToDouble(sValue);
+        fValue = SH::ToDouble(sValue);
         return true;
     }
 
@@ -141,7 +141,7 @@ namespace REG
         if (!Get(sGroup, sKey, sValue))
             return false;
 
-        bValue = StringHelpers::ToBool(sValue);
+        bValue = SH::ToBool(sValue);
         return true;
     }
 
@@ -151,7 +151,7 @@ namespace REG
         if (!Get(sGroup, sKey, sValue))
             return false;
 
-        StringHelpers::ToVector(sValue, stringVector);
+        SH::ToVector(sValue, stringVector);
         return true;
     }
 
@@ -161,7 +161,7 @@ namespace REG
         if (!Get(sGroup, sKey, sValue))
             return false;
 
-        StringHelpers::ToMap(sValue, stringMap);
+        SH::ToMap(sValue, stringMap);
         return true;
     }
 

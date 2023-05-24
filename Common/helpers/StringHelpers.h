@@ -22,7 +22,7 @@
 #include <map>
 #include <set>
 
-namespace StringHelpers
+namespace SH
 {
 
     const char kCharSplitToken = -77; // extended ascii character |
@@ -234,6 +234,8 @@ namespace StringHelpers
     
 
     bool Compare(const std::string& a, const std::string& b, bool bCaseSensitive);
+    bool Contains(const std::string& a, const std::string& sub, bool bCaseSensitive);
+
 
     // URL encoding
     inline bool URL_Safe(char c)

@@ -129,7 +129,7 @@ namespace CLP
         friend class CommandLineParser;
 
         // named string
-        ParamDesc(const std::string& sName, std::string* pString, eBehavior behavior, const std::string& sUsage = "", const StringHelpers::tStringSet& allowedStrings = {});
+        ParamDesc(const std::string& sName, std::string* pString, eBehavior behavior, const std::string& sUsage = "", const SH::tStringSet& allowedStrings = {});
         ParamDesc(const std::string& sName, bool* pBool, eBehavior behavior, const std::string& sUsage = "");
         ParamDesc(const std::string& sName, int64_t* pInt, eBehavior behavior, const std::string& sUsage = "", int64_t nRangeMin = 0, int64_t nRangeMax = 0);
         ParamDesc(const std::string& sName, float* pFloat, eBehavior behavior, const std::string& sUsage = "", float fRangeMin = 0.0, float fRangeMax = 0.0);
@@ -175,7 +175,7 @@ namespace CLP
         float                       mfMinFloat;
         float                       mfMaxFloat;
 
-        StringHelpers::tStringSet   mAllowedStrings;
+        SH::tStringSet   mAllowedStrings;
 
         // Parameter usage for help text
         std::string                 msUsage;

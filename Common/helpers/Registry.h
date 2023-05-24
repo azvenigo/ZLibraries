@@ -21,7 +21,7 @@ namespace REG
     class Registry : public nlohmann::json
     {
     public:
-        bool    Load(const std::string& sFilename);
+        bool    ViewImage(const std::string& sFilename);
         bool    Save(const std::string& sFilename);
 
 /*        template <typename T>
@@ -51,20 +51,59 @@ namespace REG
         // GetOrSetDefault will return a value if it is already in the registry.
         // Otherwise will set the registry key to the passed in default and return that
         template <typename T>
-        inline void GetOrSetDefault(const std::string& sGroup, const std::string& sKey, T& arg, const T& default)
+        inline bool SetDefault(const std::string& sGroup, const std::string& sKey, const T& default)
+        {
+            if ((*this).contains(sGroup))
+            {
+                ZASSERT_MESSAGE(false);
+                return false;
+            }
+
+            (*this)[sGroup][sKey] = default;
+            return true;
+        }
+
+        template <typename T>
+        inline void Set(const std::string& sGroup, const std::string& sKey, T& arg)
+        {
+            (*this)[sGroup][sKey] = arg;
+        }
+
+        template <typename T>
+        inline bool Get(const std::string& sGroup, const std::string& sKey, T& arg)
         {
             if ((*this).contains(sGroup))
             {
                 if ((*this)[sGroup].contains(sKey))
                 {
                     (*this)[sGroup][sKey].get_to(arg);  // already in the registry, return it in arg
-                    return;
+                    return true;
                 }
             }
 
-            (*this)[sGroup][sKey] = default;
-            arg = default;
+            return false;
         }
+
+        inline std::string GetValue(const std::string& sGroup, const std::string& sKey)
+        {
+            if ((*this).contains(sGroup))
+            {
+                if ((*this)[sGroup].contains(sKey))
+                {
+                    std::string s;
+                    (*this)[sGroup][sKey].get_to(s);  // already in the registry, return it in arg
+                    return s;
+                }
+            }
+
+            return "";
+        }
+
+        inline bool Contains(const std::string& sGroup, const std::string& sKey)
+        {
+            return ((*this).contains(sGroup) && (*this)[sGroup].contains(sKey));
+        }
+
     protected:
         std::string         msRegistryFilename;
     };

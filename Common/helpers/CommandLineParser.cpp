@@ -17,7 +17,7 @@
 
 
 using namespace std;
-using namespace StringHelpers;
+using namespace SH;
 
 namespace CLP
 {
@@ -81,7 +81,7 @@ namespace CLP
         {
         case ParamDesc::kString:    return *((string*)mpValue);
         case ParamDesc::kInt64:     return std::to_string(*(int64_t*)mpValue);
-        case ParamDesc::kFloat:     return StringHelpers::FromDouble(*(float*)mpValue, 2);
+        case ParamDesc::kFloat:     return SH::FromDouble(*(float*)mpValue, 2);
         case ParamDesc::kBool:
             if ((*(bool*)mpValue) == true)
                 return "true";
@@ -128,7 +128,7 @@ namespace CLP
             {
                 sParameter += ":";
                 if (IsRangeRestricted())
-                    sType = "(" + StringHelpers::FromDouble(mfMinFloat, 2) + "-" + StringHelpers::FromDouble(mfMaxFloat, 2) + ")";
+                    sType = "(" + SH::FromDouble(mfMinFloat, 2) + "-" + SH::FromDouble(mfMaxFloat, 2) + ")";
                 else
                     sType = "#.#";
             }
@@ -161,7 +161,7 @@ namespace CLP
             case ParamDesc::kFloat:
             {
                 if (IsRangeRestricted())
-                    sType = "(" + StringHelpers::FromDouble(mfMinFloat, 2) + "-" + StringHelpers::FromDouble(mfMaxFloat, 2) + ")";
+                    sType = "(" + SH::FromDouble(mfMinFloat, 2) + "-" + SH::FromDouble(mfMaxFloat, 2) + ")";
                 else
                     sType = "#.#";
             }
@@ -311,7 +311,7 @@ namespace CLP
             {
                 case ParamDesc::kBool:
                 {
-                    *((bool*)pDesc->mpValue) = StringHelpers::ToBool(sValue);    // set the registered bool
+                    *((bool*)pDesc->mpValue) = SH::ToBool(sValue);    // set the registered bool
                     pDesc->mbFound = true;
                     if (bVerbose)
                         cout << "Set " << sKey << " = " << sValue << "\n";
@@ -320,7 +320,7 @@ namespace CLP
                 break;
                 case ParamDesc::kInt64:
                 {
-                    int64_t nValue = StringHelpers::ToInt(sValue);
+                    int64_t nValue = SH::ToInt(sValue);
                     if (pDesc->IsRangeRestricted())
                     {
                         if (nValue < pDesc->mnMinInt || nValue > pDesc->mnMaxInt)
@@ -339,7 +339,7 @@ namespace CLP
                 break;
                 case ParamDesc::kFloat:
                 {
-                    float fValue = (float)StringHelpers::ToDouble(sValue);
+                    float fValue = (float)SH::ToDouble(sValue);
                     if (pDesc->IsRangeRestricted())
                     {
                         if (fValue < pDesc->mfMinFloat || fValue > pDesc->mfMaxFloat)
@@ -390,7 +390,7 @@ namespace CLP
                 {
                 case ParamDesc::kBool:
                 {
-                    *((bool*)pPositionalDesc->mpValue) = StringHelpers::ToBool(sArg);    // set the registered bool
+                    *((bool*)pPositionalDesc->mpValue) = SH::ToBool(sArg);    // set the registered bool
                     pPositionalDesc->mbFound = true;
                     if (bVerbose)
                         cout << "Set " << pPositionalDesc->msName << " = " << sArg << "\n";
@@ -400,7 +400,7 @@ namespace CLP
                 case ParamDesc::kInt64:
                 {
                     pPositionalDesc->mbFound = true;
-                    int64_t nValue = StringHelpers::ToInt(sArg);
+                    int64_t nValue = SH::ToInt(sArg);
                     if (pPositionalDesc->IsRangeRestricted())
                     {
                         if (nValue < pPositionalDesc->mnMinInt || nValue > pPositionalDesc->mnMaxInt)
@@ -419,7 +419,7 @@ namespace CLP
                 case ParamDesc::kFloat:
                 {
                     pPositionalDesc->mbFound = true;
-                    float fValue = (float)StringHelpers::ToDouble(sArg);
+                    float fValue = (float)SH::ToDouble(sArg);
                     if (pPositionalDesc->IsRangeRestricted())
                     {
                         if (fValue < pPositionalDesc->mfMinFloat || fValue > pPositionalDesc->mfMaxFloat)
@@ -463,7 +463,7 @@ namespace CLP
     {
         for (auto& desc : mParameterDescriptors)
         {
-            if (desc.IsNamed() && StringHelpers::Compare(desc.msName, sKey, desc.IsCaseSensitive()))
+            if (desc.IsNamed() && SH::Compare(desc.msName, sKey, desc.IsCaseSensitive()))
             {
                 if (pDescriptorOut)
                 {
@@ -534,7 +534,7 @@ namespace CLP
 
     void CLModeParser::GetModeUsageTables(string sMode, string& sCommandLineExample, TableOutput& modeDescriptionTable, TableOutput& requiredParamTable, TableOutput& optionalParamTable, TableOutput& additionalInfoTable)
     {
-        StringHelpers::makelower(sMode);
+        SH::makelower(sMode);
 
         if (!sMode.empty() && !msModeDescription.empty())
         {
@@ -612,13 +612,13 @@ namespace CLP
 
     bool CommandLineParser::IsCurrentMode(string sMode)
     {
-        StringHelpers::makelower(sMode);
+        SH::makelower(sMode);
         return msMode == sMode;
     }
 
     bool CommandLineParser::IsRegisteredMode(string sMode)
     {
-        StringHelpers::makelower(sMode);
+        SH::makelower(sMode);
         for (tModeToParser::iterator it = mModeToCommandLineParser.begin(); it != mModeToCommandLineParser.end(); it++)
         {
             if ((*it).first == sMode)
@@ -658,7 +658,7 @@ namespace CLP
 
     bool CommandLineParser::RegisterMode(string sMode, const string& sModeDescription)
     {
-        StringHelpers::makelower(sMode);
+        SH::makelower(sMode);
         if (mModeToCommandLineParser.find(sMode) != mModeToCommandLineParser.end())
         {
             assert(false);
@@ -671,7 +671,7 @@ namespace CLP
 
     bool CommandLineParser::RegisterParam(string sMode, ParamDesc param)
     {
-        StringHelpers::makelower(sMode);
+        SH::makelower(sMode);
         if (mModeToCommandLineParser.find(sMode) == mModeToCommandLineParser.end())
         {
             assert(false);
@@ -694,7 +694,7 @@ namespace CLP
 
     bool CommandLineParser::AddInfo(std::string sMode, const std::string& sInfo)
     {
-        StringHelpers::makelower(sMode);
+        SH::makelower(sMode);
         if (mModeToCommandLineParser.find(sMode) == mModeToCommandLineParser.end())
         {
             assert(false);
@@ -759,12 +759,12 @@ namespace CLP
                 bShowHelp = true;
 
             // If "help" requested
-            StringHelpers::makelower(sMode);
+            SH::makelower(sMode);
             if (bShowHelp)
             {
                 if (bMultiMode)
                 {
-                    StringHelpers::makelower(sMode);
+                    SH::makelower(sMode);
                     if (IsRegisteredMode(sMode))
                     {
                         // case 2a
@@ -892,7 +892,7 @@ namespace CLP
     bool CommandLineParser::ContainsArgument(std::string sArgument, int argc, char* argv[], bool bCaseSensitive)
     {
         for (int i = 1; i < argc; i++)
-            if (StringHelpers::Compare(argv[i], sArgument, bCaseSensitive))
+            if (SH::Compare(argv[i], sArgument, bCaseSensitive))
                 return true;
 
         return false;

@@ -21,17 +21,17 @@ using namespace std;
 #pragma warning(disable : 4244)
 #endif
 
-string	StringHelpers::wstring2string(const wstring& sVal)
+string	SH::wstring2string(const wstring& sVal)
 {
     return string(sVal.begin(), sVal.end());
 }
 
-wstring StringHelpers::string2wstring(const string& sVal)
+wstring SH::string2wstring(const string& sVal)
 {
     return wstring(sVal.begin(), sVal.end());
 }
 
-string StringHelpers::ToHexString(uint32_t nVal)
+string SH::ToHexString(uint32_t nVal)
 {
 	char buf[64];
 	sprintf(buf, "0x%" PRIX32, nVal);
@@ -41,7 +41,7 @@ string StringHelpers::ToHexString(uint32_t nVal)
 }
 
 
-string StringHelpers::ToHexString(uint64_t nVal)
+string SH::ToHexString(uint64_t nVal)
 {
 	char buf[64];
 	sprintf(buf, "0x%" PRIX64, nVal);
@@ -50,7 +50,7 @@ string StringHelpers::ToHexString(uint64_t nVal)
 	return sRet;
 }
 
-string StringHelpers::FromBin(uint8_t* pBuf, int32_t nLength)
+string SH::FromBin(uint8_t* pBuf, int32_t nLength)
 {
 	string sRet;
 	char buf[64];
@@ -63,7 +63,7 @@ string StringHelpers::FromBin(uint8_t* pBuf, int32_t nLength)
 	return sRet;
 }
 
-string	StringHelpers::FromInt(int64_t nVal)
+string	SH::FromInt(int64_t nVal)
 {
     char buf[32];
     sprintf(buf, "%" PRIi64, nVal);
@@ -71,12 +71,12 @@ string	StringHelpers::FromInt(int64_t nVal)
     return string(buf);
 }
 
-double StringHelpers::ToDouble(string sVal)
+double SH::ToDouble(string sVal)
 {
     return stod(sVal, NULL);
 }
 
-string	StringHelpers::FromDouble(double fVal, int64_t nPrecision)
+string	SH::FromDouble(double fVal, int64_t nPrecision)
 {
     if (nPrecision == kAuto)
         return std::to_string(fVal);
@@ -87,7 +87,7 @@ string	StringHelpers::FromDouble(double fVal, int64_t nPrecision)
     return ss.str();
 }
 
-bool StringHelpers::ToBool(string sValue)
+bool SH::ToBool(string sValue)
 {
     transform(sValue.begin(), sValue.end(), sValue.begin(), [](unsigned char c) { return (unsigned char)tolower(c); });
     return sValue == "1" ||
@@ -98,7 +98,7 @@ bool StringHelpers::ToBool(string sValue)
         sValue == "on";
 }
 
-void StringHelpers::SplitToken(string& sBefore, string& sAfter, const string& token)
+void SH::SplitToken(string& sBefore, string& sAfter, const string& token)
 {
     size_t pos = sAfter.find(token);
     if (pos == string::npos)
@@ -114,7 +114,7 @@ void StringHelpers::SplitToken(string& sBefore, string& sAfter, const string& to
 
 
 
-string StringHelpers::FormatFriendlyBytes(uint64_t nBytes, int64_t sizeType)
+string SH::FormatFriendlyBytes(uint64_t nBytes, int64_t sizeType)
 {
     if (sizeType == kAuto)
     {
@@ -162,7 +162,7 @@ string StringHelpers::FormatFriendlyBytes(uint64_t nBytes, int64_t sizeType)
     return string(buf);
 }
 
-bool StringHelpers::Compare(const string& a, const string& b, bool bCaseSensitive)
+bool SH::Compare(const string& a, const string& b, bool bCaseSensitive)
 {
     if (bCaseSensitive)
         return a.compare(b) == 0;
@@ -170,12 +170,25 @@ bool StringHelpers::Compare(const string& a, const string& b, bool bCaseSensitiv
     return ((a.size() == b.size()) && equal(a.begin(), a.end(), b.begin(), [](auto char1, auto char2) { return toupper(char1) == toupper(char2); }));
 }
 
+bool SH::Contains(const string& a, const string& sub, bool bCaseSensitive)
+{
+    if (bCaseSensitive)
+        return a.find(sub) != string::npos;
+
+    string a2(a);
+    string sub2(sub);
+
+    makeupper(a2);
+    makeupper(sub2);
+    return a2.find(sub2) != string::npos;
+}
+
 
 // Converts user readable numbers into ints
 // Supports hex (0x12345)
 // Strips commas (1,000,000)
 // Supports trailing scaling labels  (k, kb, kib, m, mb, mib, etc.)
-int64_t StringHelpers::ToInt(string sReadable)
+int64_t SH::ToInt(string sReadable)
 {
     makeupper(sReadable);
 
@@ -223,7 +236,7 @@ int64_t StringHelpers::ToInt(string sReadable)
 // If the number is a power of two, converts to a more readable form
 // example 32768   -> 32KiB
 //         1048576 -> 1MiB
-string StringHelpers::ToUserReadable(int64_t nValue)
+string SH::ToUserReadable(int64_t nValue)
 {
     char buf[128];
     if (nValue % kPiB == 0)
@@ -256,7 +269,7 @@ string StringHelpers::ToUserReadable(int64_t nValue)
     return string(buf);
 }
 
-string StringHelpers::FromVector(vector<string>& stringVector)
+string SH::FromVector(vector<string>& stringVector)
 {
     string sValue;
     for (uint32_t i = 0; i < stringVector.size(); i++)
@@ -275,7 +288,7 @@ string StringHelpers::FromVector(vector<string>& stringVector)
     return sValue;
 }
 
-void StringHelpers::ToVector(const string& sEncoded, vector<string>& outStringVector)
+void SH::ToVector(const string& sEncoded, vector<string>& outStringVector)
 {
     std::size_t current, previous = 0;
 
@@ -289,7 +302,7 @@ void StringHelpers::ToVector(const string& sEncoded, vector<string>& outStringVe
     outStringVector.push_back(sEncoded.substr(previous, current - previous));
 }
 
-string StringHelpers::FromSet(tStringSet& stringSet)
+string SH::FromSet(tStringSet& stringSet)
 {
     string sValue;
     for (auto s : stringSet)
@@ -308,7 +321,7 @@ string StringHelpers::FromSet(tStringSet& stringSet)
     return sValue;
 }
 
-void StringHelpers::ToSet(const std::string& sEncoded, tStringSet& outStringSet)
+void SH::ToSet(const std::string& sEncoded, tStringSet& outStringSet)
 {
     std::size_t current, previous = 0;
 
@@ -323,7 +336,7 @@ void StringHelpers::ToSet(const std::string& sEncoded, tStringSet& outStringSet)
 }
 
 
-string StringHelpers::FromMap(const map<string, string>& stringMap)
+string SH::FromMap(const map<string, string>& stringMap)
 {
     string sReturn;
     for (map<string, string>::const_iterator it = stringMap.begin(); it != stringMap.end(); it++)
@@ -350,7 +363,7 @@ string StringHelpers::FromMap(const map<string, string>& stringMap)
     return sReturn;
 }
 
-void StringHelpers::ToMap(const string& sEncoded, map<string, string>& outStringMap)
+void SH::ToMap(const string& sEncoded, map<string, string>& outStringMap)
 {
     std::size_t current, previous = 0;
 
