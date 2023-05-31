@@ -9,7 +9,7 @@ using namespace std;
 
 namespace REG
 {
-    bool Registry::ViewImage(const std::string& sFilename)
+    bool Registry::Load(const std::string& sFilename)
     {
         std::ifstream inFile(sFilename);
         if (!inFile)

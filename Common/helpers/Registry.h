@@ -21,7 +21,7 @@ namespace REG
     class Registry : public nlohmann::json
     {
     public:
-        bool    ViewImage(const std::string& sFilename);
+        bool    Load(const std::string& sFilename);
         bool    Save(const std::string& sFilename);
 
 /*        template <typename T>
