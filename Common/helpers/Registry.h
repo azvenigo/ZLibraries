@@ -55,7 +55,7 @@ namespace REG
         {
             if ((*this).contains(sGroup))
             {
-                ZASSERT_MESSAGE(false);
+                assert(false);
                 return false;
             }
 
