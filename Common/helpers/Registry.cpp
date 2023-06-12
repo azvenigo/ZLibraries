@@ -27,12 +27,12 @@ namespace REG
         return true;
     }
 
-    bool Registry::Save(const std::string& sFilename)
+    bool Registry::Save()
     {
-        std::ofstream outFile(sFilename);
+        std::ofstream outFile(msRegistryFilename);
         if (!outFile)
         {
-            cerr << "ERROR: Cannot open registry file:" << sFilename.c_str() << "\n";
+            cerr << "ERROR: Cannot open registry file:" << msRegistryFilename.c_str() << "\n";
             return false;
         }
 

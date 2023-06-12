@@ -22,38 +22,14 @@ namespace REG
     {
     public:
         bool    Load(const std::string& sFilename);
-        bool    Save(const std::string& sFilename);
-
-/*        template <typename T>
-        inline void    Set(const std::string& sGroup, const std::string& sKey, T arg)
-        {
-            (*this)[sGroup][sKey] = arg;
-        }
-
-        template <typename T>
-        inline bool    Get(const std::string& sGroup, const std::string& sKey, T& arg)
-        {
-            if (!(*this).contains(sGroup))
-            {
-                cerr << "Registry contains no group:" << sGroup << "\n";
-                return false;
-            }
-            if (!(*this)[sGroup].contains(sKey))
-            {
-                cerr << "Registry group:" << sGroup << " contains no key:" << sKey << "\n";
-                return false;
-            }
-
-            (*this)[sGroup][sKey].get_to(arg);
-            return true;
-        }*/
+        bool    Save();
 
         // GetOrSetDefault will return a value if it is already in the registry.
         // Otherwise will set the registry key to the passed in default and return that
         template <typename T>
         inline bool SetDefault(const std::string& sGroup, const std::string& sKey, const T& default)
         {
-            if ((*this).contains(sGroup))
+            if (Contains(sGroup, sKey))
             {
                 assert(false);
                 return false;
