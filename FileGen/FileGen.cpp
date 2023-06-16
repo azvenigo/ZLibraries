@@ -222,9 +222,9 @@ int main(int argc, char* argv[])
         return -1;
     }
     
-    bFillSpecificValue = StringHelpers::Compare(parser.GetAppMode(), "value", false);
-    bRandomFill = StringHelpers::Compare(parser.GetAppMode(), "rand", false);
-    bCompressFactorFill = StringHelpers::Compare(parser.GetAppMode(), "compressible", false);
+    bFillSpecificValue = SH::Compare(parser.GetAppMode(), "value", false);
+    bRandomFill = SH::Compare(parser.GetAppMode(), "rand", false);
+    bCompressFactorFill = SH::Compare(parser.GetAppMode(), "compressible", false);
 
 
     size_t nLastDot = sFilename.find_last_of('.');

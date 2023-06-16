@@ -21,7 +21,7 @@
 #include "ZZFileAPI.h"
 #include "helpers/StringHelpers.h"
 
-using namespace StringHelpers;
+using namespace SH;
 
 // Zip Tags (aka Signature)
 const uint32_t kZipEndofCDTag                       = 0x06054b50;

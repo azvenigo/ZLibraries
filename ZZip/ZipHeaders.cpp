@@ -60,7 +60,7 @@ cExtensibleFieldEntry::cExtensibleFieldEntry(const cExtensibleFieldEntry& from)
 
 string cExtensibleFieldEntry::ToString()
 {
-    return "Header:" + HeaderToString() + " Size:" + to_string(mnSize) + " Data: [" + StringHelpers::FromBin(mpData.get(), mnSize) + "]";
+    return "Header:" + HeaderToString() + " Size:" + to_string(mnSize) + " Data: [" + SH::FromBin(mpData.get(), mnSize) + "]";
 }
 
 bool ParseExtendedFields(uint8_t* pSearch, int32_t nSize, tExtensibleFieldList& list)
@@ -160,7 +160,7 @@ string cLocalFileHeader::ToString(eToStringFormat format)
         to_string(mCompressionMethod),
         to_string(mLastModificationTime),
         to_string(mLastModificationDate),
-        StringHelpers::ToHexString(mCRC32),
+        SH::ToHexString(mCRC32),
         to_string(mCompressedSize),
         to_string(mUncompressedSize),
         to_string(mFilenameLength),
@@ -601,7 +601,7 @@ string cCDFileHeader::ToString(eToStringFormat format)
         to_string(mCompressedSize),
         to_string(mUncompressedSize),
         to_string(mLocalFileHeaderOffset),
-        StringHelpers::ToHexString(mCRC32),
+        SH::ToHexString(mCRC32),
         to_string(mVersionMadeBy),
         to_string(mMinVersionToExtract),
         to_string(mGeneralPurposeBitFlag),

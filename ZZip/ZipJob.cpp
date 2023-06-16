@@ -145,7 +145,7 @@ void ZipJob::RunCompressionJob(void* pContext)
         return;
     }
 
-    cout << "Found " << filesToCompress.size() << " files.  Total size: " << FormatFriendlyBytes(nTotalBytes, StringHelpers::kMiB) << " (" << nTotalBytes << " bytes)\n";
+    cout << "Found " << filesToCompress.size() << " files.  Total size: " << FormatFriendlyBytes(nTotalBytes, SH::kMiB) << " (" << nTotalBytes << " bytes)\n";
     pZipJob->mJobProgress.Reset();
     pZipJob->mJobProgress.AddBytesToProcess(nTotalBytes);
     
@@ -189,7 +189,7 @@ void ZipJob::RunCompressionJob(void* pContext)
     cout << "[--------------------------------------------------------------]\n";
 
     cout << "Total Time Taken:                  " << pZipJob->mJobProgress.GetElapsedTimeMS()/1000 << "s\n";
-    cout << "Compression Speed:                 " << FormatFriendlyBytes(pZipJob->mJobProgress.GetBytesPerSecond(), StringHelpers::kMiB) << "/s \n";
+    cout << "Compression Speed:                 " << FormatFriendlyBytes(pZipJob->mJobProgress.GetBytesPerSecond(), SH::kMiB) << "/s \n";
 
     cout << "[==============================================================]\n";
 
@@ -707,7 +707,7 @@ bool ZipJob::Join()
         std::chrono::milliseconds elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds> (std::chrono::system_clock::now() - timeOfLastReport);
         if ((uint64_t)elapsed_ms.count() > kMSBetweenReports && mJobProgress.GetEstimatedSecondsRemaining() > kMSBetweenReports/1000) // don't report any more if there's less than 2 seconds remaining
         {
-            cout << mJobProgress.GetPercentageComplete() << "% Completed. Elapsed:" << mJobProgress.GetElapsedTimeMS() / 1000 << "s Remaining:~" << mJobProgress.GetEstimatedSecondsRemaining() << "s Rate:" << FormatFriendlyBytes(mJobProgress.GetBytesPerSecond(), StringHelpers::kMiB) << "/s Completed:" << FormatFriendlyBytes(mJobProgress.GetBytesProcessed(), StringHelpers::kMiB) << " of " << FormatFriendlyBytes(mJobProgress.GetBytesToProcess(), StringHelpers::kMiB) << " \n";
+            cout << mJobProgress.GetPercentageComplete() << "% Completed. Elapsed:" << mJobProgress.GetElapsedTimeMS() / 1000 << "s Remaining:~" << mJobProgress.GetEstimatedSecondsRemaining() << "s Rate:" << FormatFriendlyBytes(mJobProgress.GetBytesPerSecond(), SH::kMiB) << "/s Completed:" << FormatFriendlyBytes(mJobProgress.GetBytesProcessed(), SH::kMiB) << " of " << FormatFriendlyBytes(mJobProgress.GetBytesToProcess(), SH::kMiB) << " \n";
             timeOfLastReport = std::chrono::system_clock::now();
         }
     }
