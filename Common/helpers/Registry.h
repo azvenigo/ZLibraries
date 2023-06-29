@@ -21,7 +21,9 @@ namespace REG
     class Registry : public nlohmann::json
     {
     public:
-        bool    Load(const std::string& sFilename);
+        void    SetFilename(const std::string& sFilename);
+
+        bool    Load();
         bool    Save();
 
         // GetOrSetDefault will return a value if it is already in the registry.

@@ -9,12 +9,17 @@ using namespace std;
 
 namespace REG
 {
-    bool Registry::Load(const std::string& sFilename)
+    void Registry::SetFilename(const std::string& sFilename)
     {
-        std::ifstream inFile(sFilename);
+        msRegistryFilename = sFilename;
+    }
+
+    bool Registry::Load()
+    {
+        std::ifstream inFile(msRegistryFilename);
         if (!inFile)
         {
-            cerr << "ERROR: Cannot open registry file:" << sFilename.c_str() << "\n";
+            cout << "WARNING: Cannot open registry file:" << msRegistryFilename.c_str() << "\n";
             return false;
         }
 
@@ -23,7 +28,6 @@ namespace REG
 
 //        ZDEBUG_OUT(dump());
 
-        msRegistryFilename = sFilename;
         return true;
     }
 
