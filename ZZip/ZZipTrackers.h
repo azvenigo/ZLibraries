@@ -240,10 +240,9 @@ public:
         os << "Status:";
         switch (jobStatus.mStatus)
         {
-        case kNone:     os << "None"; return os;
         case kRunning:  os << "Running"; return os;
         case kFinished: os << "Finished"; return os;
-        default:   return os;
+        default:        os << "None"; return os;
         }
 
         if (jobStatus.mStatus == kError)

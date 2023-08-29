@@ -15,6 +15,7 @@
 
 #include <stdio.h>
 #include <iostream>
+//#include <tchar.h>
 #include <locale>
 #include <string>
 #include "ZipHeaders.h"

@@ -15,8 +15,9 @@
 #include <filesystem>
 #include <time.h>
 #include <ctime>
+#include <cstring>
 #include <chrono>
-#include "helpers/CrC32Fast.h"
+#include "helpers/Crc32Fast.h"
 
 
 using namespace std;
@@ -582,7 +583,6 @@ bool ZZipAPI::AddToZipFileFromBuffer(uint8_t* pInputBuffer, uint32_t nInputBuffe
     newLocalHeader.mUncompressedSize = nInputBufferSize;
 
     // Date and Time
-    std::time_t fileTime = std::time(NULL);
     const std::chrono::time_point<std::chrono::system_clock> now = std::chrono::system_clock::now();
   
     time_t tt = to_time_t(now);

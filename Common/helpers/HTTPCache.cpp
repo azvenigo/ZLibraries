@@ -11,6 +11,9 @@
 #include <algorithm>
 #include <iostream>
 #include <assert.h>
+#include <cstring>
+#include <atomic>
+#include <thread>
 
 using namespace std;
 
@@ -187,7 +190,7 @@ bool HTTPCacheLine::Get(int64_t nOffset, int32_t nBytes, uint8_t* pDestination)
     if (nOffset >= mnBaseOffset && nOffset + nBytes < mnBaseOffset + kHTTPCacheLineSize)
     {
         // if mnBufferData is 0 then this data is pending. Wait until it is fullfilled
-        const uint64_t kSleepTimeOut = 60 * 1000;   // 60 second timeout reasonable?
+        const int64_t kSleepTimeOut = 60 * 1000;   // 60 second timeout reasonable?
         while (!mbCommitted)
         {
             std::this_thread::sleep_for(std::chrono::milliseconds(0));

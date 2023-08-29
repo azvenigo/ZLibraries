@@ -1,6 +1,7 @@
 #pragma once
 #include <stdint.h>
 #include <string>
+#include <cstring>
 #include <sstream>
 #include <any>
 #include <iostream>
@@ -9,6 +10,28 @@
 #include <vector>
 #include <iomanip>
 #include <algorithm>
+
+
+#define COL_RESET   "\033[00m"
+#define COL_BLACK   "\033[30m"   
+#define COL_RED     "\033[31m"      
+#define COL_GREEN   "\033[32m"    
+#define COL_BLUE    "\033[34m"
+#define COL_YELLOW  "\033[33m"   
+#define COL_PURPLE  "\033[35m"   
+#define COL_CYAN    "\033[36m"     
+#define COL_WHITE   "\033[37m"      
+
+
+#define COL_BG_BLACK   "\033[40m"   
+#define COL_BG_RED     "\033[41m"
+#define COL_BG_GREEN   "\033[42m"    
+#define COL_BG_BLUE    "\033[44m"
+#define COL_BG_YELLOW  "\033[43m"   
+#define COL_BG_PURPLE  "\033[45m"   
+#define COL_BG_CYAN    "\033[46m"     
+#define COL_BG_WHITE   "\033[47m"      
+
 
 inline std::string HexValueOut(uint32_t nVal, bool bIncludeDecimal = true)
 {
@@ -159,11 +182,46 @@ public:
             AddRow(s);
     }
 
+    std::string ElementAt(size_t row, size_t col)
+    {
+        if (row > mRows.size() || col > mColumns)
+            return "";
+        
+        auto rowIterator = mRows.begin();
+        size_t r = 0;
+        for (r = 0; r < row; r++)
+        {
+            rowIterator++;
+        }
+
+        tStringArray& rowArray = *rowIterator;
+        if (col > rowArray.size())
+            return "";
+
+        return rowArray[col];
+    }
+
     // Output
 
     size_t GetRowCount() const
     {
         return mRows.size();
+    }
+
+    static size_t VisLength(const std::string& s)
+    {
+        const size_t kEscapeLength = strlen(COL_RESET);
+
+        size_t nCount = 0;
+        size_t nEscapeChar = s.find("\x1b", 0);
+        do
+        {
+            if (nEscapeChar != std::string::npos)
+                nCount++;
+            nEscapeChar = s.find("\x1b", nEscapeChar + kEscapeLength);
+        } while (nEscapeChar != std::string::npos);
+
+        return s.length() -nCount * kEscapeLength;
     }
 
     // GetTableWidth() returns minimum width in characters to draw table (excluding mMinimumOutputWidth setting for output)
@@ -178,7 +236,7 @@ public:
             size_t nCol = 0;
             for (auto s : row)
             {
-                columnWidths[nCol] = columnWidths[nCol] < s.length() ? s.length() : columnWidths[nCol];
+                columnWidths[nCol] = columnWidths[nCol] < VisLength(s) ? VisLength(s) : columnWidths[nCol];
                 nCol++;
             }
         }
@@ -220,8 +278,8 @@ public:
             size_t nCol = 0;
             for (auto s : row)
             {
-                if (columnWidths[nCol] < s.length())
-                    columnWidths[nCol] = s.length();
+                if (columnWidths[nCol] < VisLength(s))
+                    columnWidths[nCol] = VisLength(s);
                 nCol++;
             }
         }
@@ -239,8 +297,6 @@ public:
         // If the computed widths don't add up to the minimum, pad the last column extra
         if (nTotalColumnWidths < tableOut.mMinimumOutputWidth)
         {
-//            size_t totalPaddingChars = tableOut.mMinimumOutputWidth - nTotalColumnWidths;
-//            columnWidths[tableOut.mColumns - 1] += totalPaddingChars;
             tableWidth = tableOut.mMinimumOutputWidth;
         }
 
@@ -274,11 +330,10 @@ public:
                 }
 
                 if (tableOut.RightAligned(nCol))
-                    os << std::right;
+                    os << PAD(nColWidth - VisLength(s)) << s;
                 else
-                    os << std::left;
+                    os << s << PAD(nColWidth - VisLength(s));
 
-                os << std::setw(nColWidth) << s;
                 nCharsOnRow += nColWidth;
 
 
@@ -306,6 +361,32 @@ public:
 
         return os;
     }
+
+    TableOutput Transpose()
+    {
+        TableOutput transposedTable;
+
+
+        for (size_t colCounter = 0; colCounter < mColumns; colCounter++)
+        {
+            tStringArray newRow;
+            for (size_t rowCounter = 0; rowCounter < mRows.size(); rowCounter++)
+                newRow.push_back(ElementAt(rowCounter, colCounter));
+
+            transposedTable.mRows.push_back(newRow);
+        }
+        transposedTable.mColumns = mRows.size();
+        transposedTable.mT = mT;
+        transposedTable.mL = mL;
+        transposedTable.mR = mR;
+        transposedTable.mB = mB;
+        transposedTable.mSeparator = mSeparator;
+        transposedTable.mColumnPadding = mColumnPadding;
+        transposedTable.mMinimumOutputWidth = mMinimumOutputWidth;
+
+        return transposedTable;
+    }
+
 
 protected:
 

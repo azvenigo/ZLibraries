@@ -10,6 +10,7 @@
 #include "ZZFileAPI.h"
 #include <stdio.h>
 #include <cstdlib>
+#include <cstring>
 #include <iostream>
 #include <sstream>
 #include <mutex>
@@ -67,7 +68,7 @@ cZZFileLocal::~cZZFileLocal()
     cZZFileLocal::Close();
 }
 
-bool cZZFileLocal::OpenInternal(string sURL, bool bWrite, string sName, string sPassword, bool bVerbose)
+bool cZZFileLocal::OpenInternal(string sURL, bool bWrite, string /*sName*/, string /*sPassword*/, bool bVerbose)
 {
     mnLastError = kZZfileError_None;
     mbVerbose = bVerbose;
@@ -196,14 +197,14 @@ cHTTPFile::~cHTTPFile()
     cHTTPFile::Close();
 }
 
-void cHTTPFile::lock_cb(CURL* handle, curl_lock_data data, curl_lock_access access, void* userp)
+void cHTTPFile::lock_cb(CURL* /*handle*/, curl_lock_data /*data*/, curl_lock_access /*access*/, void* userp)
 {
     cHTTPFile* pFile = (cHTTPFile*)userp;
     pFile->mCurlMutex.lock();
 
 }
 
-void cHTTPFile::unlock_cb(CURL* handle, curl_lock_data data, void* userp)
+void cHTTPFile::unlock_cb(CURL* /*handle*/, curl_lock_data /*data*/, void* userp)
 {
     cHTTPFile* pFile = (cHTTPFile*)userp;
     pFile->mCurlMutex.unlock();
@@ -317,7 +318,7 @@ bool cHTTPFile::OpenInternal(string sURL, bool bWrite, string sName, string sPas
     }
 
     CURLHcode hRes = curl_easy_header(pCurl, "Content-Length", 0, CURLH_HEADER, -1, &pHeader);
-    if (hRes != CURLE_OK)
+    if (hRes != 0)
     {
         std::cerr << "curl to Content-Length for url:" << msURL << " response: " << hRes << "\n";
         return false;
@@ -430,9 +431,9 @@ bool cHTTPFile::Read(int64_t nOffset, uint32_t nBytes, uint8_t* pDestination, ui
         curl_easy_setopt(pCurl, CURLOPT_RANGE, ss.str().c_str());
 
 
-        uint64_t nStartTime = GetUSSinceEpoch();
+//        uint64_t nStartTime = GetUSSinceEpoch();
         CURLcode res = curl_easy_perform(pCurl);
-        uint64_t nEndTime = GetUSSinceEpoch();
+//        uint64_t nEndTime = GetUSSinceEpoch();
 
         if (res != CURLE_OK)
         {
