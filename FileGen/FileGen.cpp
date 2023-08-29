@@ -8,7 +8,6 @@
 
 InlineFormatter gFormatter;
 
-namespace fs = std::filesystem;
 using namespace CLP;
 using namespace std;
 
@@ -150,7 +149,7 @@ void CreateCompressibleFile(string sPath, int64_t nTotalSize, int64_t nCompressF
     {
         for (int j = 0; j < kBufferElements; j++)
         {
-            uint32_t nVal = (uint32_t)(i + (j * sizeof(uint32_t)));
+//            uint32_t nVal = (uint32_t)(i + (j * sizeof(uint32_t)));
 
             if (j % nCompressFactor == 0)
                 *(bufcycl + j) = RANDU64(0, 0xffffffff);
@@ -239,7 +238,7 @@ int main(int argc, char* argv[])
             sDestPath += "/";
 
         cout << "Creating package path.\n";
-        fs::create_directories(sDestPath);
+        filesystem::create_directories(sDestPath);
     }
     else
         sDestPath="./";
@@ -254,7 +253,7 @@ int main(int argc, char* argv[])
             sPath = sDestPath;
 
         if (!sPath.empty())
-            fs::create_directories(sPath);
+            filesystem::create_directories(sPath);
 
         for (int64_t i = 0; i < nFilesPerFolder; i++)
         {
@@ -268,7 +267,7 @@ int main(int argc, char* argv[])
             else
                 sGeneratedFilename = sPath + sFilename + "." + sExtension;
 
-            if (bSkipExistingFiles && fs::exists(sGeneratedFilename))
+            if (bSkipExistingFiles && filesystem::exists(sGeneratedFilename))
                 continue;
 
             if (bRandomFill)

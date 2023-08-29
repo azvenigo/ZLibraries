@@ -17,7 +17,9 @@
 
 using namespace std;
 
+#ifdef _WIN32
 #pragma warning(disable : 4244)
+#endif
 
 string	StringHelpers::wstring2string(const wstring& sVal)
 {
@@ -32,7 +34,7 @@ wstring StringHelpers::string2wstring(const string& sVal)
 string StringHelpers::ToHexString(uint32_t nVal)
 {
 	char buf[64];
-	sprintf_s(&buf[0], 64, "0x%X", nVal);
+	sprintf(&buf[0], "0x%X", nVal);
 	string sRet;
 	sRet.assign(buf);
 	return sRet;
@@ -42,7 +44,7 @@ string StringHelpers::ToHexString(uint32_t nVal)
 string StringHelpers::ToHexString(uint64_t nVal)
 {
 	char buf[64];
-	sprintf_s(&buf[0], 64, "0x%llX", nVal);
+	sprintf(&buf[0],  "0x%016" PRIX64 , nVal);
 	string sRet;
 	sRet.assign(buf);
 	return sRet;
@@ -54,7 +56,7 @@ string StringHelpers::FromBin(uint8_t* pBuf, int32_t nLength)
 	char buf[64];
 	for (int32_t i = 0; i < nLength; i++)
 	{
-		sprintf_s(&buf[0], 64, "%02X", *(pBuf + i));
+		sprintf(&buf[0], "%02X", *(pBuf + i));
 		sRet.append(buf);
 	}
 
@@ -64,7 +66,7 @@ string StringHelpers::FromBin(uint8_t* pBuf, int32_t nLength)
 string	StringHelpers::FromInt(int64_t nVal)
 {
     char buf[32];
-    sprintf_s(buf, "%lld", nVal);
+    sprintf(buf, "%" PRIu64, nVal);
 
     return string(buf);
 }
@@ -114,11 +116,6 @@ void StringHelpers::SplitToken(string& sBefore, string& sAfter, const string& to
 
 string StringHelpers::FormatFriendlyBytes(uint64_t nBytes, int64_t sizeType)
 {
-    const uint64_t kTB = 1024ull * 1024ull * 1024ull * 1024ull;
-    const uint64_t kGB = 1024ull * 1024ull * 1024ull;
-    const uint64_t kMB = 1024ull * 1024ull;
-    const uint64_t kKB = 1024ull;
-
     if (sizeType == kAuto)
     {
         if (nBytes > kTiB)   // TB show in GB

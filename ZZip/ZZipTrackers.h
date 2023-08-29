@@ -243,6 +243,7 @@ public:
         case kNone:     os << "None"; return os;
         case kRunning:  os << "Running"; return os;
         case kFinished: os << "Finished"; return os;
+        default:   return os;
         }
 
         if (jobStatus.mStatus == kError)

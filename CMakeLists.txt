@@ -33,6 +33,7 @@ if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
 else()
 
 	set(CMAKE_CONFIGURATION_TYPES "Debug;Release" CACHE STRING "" FORCE)
+	add_compile_options(-lstdc++fs)
 
 endif()
 
@@ -43,6 +44,5 @@ endif()
 add_subdirectory(FileGen)
 add_subdirectory(DupeScanner)
 add_subdirectory(BinTool)
-add_subdirectory(ZZip)
 
 ################################################################################

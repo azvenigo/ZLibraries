@@ -186,6 +186,8 @@ namespace StringHelpers
 		case kTabs:
 			return "\t";
 			break;
+        default:
+            break;
 		}
 
 		return ",";
@@ -267,7 +269,7 @@ namespace StringHelpers
     inline std::string URL_Decode(const std::string& sEncoded)
     {
         std::string sResult;
-        for (int i = 0; i < sEncoded.length(); i++)
+        for (size_t i = 0; i < sEncoded.length(); i++)
         {
             char c = *(sEncoded.c_str()+i);
 
