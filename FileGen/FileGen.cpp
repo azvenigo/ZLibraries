@@ -3,6 +3,7 @@
 #include "helpers/CommandLineParser.h"
 #include "helpers/InlineFormatter.h"
 #include "helpers/RandHelpers.h"
+#include "helpers/StringHelpers.h"
 #include <filesystem>
 
 InlineFormatter gFormatter;
@@ -149,8 +150,6 @@ void CreateCompressibleFile(string sPath, int64_t nTotalSize, int64_t nCompressF
     {
         for (int j = 0; j < kBufferElements; j++)
         {
-//            uint32_t nVal = (uint32_t)(i + (j * sizeof(uint32_t)));
-
             if (j % nCompressFactor == 0)
                 *(bufcycl + j) = RANDU64(0, 0xffffffff);
             else
@@ -171,8 +170,13 @@ void CreateCompressibleFile(string sPath, int64_t nTotalSize, int64_t nCompressF
     delete[] bufcycl;
 }
 
+
 int main(int argc, char* argv[])
 {
+//    HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+//    SetConsoleMode(hConsole, ENABLE_VIRTUAL_TERMINAL_PROCESSING);
+
+
     string sDestPath;
     string sFilename("data");
     string sExtension("bin");
@@ -218,9 +222,9 @@ int main(int argc, char* argv[])
         return -1;
     }
     
-    bFillSpecificValue = CLP::StringCompare(parser.GetAppMode(), "value", false);
-    bRandomFill = CLP::StringCompare(parser.GetAppMode(), "rand", false);
-    bCompressFactorFill = CLP::StringCompare(parser.GetAppMode(), "compressible", false);
+    bFillSpecificValue = SH::Compare(parser.GetAppMode(), "value", false);
+    bRandomFill = SH::Compare(parser.GetAppMode(), "rand", false);
+    bCompressFactorFill = SH::Compare(parser.GetAppMode(), "compressible", false);
 
 
     size_t nLastDot = sFilename.find_last_of('.');

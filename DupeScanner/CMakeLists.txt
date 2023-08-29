@@ -20,7 +20,7 @@ endif()
 # DupeScanner
 
 set(DUPESCANNER_SOURCES BlockScanner.cpp DupeScanner.cpp)
-set(COMMON_FILES ../Common/helpers/CommandLineParser.cpp ../Common/helpers/CommandLineParser.h ../Common/helpers/sha256.h ../Common/helpers/sha256.cpp)
+set(COMMON_FILES ../Common/helpers/CommandLineParser.cpp ../Common/helpers/CommandLineParser.h ../Common/helpers/sha256.h ../Common/helpers/sha256.cpp ../Common/helpers/StringHelpers.h ../Common/helpers/StringHelpers.cpp)
 
 
 ####################
@@ -77,7 +77,3 @@ include_directories(${INCLUDE_DIRS})
 add_executable(DupeScanner ${SOURCES} ${INCLUDES})
 target_link_libraries(DupeScanner ${LINK_LIBS})
     
-if(MSVC)
-    # Copy build to tools folder if release
-    add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD COMMAND cmd.exe /c if "$(Configuration)" == "Release" "${CMAKE_COMMAND}" -E copy_if_different  "$(TargetPath)" "$(SolutionDir)Common\\Tools\\" )
-endif()

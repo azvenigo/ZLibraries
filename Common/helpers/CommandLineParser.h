@@ -2,22 +2,38 @@
 #include <string>
 #include <map>
 #include <vector>
+#include <set>
 #include <iostream>
 #include "LoggingHelpers.h"
+#include "StringHelpers.h"
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // CommandlineParser 
-// Made to simplify command line parsing. 
-// Can manage "single mode" command line 
+// Class to make command line parsing as simple (but flexible) as possible.
+// 
+// Simplest use case example: 
+// (parses a filename from a commandline. If one isn't provided it shows that the parameter is missing and returns false.)
+// 
+//   string fileName;
+//   CommandLineParser parser;
+//   parser.RegisterParam(ParamDesc("FILENAME", &fileName, ParamDesc::kPositional | ParamDesc::kRequired, "This is a description of the parameter."));
+//   if (!parser.Parse(argc, argv))
+//      return false;
+// 
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Two modes of operation:
+// 
+// "single mode" command line 
 // > Example: "app.exe file1.txt"
 // 
-// Can manage "multi mode" command line where first parameter is a command with different parameter schemes
+// "multi mode" command line where first parameter is a command with different parameter schemes
 // > Example: "app.exe print file1.txt"
 //            "app.exe concat file1.txt file2.txt -verbose"
+//            "app.exe list file1.txt -maxlines:3k"
 // 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Additional Details:
-// > Handles required and optional parameters
+// > Handles required and optional parameters. 
 // > Is able to check that numbers fall within specified ranges
 // > Shows descriptive error messages if any required parameters are missing, unrecognized or are outside of acceptible ranges
 // > Can parse human readable number input such as 12MiB, 1KB, 2GB, etc.
@@ -41,8 +57,6 @@
 // Usage Example:
 // 
 //   string  sourcePath;
-//   string  destPath;
-//   string  searchString;
 //   int64_t nThreads;
 //   int64_t nBlockSize;
 //   bool    bCaseSensitive;
@@ -50,7 +64,6 @@
 //   CommandLineParser parser;
 //
 //   parser.RegisterParam(ParamDesc("SOURCE",       &sourcePath,        ParamDesc::kPositional | ParamDesc::kRequired, "File/folder to index by blocks."));
-//   parser.RegisterParam(ParamDesc("DESTINATION",  &destPath,          ParamDesc::kPositional | ParamDesc::kRequired, "File/folder to scan at byte granularity."));
 //   parser.RegisterParam(ParamDesc("threads",      &nThreads,          ParamDesc::kNamed | ParamDesc::kOptional | ParamDesc::kRangeRestricted, "Number of threads to spawn.", 1, 256));
 //   parser.RegisterParam(ParamDesc("blocksize",    &nBlockSize,        ParamDesc::kNamed | ParamDesc::kOptional | ParamDesc::kRangeRestricted, "Granularity of blocks to use for scanning.", 16, 32*1024*1024));
 //   parser.RegisterParam(ParamDesc("case",         &bCaseSensitive,    ParamDesc::kNamed | ParamDesc::kOptional));
@@ -109,7 +122,6 @@ namespace CLP
     const static uint32_t kCaseInsensitive      = 0;    // default
     const static uint32_t kCaseSensitive        = 8;    // if set the named key must match case 
 
-
     class ParamDesc
     {
     public:
@@ -117,13 +129,15 @@ namespace CLP
         friend class CommandLineParser;
 
         // named string
-        ParamDesc(const std::string& sName, std::string* pString, eBehavior behavior, const std::string& sUsage = "");
+        ParamDesc(const std::string& sName, std::string* pString, eBehavior behavior, const std::string& sUsage = "", const SH::tStringSet& allowedStrings = {});
         ParamDesc(const std::string& sName, bool* pBool, eBehavior behavior, const std::string& sUsage = "");
         ParamDesc(const std::string& sName, int64_t* pInt, eBehavior behavior, const std::string& sUsage = "", int64_t nRangeMin = 0, int64_t nRangeMax = 0);
+        ParamDesc(const std::string& sName, float* pFloat, eBehavior behavior, const std::string& sUsage = "", float fRangeMin = 0.0, float fRangeMax = 0.0);
 
     private:
 
         void        GetExample(std::string& sParameter, std::string& sType, std::string& sDefault, std::string& sUsage);
+        std::string ValueToString();
 
         // Behavior Accessors
         bool        IsNamed()               const { return mBehaviorFlags & kNamed; }
@@ -144,24 +158,30 @@ namespace CLP
             kUnknown    = 0,
             kInt64      = 1,
             kBool       = 2,
-            kString     = 3
+            kString     = 3,
+            kFloat      = 4
         };
-        eParamValueType mValueType;
-        void*           mpValue;        // Memory location of value to be filled in
 
-        std::string     msName;         // For named parameters like "-catlives:9" or "-VERBOSE".  Also used for help text for all parameters
-        int64_t         mnPosition;     // positional parameter index.  For unnamed (i.e. positional) parameters
-        eBehavior       mBehaviorFlags;
+        eParamValueType             mValueType;
+        void*                       mpValue;        // Memory location of value to be filled in
+
+        std::string                 msName;         // For named parameters like "-catlives:9" or "-VERBOSE".  Also used for help text for all parameters
+        int64_t                     mnPosition;     // positional parameter index.  For unnamed (i.e. positional) parameters
+        eBehavior                   mBehaviorFlags;
 
         // range restricted parameters
-        int64_t         mnMinValue;
-        int64_t         mnMaxValue;
+        int64_t                     mnMinInt;
+        int64_t                     mnMaxInt;
+        float                       mfMinFloat;
+        float                       mfMaxFloat;
+
+        SH::tStringSet   mAllowedStrings;
 
         // Parameter usage for help text
-        std::string     msUsage;
+        std::string                 msUsage;
 
         // Tracking for checking whether all required parameters were found
-        bool            mbFound;
+        bool                        mbFound;
 
     };
 
@@ -190,6 +210,7 @@ namespace CLP
         size_t  GetNumPositionalParamsRegistered();
         size_t  GetNumPositionalParamsHandled();
 
+        void    ShowFoundParameters();
         void    GetModeUsageTables(std::string sMode, std::string& sCommandLineExample, TableOutput& modeDescriptionTable, TableOutput& requiredParamTable, TableOutput& optionalParamTable, TableOutput& additionalInfoTable);
 
     protected:
@@ -208,7 +229,7 @@ namespace CLP
     };
 
 
-    typedef  std::map<std::string, CLModeParser> tModeStringToParserMap;
+    typedef  std::map<std::string, CLModeParser> tModeToParser;
 
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     // CommandLineParser 
@@ -220,55 +241,54 @@ namespace CLP
     class CommandLineParser
     {
     public:
+        CommandLineParser();
+
         // Registration Functions
-        void    RegisterAppDescription(const std::string& sDescription);
-        bool    Parse(int argc, char* argv[], bool bVerbose = false);
-        void    ListModes();
-        void    OutputHelp();
+        void                RegisterAppDescription(const std::string& sDescription);
+        bool                Parse(int argc, char* argv[], bool bVerbose = false);
+        void                ListModes();
+        void                OutputHelp();
 
         // Accessors
-        std::string  GetAppMode() { return msMode; }         // empty string if default mode
-        std::string  GetAppPath() { return msAppPath; }
-        std::string  GetAppName() { return msAppName; }
-        bool    IsCurrentMode(std::string sMode);           // true if current mode matches (case insensitive)
-        bool    IsRegisteredMode(std::string sMode);        // true if this mode has been registered
+        std::string     GetAppMode() { return msMode; }         // empty string if default mode
+        std::string     GetAppPath() { return msAppPath; }
+        std::string     GetAppName() { return msAppName; }
+        bool            IsCurrentMode(std::string sMode);           // true if current mode matches (case insensitive)
+        bool            IsRegisteredMode(std::string sMode);        // true if this mode has been registered
 
-        bool    GetParamWasFound(const std::string& sKey);  // returns true if the parameter was found when parsing
-        bool    GetParamWasFound(int64_t nIndex);           // returns true if the parameter was found when parsing
+        bool            GetParamWasFound(const std::string& sKey);  // returns true if the parameter was found when parsing
+        bool            GetParamWasFound(int64_t nIndex);           // returns true if the parameter was found when parsing
 
-        size_t  GetOptionalParameterCount();
-        size_t  GetRequiredParameterCount();
+        size_t          GetOptionalParameterCount();
+        size_t          GetRequiredParameterCount();
 
 
         // multi-mode behavior registration
-        bool    RegisterMode(std::string sMode, const std::string& sModeDescription);
-        bool    RegisterParam(std::string sMode, ParamDesc param);    // will return false if sMode hasn't been registered yet
+        bool            RegisterMode(std::string sMode, const std::string& sModeDescription);
+        bool            RegisterParam(std::string sMode, ParamDesc param);    // will return false if sMode hasn't been registered yet
 
         // default mode (i.e. no command specified)
-        bool    RegisterParam(ParamDesc param);         // default mode parameter
+        bool            RegisterParam(ParamDesc param);         // default mode parameter
 
 
-        bool    AddInfo(const std::string& sInfo);
+        bool            AddInfo(const std::string& sInfo);
 
         // Additional info
-        bool    AddInfo(std::string sMode, const std::string& sInfo);
+        bool            AddInfo(std::string sMode, const std::string& sInfo);
 
     protected:
-        std::string  msMode;
-        std::string  msAppPath;                      // full path to the app.exe
-        std::string  msAppName;                      // just the app.exe
-        std::string  msAppDescription;
+        bool            ContainsArgument(std::string sArgument, int argc, char* argv[], bool bCaseSensitive = false);    // true if included argument is anywhere on the command line
+        std::string     GetFirstPositionalArgument(int argc, char* argv[]);                                                 // first argument that's not a named. (named starts with '-')
 
-        bool         mbVerbose;
-        CLModeParser   mGeneralCommandLineParser;      // if no registered modes, defaults to this one
-        tModeStringToParserMap  mModeToCommandLineParser;
+        std::string     msMode;
+        std::string     msAppPath;                      // full path to the app.exe
+        std::string     msAppName;                      // just the app.exe
+        std::string     msAppDescription;
+
+        bool            mbVerbose;
+        CLModeParser    mGeneralCommandLineParser;      // if no registered modes, defaults to this one
+
+        tModeToParser   mModeToCommandLineParser;
 
     };
-
-    // Utility functions
-    std::string UserReadableFromInt(int64_t nValue);
-    int64_t     IntFromUserReadable(std::string sReadable);
-    bool        StringToBool(std::string sValue);
-    bool        StringCompare(const std::string& a, const std::string& b, bool bCaseSensitive = true);
-
 };  // namespace CLP

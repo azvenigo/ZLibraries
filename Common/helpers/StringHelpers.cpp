@@ -10,46 +10,112 @@
 #include "helpers/StringHelpers.h"
 #include <stdint.h>
 #include <inttypes.h>
+#include <assert.h>
+#include <iostream>
+#include <sstream>
+#include <iomanip>
+
 using namespace std;
 
-string StringHelpers::int_to_hex_string(uint32_t nVal)
+#ifdef _WIN32
+#pragma warning(disable : 4244)
+#endif
+
+string	SH::wstring2string(const wstring& sVal)
+{
+    return string(sVal.begin(), sVal.end());
+}
+
+wstring SH::string2wstring(const string& sVal)
+{
+    return wstring(sVal.begin(), sVal.end());
+}
+
+string SH::ToHexString(uint32_t nVal)
 {
 	char buf[64];
-	sprintf_s(&buf[0], 64, "0x%X", nVal);
+	sprintf(buf, "0x%" PRIX32, nVal);
 	string sRet;
 	sRet.assign(buf);
 	return sRet;
 }
 
-string StringHelpers::int_to_hex_string(uint64_t nVal)
+
+string SH::ToHexString(uint64_t nVal)
 {
 	char buf[64];
-	sprintf_s(&buf[0], 64, "0x%llX", nVal);
+	sprintf(buf, "0x%" PRIX64, nVal);
 	string sRet;
 	sRet.assign(buf);
 	return sRet;
 }
 
-string StringHelpers::binary_to_hex(uint8_t* pBuf, int32_t nLength)
+string SH::FromBin(uint8_t* pBuf, int32_t nLength)
 {
 	string sRet;
 	char buf[64];
 	for (int32_t i = 0; i < nLength; i++)
 	{
-		sprintf_s(&buf[0], 64, "%02X", *(pBuf + i));
+		sprintf(buf, "%02" PRIX8, *(pBuf + i));
 		sRet.append(buf);
 	}
 
 	return sRet;
 }
 
-string StringHelpers::FormatFriendlyBytes(uint64_t nBytes, int64_t sizeType)
+string	SH::FromInt(int64_t nVal)
 {
-    const uint64_t kTB = 1024ull * 1024ull * 1024ull * 1024ull;
-    const uint64_t kGB = 1024ull * 1024ull * 1024ull;
-    const uint64_t kMB = 1024ull * 1024ull;
-    const uint64_t kKB = 1024ull;
+    char buf[32];
+    sprintf(buf, "%" PRIi64, nVal);
 
+    return string(buf);
+}
+
+double SH::ToDouble(string sVal)
+{
+    return stod(sVal, NULL);
+}
+
+string	SH::FromDouble(double fVal, int64_t nPrecision)
+{
+    if (nPrecision == kAuto)
+        return std::to_string(fVal);
+
+    std::stringstream ss;
+    ss << std::fixed << std::setprecision(nPrecision) << fVal;
+
+    return ss.str();
+}
+
+bool SH::ToBool(string sValue)
+{
+    transform(sValue.begin(), sValue.end(), sValue.begin(), [](unsigned char c) { return (unsigned char)tolower(c); });
+    return sValue == "1" ||
+        sValue == "t" ||
+        sValue == "true" ||
+        sValue == "y" ||
+        sValue == "yes" ||
+        sValue == "on";
+}
+
+void SH::SplitToken(string& sBefore, string& sAfter, const string& token)
+{
+    size_t pos = sAfter.find(token);
+    if (pos == string::npos)
+    {
+        sBefore = sAfter;
+        sAfter = "";
+        return;
+    }
+
+    sBefore = sAfter.substr(0, pos).c_str();
+    sAfter = sAfter.substr(pos + token.length()).c_str();
+}
+
+
+
+string SH::FormatFriendlyBytes(uint64_t nBytes, int64_t sizeType)
+{
     if (sizeType == kAuto)
     {
         if (nBytes > kTiB)   // TB show in GB
@@ -96,18 +162,38 @@ string StringHelpers::FormatFriendlyBytes(uint64_t nBytes, int64_t sizeType)
     return string(buf);
 }
 
+bool SH::Compare(const string& a, const string& b, bool bCaseSensitive)
+{
+    if (bCaseSensitive)
+        return a.compare(b) == 0;
+
+    return ((a.size() == b.size()) && equal(a.begin(), a.end(), b.begin(), [](auto char1, auto char2) { return toupper(char1) == toupper(char2); }));
+}
+
+bool SH::Contains(const string& a, const string& sub, bool bCaseSensitive)
+{
+    if (bCaseSensitive)
+        return a.find(sub) != string::npos;
+
+    string a2(a);
+    string sub2(sub);
+
+    makeupper(a2);
+    makeupper(sub2);
+    return a2.find(sub2) != string::npos;
+}
 
 
 // Converts user readable numbers into ints
 // Supports hex (0x12345)
 // Strips commas (1,000,000)
 // Supports trailing scaling labels  (k, kb, kib, m, mb, mib, etc.)
-int64_t StringHelpers::IntFromUserReadable(string sReadable)
+int64_t SH::ToInt(string sReadable)
 {
-    std::transform(sReadable.begin(), sReadable.end(), sReadable.begin(), [](unsigned char c) { return (unsigned char)std::toupper(c); });
+    makeupper(sReadable);
 
     // strip any commas in case human readable string has those
-    sReadable.erase(std::remove(sReadable.begin(), sReadable.end(), ','), sReadable.end());
+    sReadable.erase(remove(sReadable.begin(), sReadable.end(), ','), sReadable.end());
 
 
     // Determine if this is a hex value
@@ -150,7 +236,7 @@ int64_t StringHelpers::IntFromUserReadable(string sReadable)
 // If the number is a power of two, converts to a more readable form
 // example 32768   -> 32KiB
 //         1048576 -> 1MiB
-string StringHelpers::UserReadableFromInt(int64_t nValue)
+string SH::ToUserReadable(int64_t nValue)
 {
     char buf[128];
     if (nValue % kPiB == 0)
@@ -182,4 +268,128 @@ string StringHelpers::UserReadableFromInt(int64_t nValue)
 
     return string(buf);
 }
+
+string SH::FromVector(vector<string>& stringVector)
+{
+    string sValue;
+    for (uint32_t i = 0; i < stringVector.size(); i++)
+    {
+        assert(stringVector[i].find(kCharSplitToken) == string::npos);   // cannot encode extended ascii character kSplitToken
+
+        if (!stringVector[i].empty())
+        {
+            sValue += stringVector[i] + kCharSplitToken;
+        }
+    }
+
+    if (!sValue.empty())
+        sValue = sValue.substr(0,sValue.length() - 1);	// remove the trailing kCharSplitToken
+
+    return sValue;
+}
+
+void SH::ToVector(const string& sEncoded, vector<string>& outStringVector)
+{
+    std::size_t current, previous = 0;
+
+    current = sEncoded.find(kCharSplitToken);
+    while (current != std::string::npos)
+    {
+        outStringVector.push_back(sEncoded.substr(previous, current - previous));
+        previous = current + 1;
+        current = sEncoded.find(kCharSplitToken, previous);
+    }
+    outStringVector.push_back(sEncoded.substr(previous, current - previous));
+}
+
+string SH::FromSet(tStringSet& stringSet)
+{
+    string sValue;
+    for (auto s : stringSet)
+    {
+        assert(s.find(kCharSplitToken) == string::npos);   // cannot encode extended ascii character kSplitToken
+
+        if (!s.empty())
+        {
+            sValue += s + kCharSplitToken;
+        }
+    }
+
+    if (!sValue.empty())
+        sValue = sValue.substr(0, sValue.length() - 1);	// remove the trailing kCharSplitToken
+
+    return sValue;
+}
+
+void SH::ToSet(const std::string& sEncoded, tStringSet& outStringSet)
+{
+    std::size_t current, previous = 0;
+
+    current = sEncoded.find(kCharSplitToken);
+    while (current != std::string::npos)
+    {
+        outStringSet.insert(sEncoded.substr(previous, current - previous));
+        previous = current + 1;
+        current = sEncoded.find(kCharSplitToken, previous);
+    }
+    outStringSet.insert(sEncoded.substr(previous, current - previous));
+}
+
+
+string SH::FromMap(const map<string, string>& stringMap)
+{
+    string sReturn;
+    for (map<string, string>::const_iterator it = stringMap.begin(); it != stringMap.end(); it++)
+    {
+        string sKey = (*it).first;
+        string sValue = (*it).second;
+
+        if (sKey.find(kCharSplitToken) != string::npos ||
+            sValue.find(kCharSplitToken) != string::npos ||
+            sKey.find(kCharEqualityToken) != string::npos ||
+            sValue.find(kCharEqualityToken) != string::npos)
+        {
+            assert(false);
+            cerr << "Converting to a string array doesn't support extended ascii characters.\n";
+            return "";
+        }
+        if (!sKey.empty())
+            sReturn += sKey + kCharEqualityToken + sValue + kCharSplitToken;
+    }
+
+    if (!sReturn.empty())
+        sReturn = sReturn.substr(sReturn.length() - 1);	// remove the trailing kCharSplitToken
+
+    return sReturn;
+}
+
+void SH::ToMap(const string& sEncoded, map<string, string>& outStringMap)
+{
+    std::size_t current, previous = 0;
+
+    current = sEncoded.find(kCharSplitToken);
+    while (current != std::string::npos)
+    {
+        std::size_t equalIndex = sEncoded.find(kCharEqualityToken, previous);
+        if (equalIndex != std::string::npos)
+        {
+            string sKey(sEncoded.substr(previous, equalIndex));
+            string sVal(sEncoded.substr(equalIndex + 1, current));
+            outStringMap[sKey] = sVal;
+        }
+
+        previous = current + 1;
+        current = sEncoded.find(kCharSplitToken, previous);
+    }
+
+    // final value
+    std::size_t equalIndex = sEncoded.find(kCharEqualityToken, previous);
+    if (equalIndex != std::string::npos)
+    {
+        string sKey(sEncoded.substr(previous, equalIndex));
+        string sVal(sEncoded.substr(equalIndex + 1, current));
+        outStringMap[sKey] = sVal;
+    }
+}
+
 

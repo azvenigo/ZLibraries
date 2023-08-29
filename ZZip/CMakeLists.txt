@@ -59,7 +59,7 @@ if(MSVC)
     set(EXTRA_FLAGS "/WX")
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /ignore:4099")
 else()
-    set(EXTRA_FLAGS "-Wall -Wextra -Werror -march=x86-64 -pthread")
+    set(EXTRA_FLAGS "-Wall -Werror -march=x86-64 -pthread")
     set(EXTRA_CXX_FLAGS "-std=c++17")
     if( SYMBOLS ) 
         set(EXTRA_FLAGS "-g ${EXTRA_FLAGS}")
@@ -80,20 +80,10 @@ include_directories(${INCLUDE_DIRS})
 
 add_executable(ZZip ${SOURCES} ${INCLUDES})
 target_link_libraries(ZZip ${LINK_LIBS})
-    
-if(MSVC)
-   # Copy build to tools folder if release
-   add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD COMMAND cmd.exe /c if "$(Configuration)" == "Release" "${CMAKE_COMMAND}" -E copy_if_different  "$(TargetPath)" "$(SolutionDir)Common\\Tools\\" )
-   
-   add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy_if_different "$(SolutionDir)Common/curl/bin/libcurl.dll" "$(SolutionDir)Common\\Tools\\")
-   add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy_if_different "$(SolutionDir)Common/libssh2/libssh2.dll" "$(SolutionDir)Common\\Tools\\")
-   add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy_if_different "$(SolutionDir)Common/openssl/libssl-1_1-x64.dll" "$(SolutionDir)Common\\Tools\\")
-   add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy_if_different "$(SolutionDir)Common/openssl/libcrypto-1_1-x64.dll" "$(SolutionDir)Common\\Tools\\")
 
-   
+if(MSVC)    
+    add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_CURRENT_LIST_DIR}/../Common/curl/bin/libcurl.dll" $<TARGET_FILE_DIR:${PROJECT_NAME}>)
+    add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_CURRENT_LIST_DIR}/../Common/libssh2/libssh2.dll" $<TARGET_FILE_DIR:${PROJECT_NAME}>)
+    add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_CURRENT_LIST_DIR}/../Common/openssl/libssl-1_1-x64.dll" $<TARGET_FILE_DIR:${PROJECT_NAME}>)
+    add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_CURRENT_LIST_DIR}/../Common/openssl/libcrypto-1_1-x64.dll" $<TARGET_FILE_DIR:${PROJECT_NAME}>)
 endif()
-
-add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy_if_different "$(SolutionDir)Common/curl/bin/libcurl.dll" $<TARGET_FILE_DIR:${PROJECT_NAME}>)
-add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy_if_different "$(SolutionDir)Common/libssh2/libssh2.dll" $<TARGET_FILE_DIR:${PROJECT_NAME}>)
-add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy_if_different "$(SolutionDir)Common/openssl/libssl-1_1-x64.dll" $<TARGET_FILE_DIR:${PROJECT_NAME}>)
-add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy_if_different "$(SolutionDir)Common/openssl/libcrypto-1_1-x64.dll" $<TARGET_FILE_DIR:${PROJECT_NAME}>)

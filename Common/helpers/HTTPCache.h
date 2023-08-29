@@ -11,6 +11,7 @@
 #include <stdint.h>
 #include <map>
 #include <mutex>
+#include <memory>
 
 const uint32_t kHTTPCacheLineSize = 4 * 1024;
 const uint32_t kMaxCacheLines = 64;

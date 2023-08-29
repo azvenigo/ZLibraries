@@ -12,7 +12,7 @@
 #include <iostream>
 #include <iomanip>
 #include <filesystem>
-#include "helpers/CrC32Fast.h"
+#include "helpers/Crc32Fast.h"
 #include "helpers/FNMatch.h"
 #include "helpers/ThreadPool.h"
 #include "ZZFileAPI.h"
@@ -62,6 +62,8 @@ bool ZipJob::Run()
     case kList:
         pThread = new std::thread(ZipJob::RunListJob, (void*)this);
         break;
+        default:
+        return false;
     }
     mWorkers.push_back(pThread);
 
@@ -143,7 +145,7 @@ void ZipJob::RunCompressionJob(void* pContext)
         return;
     }
 
-    cout << "Found " << filesToCompress.size() << " files.  Total size: " << FormatFriendlyBytes(nTotalBytes, StringHelpers::kMiB) << " (" << nTotalBytes << " bytes)\n";
+    cout << "Found " << filesToCompress.size() << " files.  Total size: " << FormatFriendlyBytes(nTotalBytes, SH::kMiB) << " (" << nTotalBytes << " bytes)\n";
     pZipJob->mJobProgress.Reset();
     pZipJob->mJobProgress.AddBytesToProcess(nTotalBytes);
     
@@ -187,7 +189,7 @@ void ZipJob::RunCompressionJob(void* pContext)
     cout << "[--------------------------------------------------------------]\n";
 
     cout << "Total Time Taken:                  " << pZipJob->mJobProgress.GetElapsedTimeMS()/1000 << "s\n";
-    cout << "Compression Speed:                 " << FormatFriendlyBytes(pZipJob->mJobProgress.GetBytesPerSecond(), StringHelpers::kMiB) << "/s \n";
+    cout << "Compression Speed:                 " << FormatFriendlyBytes(pZipJob->mJobProgress.GetBytesPerSecond(), SH::kMiB) << "/s \n";
 
     cout << "[==============================================================]\n";
 
@@ -201,8 +203,6 @@ void ZipJob::RunDiffJob(void* pContext)
     ZipJob* pZipJob = (ZipJob*) pContext;
 
     eToStringFormat stringFormat = pZipJob->mOutputFormat;
-
-    uint64_t startTime = GetUSSinceEpoch();
 
     shared_ptr<cZZFile> pZZFile;
     if (!cZZFile::Open(pZipJob->msPackageURL, cZZFile::ZZFILE_READ, pZZFile, pZipJob->msName, pZipJob->msPassword, pZipJob->mbVerbose))
@@ -313,14 +313,12 @@ void ZipJob::RunDiffJob(void* pContext)
         case DiffTaskResult::kDirMatch: nMatchDirs++; break;
         case DiffTaskResult::kFileMatch: nMatchFiles++; nMatchFileBytes += diffResult.mnSize; break;
         case DiffTaskResult::kFileDifferent: nDifferentFiles++; nDifferentFilesSourceBytes += diffResult.mnSize; break;
+        default: break;
         }
     }
 
 
     bool bAllMatch = (nDifferentFiles == 0 && nSourceOnlyFiles == 0 && nTargetOnlyFiles == 0);
-
-    uint64_t endTime = GetUSSinceEpoch();
-    uint64_t diff = endTime - startTime;
 
     // Write formatted header
     cout << StartPageHeader(stringFormat);
@@ -345,6 +343,7 @@ void ZipJob::RunDiffJob(void* pContext)
             case DiffTaskResult::kFilePackageOnly:
                 cout << FormatStrings(stringFormat, diffResult.mFilename, ""); // second column is blank
                 break;
+            default: break;
             }
         }
 
@@ -358,6 +357,7 @@ void ZipJob::RunDiffJob(void* pContext)
             case DiffTaskResult::kFilePathOnly:
                 cout << FormatStrings(stringFormat, "", diffResult.mFilename, ""); // first column is blank
                 break;
+            default: break;
             }
         }
 
@@ -414,7 +414,7 @@ bool ZipJob::FileNeedsUpdate(const string& sPath, uint64_t nComparedFileSize, ui
 
     uint32_t nCRC = 0;
     uint32_t kCalcBufferSize = 128 * 1024;	// 128k buffer
-    unique_ptr<uint8_t> pCalcBuffer(new uint8_t[kCalcBufferSize]);
+    unique_ptr<uint8_t[]> pCalcBuffer(new uint8_t[kCalcBufferSize]);
     uint32_t nBytesProcessed = 0;
 
     while (nBytesProcessed < nFileSize)
@@ -705,9 +705,9 @@ bool ZipJob::Join()
         std::this_thread::sleep_for(std::chrono::milliseconds(50));
 
         std::chrono::milliseconds elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds> (std::chrono::system_clock::now() - timeOfLastReport);
-        if (elapsed_ms.count() > kMSBetweenReports && mJobProgress.GetEstimatedSecondsRemaining() > kMSBetweenReports/1000) // don't report any more if there's less than 2 seconds remaining
+        if ((uint64_t)elapsed_ms.count() > kMSBetweenReports && mJobProgress.GetEstimatedSecondsRemaining() > kMSBetweenReports/1000) // don't report any more if there's less than 2 seconds remaining
         {
-            cout << mJobProgress.GetPercentageComplete() << "% Completed. Elapsed:" << mJobProgress.GetElapsedTimeMS() / 1000 << "s Remaining:~" << mJobProgress.GetEstimatedSecondsRemaining() << "s Rate:" << FormatFriendlyBytes(mJobProgress.GetBytesPerSecond(), StringHelpers::kMiB) << "/s Completed:" << FormatFriendlyBytes(mJobProgress.GetBytesProcessed(), StringHelpers::kMiB) << " of " << FormatFriendlyBytes(mJobProgress.GetBytesToProcess(), StringHelpers::kMiB) << " \n";
+            cout << mJobProgress.GetPercentageComplete() << "% Completed. Elapsed:" << mJobProgress.GetElapsedTimeMS() / 1000 << "s Remaining:~" << mJobProgress.GetEstimatedSecondsRemaining() << "s Rate:" << FormatFriendlyBytes(mJobProgress.GetBytesPerSecond(), SH::kMiB) << "/s Completed:" << FormatFriendlyBytes(mJobProgress.GetBytesProcessed(), SH::kMiB) << " of " << FormatFriendlyBytes(mJobProgress.GetBytesToProcess(), SH::kMiB) << " \n";
             timeOfLastReport = std::chrono::system_clock::now();
         }
     }

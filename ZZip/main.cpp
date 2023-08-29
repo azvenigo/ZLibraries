@@ -32,7 +32,7 @@ string             gsPackageURL;	                            // source package U
 string             gsAuthName;
 string             gsAuthPassword;
 string             gsBaseFolder;                               // base folder. (default is the folder of ZZip.exe)
-string             gsPattern;                                  // wildcard pattern to match (example "*base*/*.exe"  matches all directories that have the string "base" in them and in those directories all files that end in .exe)
+string             gsPattern("*");                              // wildcard pattern to match (example "*base*/*.exe"  matches all directories that have the string "base" in them and in those directories all files that end in .exe)
 bool                gbSkipCRC		= false;                    // Whether to bypass CRC checks when doing sync
 //bool                gbKill			= false;                    // TBD
 int64_t            gNumThreads		= std::thread::hardware_concurrency();;	                    // Multithreaded sync/extraction
@@ -44,7 +44,7 @@ bool                gbSkipCertCheck = false;
 
 using namespace CLP;
 
-int _tmain(int argc, _TCHAR* argv[])
+int main(int argc, char* argv[])
 {
 //	_CrtMemState s1;
 //	_CrtMemCheckpoint(&s1);
@@ -61,6 +61,7 @@ int _tmain(int argc, _TCHAR* argv[])
                                "    - c:/example/sample.zip\n");
 
     parser.RegisterParam("list", ParamDesc("ZIPFILE", &gsPackageURL, CLP::kPositional | CLP::kRequired, "Path or URL to a ZIP archive"));
+    parser.RegisterParam("list", ParamDesc("output_format", &gsOutputFormat, CLP::kNamed | CLP::kOptional, "Report format. { plain, html, tabs, commas }"));
 
     parser.RegisterMode("create", "Creates a ZIP archive from a given folder or file.");
     parser.RegisterParam("create", ParamDesc("ZIPFILE", &gsPackageURL, CLP::kPositional | CLP::kRequired, "Path of the ZIP archive to create."));
@@ -74,10 +75,12 @@ int _tmain(int argc, _TCHAR* argv[])
     parser.RegisterParam("update", ParamDesc("ZIPFILE", &gsPackageURL, CLP::kPositional | CLP::kRequired, "Path or URL to a ZIP archive"));
     parser.RegisterParam("update", ParamDesc("FOLDER", &gsBaseFolder, CLP::kPositional | CLP::kRequired, "Base folder to update"));
     parser.RegisterParam("update", ParamDesc("skipcrc", &gbSkipCRC, CLP::kNamed | CLP::kOptional, "Skip CRC checks for matching files and overwrite everything when doing an update. (Same behavior as extract.)"));
+    parser.RegisterParam("update", ParamDesc("pattern", &gsPattern, CLP::kPositional | CLP::kOptional, "Wildcard pattern to use when filtering filenames"));
 
     parser.RegisterMode("extract", "Extracts files from a ZIP archive.");
     parser.RegisterParam("extract", ParamDesc("ZIPFILE", &gsPackageURL, CLP::kPositional | CLP::kRequired, "Path or URL to a ZIP archive"));
     parser.RegisterParam("extract", ParamDesc("FOLDER", &gsBaseFolder, CLP::kPositional | CLP::kRequired, "Base folder to extract to"));
+    parser.RegisterParam("extract", ParamDesc("pattern", &gsPattern, CLP::kPositional | CLP::kOptional, "Wildcard pattern to use when filtering filenames"));
 
     parser.RegisterParam(ParamDesc("pattern", &gsPattern, CLP::kNamed | CLP::kOptional, "Wildcard pattern to use when filtering filenames"));
 
