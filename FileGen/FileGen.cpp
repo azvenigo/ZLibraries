@@ -169,6 +169,45 @@ void CreateCompressibleFile(string sPath, int64_t nTotalSize, int64_t nCompressF
     delete[] bufcycl;
 }
 
+void CreateVariableFile(string sPath, int64_t nTotalSize, int64_t nCompressFactor)
+{
+    if (bVerbose)
+        cout << "Creating Variable Compressible file size:" << nTotalSize << "Compress factor:" << nCompressFactor << " path:" << sPath.c_str() << "...";
+    const int kBufferElements = 64 * 1024;
+    uint32_t* bufcycl = new uint32_t[kBufferElements];
+
+    // cyclical data
+    std::fstream outFile;
+    outFile.open(sPath.c_str(), ios_base::out | ios::binary);
+    if (outFile.fail())
+    {
+        cout << "Error creating file:" << errno << "\n";
+        return;
+    }
+
+    for (int64_t i = 0; i < nTotalSize; i += kBufferElements * sizeof(uint32_t))
+    {
+        for (int j = 0; j < kBufferElements; j++)
+        {
+            if (RANDI64(0,900) < (750 / nCompressFactor) )
+                *(bufcycl + j) = RANDU64(0, 0xffffffff);
+            else
+                *(bufcycl + j) = (uint32_t)i;
+        }
+
+        int32_t nBytesToWrite = kBufferElements * sizeof(uint32_t);
+        if (i + nBytesToWrite > nTotalSize)
+            nBytesToWrite = (int32_t)(nTotalSize - i);
+
+        outFile.write((char*)bufcycl, nBytesToWrite);
+    }
+
+    if (bVerbose)
+        cout << "done\n";
+    outFile.close();
+
+    delete[] bufcycl;
+}
 
 int main(int argc, char* argv[])
 {
@@ -183,6 +222,7 @@ int main(int argc, char* argv[])
     int64_t nFileSize = 0;
     int64_t nFilesPerFolder = 1;
     bool bRandomFill = false;
+    bool bVariableFill = false;
     bool bFillSpecificValue = false;
     int64_t nFillValue = 0;
     bool bSkipExistingFiles = false;
@@ -199,6 +239,10 @@ int main(int argc, char* argv[])
 
     parser.RegisterMode("compressible", "Fill the file with random values every so often to achieve roughly a compressable ratio.");
     parser.RegisterParam("compressible", ParamDesc("FACTOR", &nCompressFactor, CLP::kPositional | CLP::kRequired, "Goal compression factor. (roughly)"));
+
+    parser.RegisterMode("variable", "Fill the file with random (variable compression) data.");
+    parser.RegisterParam("variable", ParamDesc("FACTOR", &nCompressFactor, CLP::kPositional | CLP::kRequired, "Goal compression factor. (roughly)"));
+
 
     parser.RegisterMode("value", "Fill the file specific value.");
     parser.RegisterParam("value", ParamDesc("FILLVALUE", &nFillValue, CLP::kPositional | CLP::kRequired, "specific value to fill the file with"));
@@ -224,7 +268,7 @@ int main(int argc, char* argv[])
     bFillSpecificValue = SH::Compare(parser.GetAppMode(), "value", false);
     bRandomFill = SH::Compare(parser.GetAppMode(), "rand", false);
     bCompressFactorFill = SH::Compare(parser.GetAppMode(), "compressible", false);
-
+    bVariableFill = SH::Compare(parser.GetAppMode(), "variable", false);
 
     size_t nLastDot = sFilename.find_last_of('.');
     if (nLastDot != string::npos)
@@ -279,6 +323,8 @@ int main(int argc, char* argv[])
                 CreateValueFile(sGeneratedFilename, nFileSize, nFillValue);
             else if (bCompressFactorFill)
                 CreateCompressibleFile(sGeneratedFilename, nFileSize, nCompressFactor);
+            else if (bVariableFill)
+                CreateVariableFile(sGeneratedFilename, nFileSize, nCompressFactor);
             else
                 CreateCyclFile(sGeneratedFilename, nFileSize);
         }
