@@ -55,5 +55,5 @@ protected:
     std::mutex mMutex;
 
     // metrics
-    uint64_t mnTotalBytesReserved;
+//    uint64_t mnTotalBytesReserved;
 };

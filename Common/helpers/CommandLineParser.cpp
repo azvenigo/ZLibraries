@@ -136,6 +136,7 @@ namespace CLP
             case ParamDesc::kBool:
                 sType = "BOOL";
             default:
+                assert(false);
                 break;
             }
         }
@@ -169,6 +170,7 @@ namespace CLP
             case ParamDesc::kBool:
                 sType = "BOOL";
             default:
+                assert(false);
                 break;
             }
         }
@@ -602,6 +604,7 @@ namespace CLP
 
         SetConsoleMode(hConsole, mode);
 #endif
+        mbVerbose = false;
     }
 
 
@@ -724,11 +727,11 @@ namespace CLP
     #endif
 
         // Extract  application name
-        int32_t nLastSlash = (int32_t)msAppPath.find_last_of('/');
-        int32_t nLastBackSlash = (int32_t)msAppPath.find_last_of('\\');
+        size_t nLastSlash = (int32_t)msAppPath.find_last_of('/');
+        size_t nLastBackSlash = (int32_t)msAppPath.find_last_of('\\');
         nLastSlash = (nLastSlash > nLastBackSlash) ? nLastSlash : nLastBackSlash;
 
-        if (nLastSlash > 0)
+        if (nLastSlash != string::npos)
         {
             msAppName = msAppPath.substr(nLastSlash + 1);
             msAppPath = msAppPath.substr(0, nLastBackSlash);
