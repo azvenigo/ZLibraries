@@ -3,7 +3,7 @@
 #include <string>
 #include <cstring>
 #include <sstream>
-#include <any>
+//#include <any>
 #include <iostream>
 #include <inttypes.h>
 #include <list>
@@ -11,6 +11,8 @@
 #include <iomanip>
 #include <algorithm>
 
+#define ENABLE_ANSI_OUT
+#ifdef ENABLE_ANSI_OUT
 
 #define COL_RESET   "\033[00m"
 #define COL_BLACK   "\033[30m"   
@@ -32,6 +34,64 @@
 #define COL_BG_CYAN    "\033[46m"     
 #define COL_BG_WHITE   "\033[47m"      
 
+#else
+
+#define COL_RESET           ""
+#define COL_BLACK           ""
+#define COL_RED             ""
+#define COL_GREEN           ""
+#define COL_BLUE            ""
+#define COL_YELLOW          ""
+#define COL_PURPLE          ""
+#define COL_CYAN            ""
+#define COL_WHITE           ""
+
+
+#define COL_BG_BLACK        ""
+#define COL_BG_RED          ""
+#define COL_BG_GREEN        ""
+#define COL_BG_BLUE         ""
+#define COL_BG_YELLOW       ""
+#define COL_BG_PURPLE       ""
+#define COL_BG_CYAN         ""
+#define COL_BG_WHITE        ""
+
+#endif
+
+namespace LOG
+{
+    // Logging verbosity levels
+    // 0 - Silent
+    // 1 - Default. Errors, Warnings, Results
+    // 2 - Basic diagnostics
+    // 3 - Full diagnostics
+
+#define LVL_SILENT 0
+#define LVL_DEFAULT 1
+#define LVL_DIAG_BASIC 2
+#define LVL_DIAG_FULL 3
+    extern int64_t gnVerbosityLevel;
+
+#define OUT_ALL(statement)      { if (LOG::gnVerbosityLevel > LVL_SILENT) statement;}
+#define OUT_DEFAULT(statement)  { if (LOG::gnVerbosityLevel >= LVL_DEFAULT) statement; }
+#define OUT_DIAG(statement)     { if (LOG::gnVerbosityLevel >= LVL_DIAG_BASIC) {statement;} }
+#define OUT_DIAG_FULL(statement){ if (LOG::gnVerbosityLevel >= LVL_DIAG_FULL) {statement;} }
+};
+
+#define RATE_LIMITED_PROGRESS(cadence_seconds, completed, total, unit_per_second, message)	static uint64_t report_ts_=(std::chrono::system_clock::now().time_since_epoch() / std::chrono::microseconds(1)); static uint64_t start_=(std::chrono::system_clock::now().time_since_epoch() / std::chrono::microseconds(1));\
+{ uint64_t cur_time = (std::chrono::system_clock::now().time_since_epoch() / std::chrono::microseconds(1));\
+  if ( cur_time - report_ts_ > (cadence_seconds * 1000000))\
+  {\
+     uint64_t elapsed_us = cur_time - start_;\
+     double fCompletions_per_second = (double) completed * 1000000.0 / elapsed_us;\
+     double fLeftToDo = (double) (total - completed);\
+     double fETA = fLeftToDo / fCompletions_per_second;\
+     cout << message << " - Elapsed:" << (elapsed_us) / 1000000 << "s. Completed:" << completed << "/" << total << " (" << (int)((double) 100.0 * completed / (double) total) << "%) " \
+     "  Rate:" << (completed/(elapsed_us / 1000000)) << unit_per_second \
+     "  ETA:" << (int)fETA << "s                          \r";\
+     report_ts_ = cur_time;\
+  }\
+ }
 
 inline std::string HexValueOut(uint32_t nVal, bool bIncludeDecimal = true)
 {
@@ -170,6 +230,21 @@ public:
         else if (columns.size() < mColumns)
             columns.resize(mColumns);
 
+        mRows.push_back(columns);
+    }
+
+    inline void AddRow(tStringArray& columns)
+    {
+        // Check if the row being added has more columns than any row before.
+        // If so, resize all existing rows to match
+        if (columns.size() > mColumns)
+        {
+            mColumns = columns.size();
+            for (auto& row : mRows)
+                row.resize(mColumns);
+        }
+        else if (columns.size() < mColumns)
+            columns.resize(mColumns);
         mRows.push_back(columns);
     }
 
