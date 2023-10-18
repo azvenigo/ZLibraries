@@ -28,7 +28,7 @@
 // 
 // "multi mode" command line where first parameter is a command with different parameter schemes
 // > Example: "app.exe print file1.txt"
-//            "app.exe concat file1.txt file2.txt -verbose"
+//            "app.exe concat file1.txt file2.txt -verbose:2"
 //            "app.exe list file1.txt -maxlines:3k"
 // 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -40,7 +40,7 @@
 //
 // Named parameters start with '-' and map a key to a value separated by a ':'
 // simple flags such as "-run" is treated as a boolean.
-// > Example: "-threads:4"  "-verbose" 
+// > Example: "-threads:4"  "-verbose:1" 
 //
 // Named parameters can be anywhere on the command line, in any order, including before, between or after positional parameters
 // 
@@ -215,7 +215,7 @@ namespace CLP
 
     protected:
         bool    CanHandleArgument(const std::string& sArg); // returns true if the key for this argument is registered
-        bool    HandleArgument(const std::string& sArg, bool bVerbose = false);    // returns false if there's an error
+        bool    HandleArgument(const std::string& sArg);    // returns false if there's an error
 
         bool    GetDescriptor(const std::string& sKey, ParamDesc** pDescriptorOut);
         bool    GetDescriptor(int64_t nIndex, ParamDesc** pDescriptorOut);
@@ -241,11 +241,11 @@ namespace CLP
     class CommandLineParser
     {
     public:
-        CommandLineParser();
+        CommandLineParser(bool bEnableVerbosity = true);
 
         // Registration Functions
         void                RegisterAppDescription(const std::string& sDescription);
-        bool                Parse(int argc, char* argv[], bool bVerbose = false);
+        bool                Parse(int argc, char* argv[]);
         void                ListModes();
         void                OutputHelp(bool bDetailed = false);
         void                GetCommandLineExample(std::string& sCommandLineExample);
@@ -286,7 +286,6 @@ namespace CLP
         std::string     msAppName;                      // just the app.exe
         std::string     msAppDescription;
 
-        bool            mbVerbose;
         CLModeParser    mGeneralCommandLineParser;      // if no registered modes, defaults to this one
 
         tModeToParser   mModeToCommandLineParser;

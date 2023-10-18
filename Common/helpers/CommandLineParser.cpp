@@ -19,6 +19,8 @@
 using namespace std;
 using namespace SH;
 
+int64_t LOG::gnVerbosityLevel = LVL_DEFAULT;
+
 namespace CLP
 {
 
@@ -27,7 +29,6 @@ namespace CLP
 #define COL_ERROR   COL_RED
 #define COL_APP     COL_YELLOW
 #define COL_PARAM   COL_YELLOW
-
 
     ParamDesc::ParamDesc(const string& sName, string* pString, eBehavior behavior, const string& sUsage, const tStringSet& allowedStrings)
     {
@@ -281,8 +282,9 @@ namespace CLP
         }
     }
 
-    bool CLModeParser::HandleArgument(const std::string& sArg, bool bVerbose)
+    bool CLModeParser::HandleArgument(const std::string& sArg)
     {
+        bool bVerbose = LOG::gnVerbosityLevel > LVL_DEFAULT;
         // named argument
         if (sArg[0] == '-')
         {
@@ -618,7 +620,7 @@ namespace CLP
         }
     }
 
-    CommandLineParser::CommandLineParser()
+    CommandLineParser::CommandLineParser(bool bEnableVerbosity)
     {
 #ifdef _WIN64
         // enable color output on windows
@@ -630,7 +632,9 @@ namespace CLP
 
         SetConsoleMode(hConsole, mode);
 #endif
-        mbVerbose = false;
+
+        if (bEnableVerbosity)
+            RegisterParam(ParamDesc("verbose", &LOG::gnVerbosityLevel, CLP::kNamed | CLP::kOptional | CLP::kRangeRestricted, "Verbosity level. 0-silent, 1-default, 2-basic, 3-full", 0, 3));
     }
 
 
@@ -734,10 +738,9 @@ namespace CLP
     }
 
 
-    bool CommandLineParser::Parse(int argc, char* argv[], bool bVerbose)
+    bool CommandLineParser::Parse(int argc, char* argv[])
     {
         msMode.clear();
-        mbVerbose = bVerbose;
         msAppPath = argv[0];
 
     #ifdef _WIN64
@@ -842,13 +845,13 @@ namespace CLP
                     if (mModeToCommandLineParser[msMode].CanHandleArgument(sParam))
                     {
                         // case 1a
-                        if (!mModeToCommandLineParser[msMode].HandleArgument(sParam, bVerbose))
+                        if (!mModeToCommandLineParser[msMode].HandleArgument(sParam))
                             nErrors++;
                     }
                     else if (mGeneralCommandLineParser.CanHandleArgument(sParam))
                     {
                         // case 1b
-                        if (!mGeneralCommandLineParser.HandleArgument(sParam, bVerbose))
+                        if (!mGeneralCommandLineParser.HandleArgument(sParam))
                             nErrors++;
                     }
                     else
@@ -887,7 +890,7 @@ namespace CLP
 
                     if (mGeneralCommandLineParser.CanHandleArgument(sParam))
                     {
-                        if (!mGeneralCommandLineParser.HandleArgument(sParam, bVerbose))
+                        if (!mGeneralCommandLineParser.HandleArgument(sParam))
                             nErrors++;
                     }
                     else
@@ -1068,7 +1071,7 @@ namespace CLP
 
             keyTable.AddRow(COL_SECTION "--------Keys---------" COL_RESET);
             keyTable.AddRow(COL_SECTION "         [] ", "Optional" COL_RESET);
-            keyTable.AddRow(COL_SECTION "          - ", "Named '-key:value' pair. (examples: -size:1KB  -verbose)" COL_RESET);
+            keyTable.AddRow(COL_SECTION "          - ", "Named '-key:value' pair. (examples: -size:1KB  -verbose:3)" COL_RESET);
             keyTable.AddRow(COL_SECTION "            ", "Can be anywhere on command line, in any order." COL_RESET);
             keyTable.AddRow(COL_SECTION "          # ", "NUMBER" COL_RESET);
             keyTable.AddRow(COL_SECTION "            ", "Can be hex (0x05) or decimal or floating point." COL_RESET);

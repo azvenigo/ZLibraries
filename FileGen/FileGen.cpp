@@ -257,9 +257,9 @@ int main(int argc, char* argv[])
     parser.RegisterParam(ParamDesc("files",        &nFilesPerFolder,    CLP::kNamed | CLP::kOptional,       "number of files in each folder. default is 1"));
 
     parser.RegisterParam(ParamDesc("skipexisting", &bSkipExistingFiles, CLP::kNamed | CLP::kOptional,       "skips overwriting destination file (even with different values or size) if it already exists."));
-    parser.RegisterParam(ParamDesc("verbose",      &bVerbose,           CLP::kNamed | CLP::kOptional,       "hear all the gritty details about everthing that's happening. (Can slow down operation due to command line output.)"));
+//    parser.RegisterParam(ParamDesc("verbose",      &bVerbose,           CLP::kNamed | CLP::kOptional,       "hear all the gritty details about everthing that's happening. (Can slow down operation due to command line output.)"));
 
-    if (!parser.Parse(argc, argv, bVerbose))
+    if (!parser.Parse(argc, argv))
     {
         cerr << "Aborting.\n";
         return -1;

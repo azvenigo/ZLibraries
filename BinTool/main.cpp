@@ -477,13 +477,9 @@ int main(int argc, char* argv[])
     parser.RegisterParam("diff", ParamDesc("FILE2", &sDestPath, CLP::kPositional | CLP::kRequired, "File 1"));
 
 
-
-
-    parser.RegisterParam(ParamDesc("verbose", &bVerbose, CLP::kNamed , "details"));
-
     parser.RegisterAppDescription("Various binary operations on files");
 
-    if (!parser.Parse(argc, argv, bVerbose))
+    if (!parser.Parse(argc, argv))
     {
         return -1;
     }
