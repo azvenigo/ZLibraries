@@ -135,6 +135,7 @@ namespace CLP
             break;
             case ParamDesc::kBool:
                 sType = "BOOL";
+                break;
             default:
                 assert(false);
                 break;
@@ -169,6 +170,7 @@ namespace CLP
             break;
             case ParamDesc::kBool:
                 sType = "BOOL";
+                break;
             default:
                 assert(false);
                 break;
@@ -534,17 +536,54 @@ namespace CLP
     }
 
 
-    void CLModeParser::GetModeUsageTables(string sMode, string& sCommandLineExample, TableOutput& modeDescriptionTable, TableOutput& requiredParamTable, TableOutput& optionalParamTable, TableOutput& additionalInfoTable)
+    void CommandLineParser::GetCommandLineExample(string& sCommandLineExample)
+    {
+        // create example command line with positional params first followed by named
+        sCommandLineExample = COL_APP + msAppName + " " + COL_PARAM + msMode + COL_RESET;
+        sCommandLineExample += COL_PARAM;
+
+        for (auto& desc : mGeneralCommandLineParser.mParameterDescriptors)
+        {
+            if (desc.IsPositional() && desc.IsRequired())
+                sCommandLineExample += " " + desc.msName;
+        }
+        for (auto& desc : mGeneralCommandLineParser.mParameterDescriptors)
+        {
+            if (desc.IsNamed() && desc.IsRequired())
+                sCommandLineExample += " " + desc.msName;
+        }
+
+        if (!msMode.empty())
+        {
+            for (auto& desc : mModeToCommandLineParser[msMode].mParameterDescriptors)
+            {
+                if (desc.IsPositional() && desc.IsRequired())
+                    sCommandLineExample += " " + desc.msName;
+            }
+            for (auto& desc : mGeneralCommandLineParser.mParameterDescriptors)
+            {
+                if (desc.IsNamed() && desc.IsRequired())
+                    sCommandLineExample += " " + desc.msName;
+            }
+        }
+
+
+
+        sCommandLineExample += COL_RESET;
+    }
+
+
+    void CLModeParser::GetModeUsageTables(string sMode, TableOutput& modeDescriptionTable, TableOutput& requiredParamTable, TableOutput& optionalParamTable, TableOutput& additionalInfoTable)
     {
         SH::makelower(sMode);
 
         if (!sMode.empty() && !msModeDescription.empty())
         {
-            modeDescriptionTable.AddRow(string("Help for: " COL_APP ) + sMode.c_str() + string(COL_RESET));
+            modeDescriptionTable.AddRow(string("Help for command: " COL_APP ) + sMode.c_str() + string(COL_RESET));
 
 
             modeDescriptionTable.AddRow(" ");
-            modeDescriptionTable.AddRow(COL_SECTION "-Command Description-" COL_RESET);
+//            modeDescriptionTable.AddRow(COL_SECTION "-Command Description-" COL_RESET);
             modeDescriptionTable.AddMultilineRow(msModeDescription);
         }
 
@@ -555,19 +594,6 @@ namespace CLP
         }
 
 
-        // create example command line with positional params first followed by named
-        sCommandLineExample += COL_PARAM;
-        for (auto& desc : mParameterDescriptors)
-        {
-            if (desc.IsPositional() && desc.IsRequired())
-                sCommandLineExample += " " + desc.msName;
-        }
-        for (auto& desc : mParameterDescriptors)
-        {
-            if (desc.IsNamed() && desc.IsRequired())
-                sCommandLineExample += " " + desc.msName;
-        }
-        sCommandLineExample += COL_RESET;
 
         // Create table of params and usages
 
@@ -727,8 +753,8 @@ namespace CLP
     #endif
 
         // Extract  application name
-        size_t nLastSlash = (int32_t)msAppPath.find_last_of('/');
-        size_t nLastBackSlash = (int32_t)msAppPath.find_last_of('\\');
+        int32_t nLastSlash = (int32_t)msAppPath.find_last_of('/');
+        int32_t nLastBackSlash = (int32_t)msAppPath.find_last_of('\\');
         nLastSlash = (nLastSlash > nLastBackSlash) ? nLastSlash : nLastBackSlash;
 
         if (nLastSlash != string::npos)
@@ -756,14 +782,16 @@ namespace CLP
 
         if (argc > 1)
         {
-            bool bShowHelp = ContainsArgument("-h", argc, argv) || ContainsArgument("-?", argc, argv);
+            bool bShowHelp = ContainsArgument("?", argc, argv);
+            bool bDetailedHelp = ContainsArgument("??", argc, argv);
+
             string sMode = GetFirstPositionalArgument(argc, argv); // mode
             if (bMultiMode && !IsRegisteredMode(sMode))
                 bShowHelp = true;
 
             // If "help" requested
             SH::makelower(sMode);
-            if (bShowHelp)
+            if (bShowHelp || bDetailedHelp)
             {
                 if (bMultiMode)
                 {
@@ -772,7 +800,7 @@ namespace CLP
                     {
                         // case 2a
                         msMode = sMode;
-                        OutputHelp();
+                        OutputHelp(bDetailedHelp);
                         return false;
                     }
                     else
@@ -785,7 +813,7 @@ namespace CLP
                 else
                 {
                     // single mode case 3
-                    OutputHelp();
+                    OutputHelp(bDetailedHelp);
                 }
 
                 return false;
@@ -826,7 +854,7 @@ namespace CLP
                     else
                     {
                         // case 1c
-                        cerr << COL_ERROR << "Error: Unknown parameter '" << sParam << "'\n" << COL_RESET;
+                        cerr << COL_ERROR << "Error:" COL_RESET " Unknown parameter '" << COL_RED << sParam << COL_RESET << "'\n";
                         nErrors++;
                     }
                 }
@@ -836,7 +864,15 @@ namespace CLP
                     mModeToCommandLineParser[msMode].ShowFoundParameters();
                     mGeneralCommandLineParser.ShowFoundParameters();
 
-                    cout << "\n\"" << COL_APP << msAppName << " " << COL_PARAM << msMode << " -?" << COL_RESET << "\" - to see usage.\n";
+                    string sCommandLineExample;
+                    TableOutput usageTable;
+                    GetCommandLineExample(sCommandLineExample);
+                    usageTable.AddRow(COL_SECTION "--------Usage---------" COL_RESET);
+                    usageTable.AddRow(sCommandLineExample);
+                    cout << usageTable;
+
+
+                    cout << "\n\"" << COL_APP << msAppName << " " << COL_PARAM << msMode << " ?" << COL_RESET << "\" - to see usage.\n";
                     return false;
                 }
 
@@ -864,7 +900,15 @@ namespace CLP
                 if (!mGeneralCommandLineParser.CheckAllRequirementsMet())
                 {
                     mGeneralCommandLineParser.ShowFoundParameters();
-                    cout << "\n\"" << COL_APP << msAppName << COL_PARAM << " -?\" - to see usage.\n" << COL_RESET;
+
+                    string sCommandLineExample;
+                    TableOutput usageTable;
+                    GetCommandLineExample(sCommandLineExample);
+                    usageTable.AddRow(COL_SECTION "--------Usage---------" COL_RESET);
+                    usageTable.AddRow(sCommandLineExample);
+                    cout << usageTable;
+
+                    cout << "\n\"" << COL_APP << msAppName << COL_PARAM << " ?\" - to see usage.\n" << COL_RESET;
                     return false;
                 }
 
@@ -911,7 +955,7 @@ namespace CLP
     }
 
 
-    void CommandLineParser::OutputHelp()
+    void CommandLineParser::OutputHelp(bool bDetailed)
     {
         TableOutput usageTable;
         TableOutput descriptionTable;
@@ -957,15 +1001,15 @@ namespace CLP
             if (bHasOptionalParameters)
             {
                 optionalParamTable.AddRow(" ");
-                optionalParamTable.AddRow(COL_SECTION "-------Options-------", "---Type---", "---Default---", "---Description---" COL_RESET);
+                optionalParamTable.AddRow(COL_SECTION "------[Options]------", "---Type---", "---Default---", "---Description---" COL_RESET);
                 optionalParamTable.SetBorders(0, 0, '*', '*');
                 optionalParamTable.SetSeparator(' ', 1);
             }
 
 
-            sCommandLineExample = COL_APP + msAppName + " " + COL_PARAM + msMode + COL_RESET;
-            mModeToCommandLineParser[msMode].GetModeUsageTables(msMode, sCommandLineExample, descriptionTable, requiredParamTable, optionalParamTable, additionalInfoTable);
-            mGeneralCommandLineParser.GetModeUsageTables("", sCommandLineExample, descriptionTable, requiredParamTable, optionalParamTable, additionalInfoTable);
+            GetCommandLineExample(sCommandLineExample);
+            mModeToCommandLineParser[msMode].GetModeUsageTables(msMode, descriptionTable, requiredParamTable, optionalParamTable, additionalInfoTable);
+            mGeneralCommandLineParser.GetModeUsageTables("", descriptionTable, requiredParamTable, optionalParamTable, additionalInfoTable);
         }
         else
         {
@@ -998,13 +1042,13 @@ namespace CLP
             if (bHasOptionalParameters)
             {
                 optionalParamTable.AddRow(" ");
-                optionalParamTable.AddRow(COL_SECTION "-------Options-------", "---Type---", "---Default---", "---Description---" COL_RESET);
+                optionalParamTable.AddRow(COL_SECTION "------[Options]------", "---Type---", "---Default---", "---Description---" COL_RESET);
                 optionalParamTable.SetBorders(0, 0, '*', '*');
                 optionalParamTable.SetSeparator(' ', 1);
             }
 
-            sCommandLineExample = msAppName;
-            mGeneralCommandLineParser.GetModeUsageTables("", sCommandLineExample, descriptionTable, requiredParamTable, optionalParamTable, additionalInfoTable);
+            GetCommandLineExample(sCommandLineExample);
+            mGeneralCommandLineParser.GetModeUsageTables("", descriptionTable, requiredParamTable, optionalParamTable, additionalInfoTable);
         }
 
         if (bHasOptionalParameters)
@@ -1013,22 +1057,25 @@ namespace CLP
         usageTable.AddRow(COL_SECTION "--------Usage---------" COL_RESET);
         usageTable.AddRow(sCommandLineExample);
         usageTable.SetSeparator(' ', 1);
-        usageTable.SetBorders(0, 0, '*', '*');
+        usageTable.SetBorders('-', '*', '*', '*');
 
 
         TableOutput keyTable;
-        keyTable.SetSeparator(' ', 1);
-        keyTable.SetBorders('-', '*', '*', '*');
+        if (bDetailed)
+        {
+            keyTable.SetSeparator(' ', 1);
+            keyTable.SetBorders('-', 0, '*', '*');
 
-        keyTable.AddRow(COL_SECTION "--------Keys---------" COL_RESET);
-        keyTable.AddRow(COL_SECTION "         [] ", "Optional" COL_RESET);
-        keyTable.AddRow(COL_SECTION "          - ", "Named '-key:value' pair. (examples: -size:1KB  -verbose)" COL_RESET);
-        keyTable.AddRow(COL_SECTION "            ", "Can be anywhere on command line, in any order." COL_RESET);
-        keyTable.AddRow(COL_SECTION "          # ", "NUMBER" COL_RESET);
-        keyTable.AddRow(COL_SECTION "            ", "Can be hex (0x05) or decimal or floating point." COL_RESET);
-        keyTable.AddRow(COL_SECTION "            ", "Can include commas (1,000)" COL_RESET);
-        keyTable.AddRow(COL_SECTION "            ", "Can include scale labels (10k, 64KiB, etc.)" COL_RESET);
-        keyTable.AddRow(COL_SECTION "        BOOL", "Boolean value can be 1/0, t/f, y/n, yes/no. Presence of the flag means true." COL_RESET);
+            keyTable.AddRow(COL_SECTION "--------Keys---------" COL_RESET);
+            keyTable.AddRow(COL_SECTION "         [] ", "Optional" COL_RESET);
+            keyTable.AddRow(COL_SECTION "          - ", "Named '-key:value' pair. (examples: -size:1KB  -verbose)" COL_RESET);
+            keyTable.AddRow(COL_SECTION "            ", "Can be anywhere on command line, in any order." COL_RESET);
+            keyTable.AddRow(COL_SECTION "          # ", "NUMBER" COL_RESET);
+            keyTable.AddRow(COL_SECTION "            ", "Can be hex (0x05) or decimal or floating point." COL_RESET);
+            keyTable.AddRow(COL_SECTION "            ", "Can include commas (1,000)" COL_RESET);
+            keyTable.AddRow(COL_SECTION "            ", "Can include scale labels (10k, 64KiB, etc.)" COL_RESET);
+            keyTable.AddRow(COL_SECTION "        BOOL", "Boolean value can be 1/0, t/f, y/n, yes/no. Presence of the flag means true." COL_RESET);
+        }
 
 
         size_t nMinTableWidth = std::max({ (size_t) 120, 
@@ -1040,24 +1087,24 @@ namespace CLP
                                             additionalInfoTable.GetTableWidth()});
 
         keyTable.SetMinimumOutputWidth(nMinTableWidth);
-        usageTable.SetMinimumOutputWidth(nMinTableWidth);
         requiredParamTable.SetMinimumOutputWidth(nMinTableWidth);
         optionalParamTable.SetMinimumOutputWidth(nMinTableWidth);
         descriptionTable.SetMinimumOutputWidth(nMinTableWidth);
         additionalInfoTable.SetMinimumOutputWidth(nMinTableWidth);
+        usageTable.SetMinimumOutputWidth(nMinTableWidth);
 
 
         // Now default/global
         cout << descriptionTable;
         if (bHasAdditionalInfo)
             cout << additionalInfoTable;
-        cout << usageTable;
         if (bHasRequiredParameters)
             cout << requiredParamTable;
         if (bHasOptionalParameters)   // 1 because "Optional:" added above
             cout << optionalParamTable;
-        cout << keyTable;
-
+        if (bDetailed)
+            cout << keyTable;
+        cout << usageTable;
     }
 
     void CommandLineParser::ListModes()
@@ -1078,7 +1125,7 @@ namespace CLP
         descriptionTable.AddRow(sModes);
 
         descriptionTable.AddRow(" ");
-        descriptionTable.AddRow(COL_SECTION "-Application Description-" COL_RESET);
+        descriptionTable.AddRow(COL_SECTION "-----Application Description-----" COL_RESET);
         descriptionTable.AddMultilineRow(msAppDescription);
         descriptionTable.AddRow(" ");
 
@@ -1087,8 +1134,7 @@ namespace CLP
         commandsTable.SetBorders(0, '*', '*', '*');
         commandsTable.SetSeparator(' ', 1);
 
-        commandsTable.AddRow(COL_SECTION "-------Commands--------" COL_RESET);
-        commandsTable.AddRow(COL_PARAM "-? [command]" COL_RESET, "List of commands or context specific help");
+        commandsTable.AddRow(COL_SECTION "-------Available Commands--------" COL_RESET);
         for (tModeToParser::iterator it = mModeToCommandLineParser.begin(); it != mModeToCommandLineParser.end(); it++)
         {
             string sCommand = (*it).first;
@@ -1096,6 +1142,10 @@ namespace CLP
             if (!sCommand.empty())
                 commandsTable.AddRow(COL_PARAM + sCommand + COL_RESET, sModeDescription);
         }
+
+        commandsTable.AddRow(COL_SECTION "--------------Help---------------" COL_RESET);
+        commandsTable.AddRow(COL_PARAM "COMMAND ?" COL_RESET, "Add '?' anywhere on command line for list of commands or context specific help.");
+        commandsTable.AddRow(COL_PARAM "COMMAND ??" COL_RESET, "Detailed help including parameter keys.");
 
 
         size_t nMinTableWidth = std::max({ (size_t) 120, commandsTable.GetTableWidth(), descriptionTable.GetTableWidth() });

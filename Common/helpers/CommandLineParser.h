@@ -211,7 +211,7 @@ namespace CLP
         size_t  GetNumPositionalParamsHandled();
 
         void    ShowFoundParameters();
-        void    GetModeUsageTables(std::string sMode, std::string& sCommandLineExample, TableOutput& modeDescriptionTable, TableOutput& requiredParamTable, TableOutput& optionalParamTable, TableOutput& additionalInfoTable);
+        void    GetModeUsageTables(std::string sMode, TableOutput& modeDescriptionTable, TableOutput& requiredParamTable, TableOutput& optionalParamTable, TableOutput& additionalInfoTable);
 
     protected:
         bool    CanHandleArgument(const std::string& sArg); // returns true if the key for this argument is registered
@@ -247,7 +247,8 @@ namespace CLP
         void                RegisterAppDescription(const std::string& sDescription);
         bool                Parse(int argc, char* argv[], bool bVerbose = false);
         void                ListModes();
-        void                OutputHelp();
+        void                OutputHelp(bool bDetailed = false);
+        void                GetCommandLineExample(std::string& sCommandLineExample);
 
         // Accessors
         std::string     GetAppMode() { return msMode; }         // empty string if default mode
