@@ -24,7 +24,7 @@ using namespace std;
 const string kHTTPTag("http://");
 const string kHTTPSTag("https://");
 
-bool gbSkipCertCheck;
+bool gbSkipCertCheck = false;
 cZZFile_EnvironmentParameters gZZFileEnv;
 
 enum

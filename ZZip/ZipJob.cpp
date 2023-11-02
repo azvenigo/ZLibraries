@@ -15,7 +15,7 @@
 #include "helpers/Crc32Fast.h"
 #include "helpers/FNMatch.h"
 #include "helpers/ThreadPool.h"
-#include "ZZFileAPI.h"
+#include "helpers/ZZFileAPI.h"
 
 using namespace std;
 

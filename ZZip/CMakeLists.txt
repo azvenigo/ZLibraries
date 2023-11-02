@@ -19,8 +19,13 @@ endif()
 ####################
 # ZZip
 
-set(ZZIP_SOURCES main.cpp ZZipAPI.h ZZipAPI.cpp ZipJob.h ZipJob.cpp ZipHeaders.h ZipHeaders.cpp ZZFileAPI.h ZZFileAPI.cpp ZZipTrackers.h zlibAPI.h zlibAPI.cpp)
-set(COMMON_FILES ../Common/helpers/CommandLineParser.cpp ../Common/helpers/CommandLineParser.h ../Common/helpers/Crc32Fast.h ../Common/helpers/Crc32Fast.cpp)
+set(ZZIP_SOURCES main.cpp ZZipAPI.h ZZipAPI.cpp ZipJob.h ZipJob.cpp ZipHeaders.h ZipHeaders.cpp ZZipTrackers.h zlibAPI.h zlibAPI.cpp)
+set(COMMON_FILES 
+../Common/helpers/CommandLineParser.cpp ../Common/helpers/CommandLineParser.h 
+../Common/helpers/Crc32Fast.h ../Common/helpers/Crc32Fast.cpp
+../Common/helpers/ZZFileAPI.h ../Common/helpers/ZZFileAPI.cpp 
+)
+
 list(APPEND COMMON_FILES ../Common/helpers/FNMatch.h ../Common/helpers/FNMatch.cpp ../Common/helpers/HTTPCache.h ../Common/helpers/HTTPCache.cpp)
 list(APPEND COMMON_FILES ../Common/helpers/StringHelpers.h ../Common/helpers/StringHelpers.cpp ../Common/helpers/ThreadPool.h)
 list(APPEND COMMON_FILES  ../Common/zlib-1.2.11/deflate.c  ../Common/zlib-1.2.11/inflate.c ../Common/zlib-1.2.11/adler32.c ../Common/zlib-1.2.11/zutil.c ../Common/zlib-1.2.11/crc32.c ../Common/zlib-1.2.11/trees.c ../Common/zlib-1.2.11/inftrees.c ../Common/zlib-1.2.11/inffast.c)

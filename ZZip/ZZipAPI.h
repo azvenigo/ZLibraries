@@ -20,7 +20,7 @@
 #include "ZipHeaders.h"
 #include "ZipJob.h"
 #include "zlib.h"
-#include "ZZFileAPI.h"
+#include "helpers/ZZFileAPI.h"
 
 //using namespace std;
 

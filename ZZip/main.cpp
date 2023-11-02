@@ -39,7 +39,7 @@ int64_t            gNumThreads		= std::thread::hardware_concurrency();;	        
 string              gsOutputFormat;
 eToStringFormat     gOutputFormat	= kTabs;                    // For lists or diff operations, output in various formats
 bool                gbVerbose       = false;                    // Diagnostics. Forces single threaded operation and spits out a lot of logging data.
-bool                gbSkipCertCheck = false;
+extern bool         gbSkipCertCheck;
 
 
 using namespace CLP;
