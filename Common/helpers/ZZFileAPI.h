@@ -10,7 +10,7 @@
 //                  bool bSuccess = cZZFile::Open( filename, ZZFILE_READ, pInFile);
 //
 // MIT License
-// Copyright 2019 Alex Zvenigorodsky
+// Copyright 2023 Alex Zvenigorodsky
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files(the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions :
 // 
@@ -23,35 +23,57 @@
 #include <fstream>
 #include <atomic>
 #include <mutex>
+#include "curl/include/curl/curl.h"
+
+#define USE_HTTP_CACHE
+
+#ifdef USE_HTTP_CACHE
 #include "helpers/HTTPCache.h"
-#include "curl/curl.h"
+#endif
 
-inline int64_t GetUSSinceEpoch()
+typedef std::shared_ptr<class cZZFile> tZZFilePtr;
+
+
+// Static runtime parameters 
+class cZZFile_EnvironmentParameters
 {
-    return std::chrono::system_clock::now().time_since_epoch() / std::chrono::microseconds(1);
-}
+public:
+    cZZFile_EnvironmentParameters(){}
 
+    std::string login_name;
+    std::string login_password;
+};
+
+extern bool gbSkipCertCheck;
 
 // Interface class
 class cZZFile
 {
 public:
+    // helper functions for URLs since filesystem::path doesn't work with URLs
+    static bool IsHTTP(const std::string& sURL);
+    static std::string Extension(const std::string& sURL);
+    static std::string Filename(const std::string& sURL);
+    static std::string ParentPath(const std::string& sURL);
 
     const static int64_t ZZFILE_NO_SEEK = -1;
     const static int64_t ZZFILE_SEEK_END = -2;
     const static bool    ZZFILE_READ = false;
     const static bool    ZZFILE_WRITE = true;
 
-
     // Factory Construction
     // returns either a cZZFileLocal, cHTTPFile* or a cHTTPSFile* depending on the url needs
-    static bool         Open(const std::string& sURL, bool bWrite, std::shared_ptr<cZZFile>& pFile, const std::string& sName = "", const std::string& sPassword = "", bool bVerbose = false);
+    static bool         Open(const std::string& sURL, bool bWrite, tZZFilePtr& pFile, bool bVerbose = false);
+    static bool         Exists(const std::string& sURL, bool bVerbose = false);
 
     virtual             ~cZZFile() {};
 
     virtual bool	    Close() = 0;
-    virtual bool	    Read(int64_t nOffset, uint32_t nBytes, uint8_t* pDestination, uint32_t& nBytesRead) = 0;
-    virtual bool        Write(int64_t nOffset, uint32_t nBytes, uint8_t* pSource, uint32_t& nBytesWritten) = 0;
+    virtual bool	    Read(int64_t nOffset, int64_t nBytes, uint8_t* pDestination, int64_t& nBytesRead) = 0;
+    virtual bool        Write(int64_t nOffset, int64_t nBytes, uint8_t* pSource, int64_t& nBytesWritten) = 0;
+
+    virtual size_t      Read(uint8_t* pDestination, int64_t nBytes) = 0;   // wrapper to support stream like interface
+    virtual size_t      Write(uint8_t* pSource, int64_t nBytes) = 0;       // wrapper to support stream like interface
 
     virtual uint64_t    GetFileSize() { return mnFileSize; }
     virtual int64_t     GetLastError() { return mnLastError; }
@@ -59,12 +81,17 @@ public:
 protected:
     cZZFile();          // private constructor.... use cZZFile::Open factory function for construction
 
-    virtual bool	    OpenInternal(std::string sURL, bool bWrite, std::string sName, std::string sPassword, bool bVerbose) = 0;
+    virtual bool	    OpenInternal(std::string sURL, bool bWrite, bool bVerbose) = 0;
     std::string         msPath;
     bool                mbVerbose;
-    uint64_t		    mnFileSize;
+    int64_t		        mnFileSize;
     int64_t             mnLastError;
+
+    int64_t             mnReadOffset;
+    int64_t             mnWriteOffset;
 };
+
+extern cZZFile_EnvironmentParameters gZZFileEnv;
 
 
 //////////////////////////////////////////////////////////////////////////////////////////
@@ -74,14 +101,18 @@ class cZZFileLocal : public cZZFile
 public:
     ~cZZFileLocal();
 
-	virtual bool    Close();
-	virtual bool    Read(int64_t nOffset, uint32_t nBytes, uint8_t* pDestination, uint32_t& nBytesRead);
-    virtual bool    Write(int64_t nOffset, uint32_t nBytes, uint8_t* pSource, uint32_t& nBytesWritten);
+    virtual bool    Close();
+    virtual bool    Read(int64_t nOffset, int64_t nBytes, uint8_t* pDestination, int64_t& nBytesRead);
+    virtual bool    Write(int64_t nOffset, int64_t nBytes, uint8_t* pSource, int64_t& nBytesWritten);
+
+    virtual size_t  Read(uint8_t* pDestination, int64_t nBytes);
+    virtual size_t  Write(uint8_t* pSource, int64_t nBytes);
+
 
 protected:
     cZZFileLocal(); // private constructor.... use cZZFile::Open factory function for construction
 
-    virtual bool    OpenInternal(std::string sURL, bool bWrite, std::string sName, std::string sPassword, bool bVerbose);
+    virtual bool    OpenInternal(std::string sURL, bool bWrite, bool bVerbose);
 
 protected:
     std::fstream    mFileStream;
@@ -98,13 +129,19 @@ public:
     ~cHTTPFile();
 
     virtual bool    Close();
-    virtual bool    Read(int64_t nOffset, uint32_t nBytes, uint8_t* pDestination, uint32_t& nBytesRead);
-    virtual bool    Write(int64_t, uint32_t, uint8_t*, uint32_t&);    // not permitted
+    virtual bool    Read(int64_t nOffset, int64_t nBytes, uint8_t* pDestination, int64_t& nBytesRead);
+    virtual bool    Write(int64_t, int64_t, uint8_t*, int64_t&);    // not permitted
+
+    virtual size_t  Read(uint8_t* pDestination, int64_t nBytesRead);
+    virtual size_t  Write(uint8_t*, int64_t); // not permitted
+
+
+    static std::string ToURLPath(const std::string& sPath); // converts slashes if necessary 
 
 protected:
     cHTTPFile();    // private constructor.... use cZZFile::Open factory function for construction
 
-    virtual bool	OpenInternal(std::string sURL, bool bWrite, std::string sName, std::string sPassword, bool bVerbose);
+    virtual bool	OpenInternal(std::string sURL, bool bWrite, bool bVerbose);
 
     static size_t   write_data(char* buffer, size_t size, size_t nitems, void* userp);
 
@@ -117,8 +154,12 @@ protected:
     // Auth
     std::string     msName;
     std::string     msPassword;
-
-    HTTPCache       mCache;
-    CURLSH*         mpCurlShare;
+    CURLSH* mpCurlShare;
     std::mutex      mCurlMutex;
+
+#ifdef USE_HTTP_CACHE
+    HTTPCache       mCache;
+#endif
+
+
 };

@@ -178,10 +178,10 @@ bool cLocalFileHeader::Read(cZZFile& file, uint64_t nOffsetToLocalFileHeader, ui
     uint16_t nFilenameLength;
     uint16_t nExtraFieldLength;
 
-    uint32_t nNumRead;
+    int64_t nNumRead;
 
-    file.Read(nOffsetToLocalFileHeader + kOffsetToFilenameLength, sizeof(uint16_t), (uint8_t*)&nFilenameLength, nNumRead);
-    file.Read(nOffsetToLocalFileHeader + kOffsetToFilenameLength + sizeof(uint16_t), sizeof(uint16_t), (uint8_t*)&nExtraFieldLength, nNumRead);
+    file.Read((int64_t)nOffsetToLocalFileHeader + kOffsetToFilenameLength, sizeof(uint16_t), (uint8_t*)&nFilenameLength, nNumRead);
+    file.Read((int64_t)nOffsetToLocalFileHeader + kOffsetToFilenameLength + sizeof(uint16_t), sizeof(uint16_t), (uint8_t*)&nExtraFieldLength, nNumRead);
 
     uint32_t nLocalFileHeaderRawSize = kStaticDataSize + nFilenameLength + nExtraFieldLength;
 
@@ -204,7 +204,7 @@ bool cLocalFileHeader::Read(cZZFile& file, uint64_t nOffsetToLocalFileHeader, ui
 bool cLocalFileHeader::Write(cZZFile& file, uint64_t nOffsetToLocalFileHeader)
 {
     bool bSuccess = true;
-    uint32_t nWritten = 0;
+    int64_t nWritten = 0;
     bSuccess &= file.Write(nOffsetToLocalFileHeader, sizeof(uint32_t), (uint8_t*)&mLocalFileTag, nWritten);
     bSuccess &= file.Write(cZZFile::ZZFILE_NO_SEEK, sizeof(uint16_t), (uint8_t*)&mMinVersionToExtract, nWritten);
     bSuccess &= file.Write(cZZFile::ZZFILE_NO_SEEK, sizeof(uint16_t), (uint8_t*)&mGeneralPurposeBitFlag, nWritten);
@@ -270,7 +270,7 @@ bool cEndOfCDRecord::ParseRaw(uint8_t* pBuffer, uint32_t& nNumBytesProcessed)
 bool cEndOfCDRecord::Write(cZZFile& file)
 {
     bool bSuccess = true;
-    uint32_t nWritten = 0;
+    int64_t nWritten = 0;
     bSuccess &= file.Write(cZZFile::ZZFILE_SEEK_END, sizeof(uint32_t), (uint8_t*)&mEndOfCDRecTag, nWritten);
     bSuccess &= file.Write(cZZFile::ZZFILE_NO_SEEK, sizeof(uint16_t), (uint8_t*)&mDiskNum, nWritten);
     bSuccess &= file.Write(cZZFile::ZZFILE_NO_SEEK, sizeof(uint16_t), (uint8_t*)&mDiskNumOfCD, nWritten);
@@ -357,7 +357,7 @@ bool cZip64EndOfCDRecord::ParseRaw(uint8_t* pBuffer, uint32_t& nNumBytesProcesse
 bool cZip64EndOfCDRecord::Write(cZZFile& file)
 {
     bool bSuccess = true;
-    uint32_t nWritten = 0;
+    int64_t nWritten = 0;
     bSuccess &= file.Write(cZZFile::ZZFILE_SEEK_END, sizeof(uint32_t), (uint8_t*)&mZip64EndOfCDRecTag, nWritten);
     bSuccess &= file.Write(cZZFile::ZZFILE_NO_SEEK, sizeof(uint64_t), (uint8_t*)&mSizeOfZiP64EndOfCDRecord, nWritten);
     bSuccess &= file.Write(cZZFile::ZZFILE_NO_SEEK, sizeof(uint16_t), (uint8_t*)&mVersionMadeBy, nWritten);
@@ -427,7 +427,7 @@ bool cZip64EndOfCDLocator::ParseRaw(uint8_t* pBuffer, uint32_t& nNumBytesProcess
 bool cZip64EndOfCDLocator::Write(cZZFile& file)
 {
     bool bSuccess = true;
-    uint32_t nWritten = 0;
+    int64_t nWritten = 0;
     bSuccess &= file.Write(cZZFile::ZZFILE_SEEK_END, sizeof(uint32_t), (uint8_t*)&mZip64EndOfCDLocatorTag, nWritten);
     bSuccess &= file.Write(cZZFile::ZZFILE_NO_SEEK, sizeof(uint32_t), (uint8_t*)&mDiskNumOfCD, nWritten);
     bSuccess &= file.Write(cZZFile::ZZFILE_NO_SEEK, sizeof(uint64_t), (uint8_t*)&mZip64EndofCDOffset, nWritten);
@@ -536,7 +536,7 @@ bool cCDFileHeader::ParseRaw(uint8_t* pBuffer, uint32_t& nNumBytesProcessed)
 bool cCDFileHeader::Write(cZZFile& file)
 {
     bool bSuccess = true;
-    uint32_t nWritten = 0;
+    int64_t nWritten = 0;
     bSuccess &= file.Write(cZZFile::ZZFILE_SEEK_END, sizeof(uint32_t), (uint8_t*)&mCDTag, nWritten);
     bSuccess &= file.Write(cZZFile::ZZFILE_NO_SEEK, sizeof(uint16_t), (uint8_t*)&mVersionMadeBy, nWritten);
     bSuccess &= file.Write(cZZFile::ZZFILE_NO_SEEK, sizeof(uint16_t), (uint8_t*)&mMinVersionToExtract, nWritten);
@@ -646,7 +646,7 @@ bool cZipCD::Init(cZZFile& zzFile)
     uint8_t* pBuf = new uint8_t[nReadSizeofCDRec];     // Should be more than enough space for this record
 
                                                        // fill the buffer with the end of the zip file
-    uint32_t nBytesRead = 0;
+    int64_t nBytesRead = 0;
     if (!zzFile.Read(nSeekPosition, nReadSizeofCDRec, pBuf, nBytesRead))
     {
         delete[] pBuf;

@@ -92,18 +92,20 @@ namespace LOG
 
         assert(!msLogFilename.empty());
 
-        if (!mFile)
+        if (!mFile.is_open())
         {
-            mFile.open(msLogFilename, ios::in | ios::out|ios::app);
+            mFile.open(msLogFilename, ios::in | ios::out|ios::ate);
             if (mFile.fail())
             {
+                string s = strerror(errno);
                 cerr << "Error opening log: " << strerror(errno) << "\n";
             }
 
+            mFile.seekp(0, ios::end);
             mCurrentLogfileBytes = mFile.tellp();
         }
 
-        assert(mFile);
+        //assert(mFile);
 
         mFile.write(sLine.data(), sLine.length());
         mCurrentLogfileBytes += sLine.length();           

@@ -226,7 +226,7 @@ bool HTTPCacheLine::Commit(int32_t nBytes)
     mnBufferData += nBytes;
 
 #ifdef _DEBUG
-    assert(mnBufferData == kHTTPCacheLineSize);
+    assert(mnBufferData <= kHTTPCacheLineSize);
 #endif
     mbCommitted = true;
 

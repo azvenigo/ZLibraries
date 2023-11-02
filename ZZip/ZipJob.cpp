@@ -19,6 +19,11 @@
 
 using namespace std;
 
+inline int64_t GetUSSinceEpoch()
+{
+    return std::chrono::system_clock::now().time_since_epoch() / std::chrono::microseconds(1);
+}
+
 
 ZipJob::~ZipJob()
 {
@@ -205,7 +210,7 @@ void ZipJob::RunDiffJob(void* pContext)
     eToStringFormat stringFormat = pZipJob->mOutputFormat;
 
     shared_ptr<cZZFile> pZZFile;
-    if (!cZZFile::Open(pZipJob->msPackageURL, cZZFile::ZZFILE_READ, pZZFile, pZipJob->msName, pZipJob->msPassword, pZipJob->mbVerbose))
+    if (!cZZFile::Open(pZipJob->msPackageURL, cZZFile::ZZFILE_READ, pZZFile, pZipJob->mbVerbose))
     {
         pZipJob->mJobStatus.SetError(JobStatus::kError_OpenFailed, "Failed to open package: \"" + pZipJob->msPackageURL + "\"");
         return;
@@ -397,7 +402,7 @@ bool ZipJob::FileNeedsUpdate(const string& sPath, uint64_t nComparedFileSize, ui
         cout << "Verifying file " << sPath;
 
     shared_ptr<cZZFile> pLocalFile;
-    if (!cZZFile::Open(sPath, cZZFile::ZZFILE_READ, pLocalFile, "", "", mbVerbose))	// If no local file it clearly needs to be updated
+    if (!cZZFile::Open(sPath, cZZFile::ZZFILE_READ, pLocalFile, mbVerbose))	// If no local file it clearly needs to be updated
     {
         if (mbVerbose)
             cout << "...missing. NEEDS UPDATE.\n";
@@ -415,11 +420,11 @@ bool ZipJob::FileNeedsUpdate(const string& sPath, uint64_t nComparedFileSize, ui
     uint32_t nCRC = 0;
     uint32_t kCalcBufferSize = 128 * 1024;	// 128k buffer
     unique_ptr<uint8_t[]> pCalcBuffer(new uint8_t[kCalcBufferSize]);
-    uint32_t nBytesProcessed = 0;
+    int64_t nBytesProcessed = 0;
 
-    while (nBytesProcessed < nFileSize)
+    while (nBytesProcessed < (int64_t)nFileSize)
     {
-        uint32_t nBytesRead = 0;
+        int64_t nBytesRead = 0;
         pLocalFile->Read(cZZFile::ZZFILE_NO_SEEK, kCalcBufferSize, pCalcBuffer.get(), nBytesRead);
         nCRC = crc32_16bytes(pCalcBuffer.get(), nBytesRead, nCRC);
         nBytesProcessed += nBytesRead;
@@ -675,7 +680,7 @@ void ZipJob::RunListJob(void* pContext)
         cout << "Files that match pattern: \"" << pZipJob->msPattern << "\"\n";
 
     shared_ptr<cZZFile> pZZFile;
-    if (!cZZFile::Open(sURL, cZZFile::ZZFILE_READ, pZZFile, sName, sPassword, pZipJob->mbVerbose))
+    if (!cZZFile::Open(sURL, cZZFile::ZZFILE_READ, pZZFile,  pZipJob->mbVerbose))
     {
         pZipJob->mJobStatus.SetError(JobStatus::kError_OpenFailed, "Failed to open package: \"" + sURL + "\"");
         return;

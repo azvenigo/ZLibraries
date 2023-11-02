@@ -1,4 +1,4 @@
-// MIT 7icense
+// MIT License
 // Copyright 2019 Alex Zvenigorodsky
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files(the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions :
@@ -17,13 +17,15 @@
 #include <vector>
 #include <assert.h>
 #include "helpers/StringHelpers.h"
+#include <filesystem>
 
 using namespace std;
 
 const string kHTTPTag("http://");
 const string kHTTPSTag("https://");
 
-extern bool gbSkipCertCheck;
+bool gbSkipCertCheck;
+cZZFile_EnvironmentParameters gZZFileEnv;
 
 enum
 {
@@ -33,14 +35,42 @@ enum
     kZZFileError_Unsupported    = -5003,
 };
 
+bool cZZFile::IsHTTP(const std::string& sURL)
+{
+    return sURL.substr(0, 4) == "http"; // true for http:// and https://
+}
+
+string cZZFile::Extension(const std::string& sURL)
+{
+    size_t nPos = sURL.find_last_of('.');
+    if (nPos != string::npos)
+        return sURL.substr(nPos);
+
+    return "";
+}
+
+string cZZFile::Filename(const std::string& sURL)
+{
+    size_t nPos = sURL.find_last_of("/\\");
+    if (nPos != string::npos)
+        return sURL.substr(nPos);
+
+    return "";
+}
+
+string cZZFile::ParentPath(const std::string& sURL)
+{
+    size_t nPos = sURL.find_last_of("/\\");
+    if (nPos != string::npos)
+        return sURL.substr(0, nPos);
+
+    return "";
+}
+
 
 // Factory
-bool cZZFile::Open(const string& sURL, bool bWrite, shared_ptr<cZZFile>& pFile, const string& sName, const string& sPassword, bool bVerbose)
+bool cZZFile::Open(const string& sURL, bool bWrite, shared_ptr<cZZFile>& pFile, bool bVerbose)
 {
-    // 2022/9/17 - temp setting verbose
-    //bVerbose = true;
-
-
     cZZFile* pNewFile = nullptr;
     if (sURL.substr(0, 4) == "http" || sURL.substr(0, 4) == "sftp")
     {
@@ -52,8 +82,24 @@ bool cZZFile::Open(const string& sURL, bool bWrite, shared_ptr<cZZFile>& pFile, 
     }
 
     pFile.reset(pNewFile);
-    return pNewFile->OpenInternal(sURL, bWrite, sName, sPassword, bVerbose);   // call protected virtualized Open
+    pNewFile->mnReadOffset = 0;
+    pNewFile->mnWriteOffset = 0;
+    return pNewFile->OpenInternal(sURL, bWrite, bVerbose);   // call protected virtualized Open
 }
+
+
+bool cZZFile::Exists(const std::string& sURL, bool bVerbose)
+{
+    if (sURL.substr(0, 4) == "http" || sURL.substr(0, 4) == "sftp")
+    {
+        cHTTPFile httpFile;
+        return httpFile.OpenInternal(sURL, false, bVerbose);    // returns true if it is able to connect and retrieve headers via HEAD request
+    }
+
+    // local file
+    return std::filesystem::exists(sURL);
+}
+
 
 cZZFile::cZZFile() : mnFileSize(0), mnLastError(kZZfileError_None)
 {
@@ -68,7 +114,7 @@ cZZFileLocal::~cZZFileLocal()
     cZZFileLocal::Close();
 }
 
-bool cZZFileLocal::OpenInternal(string sURL, bool bWrite, string /*sName*/, string /*sPassword*/, bool bVerbose)
+bool cZZFileLocal::OpenInternal(string sURL, bool bWrite, bool bVerbose)
 {
     mnLastError = kZZfileError_None;
     mbVerbose = bVerbose;
@@ -101,7 +147,7 @@ bool cZZFileLocal::Close()
     return true;
 }
 
-bool cZZFileLocal::Read(int64_t nOffset, uint32_t nBytes, uint8_t* pDestination, uint32_t& nBytesRead)
+bool cZZFileLocal::Read(int64_t nOffset, int64_t nBytes, uint8_t* pDestination, int64_t& nBytesRead)
 {
     std::unique_lock<mutex> lock(mMutex);
 
@@ -119,7 +165,7 @@ bool cZZFileLocal::Read(int64_t nOffset, uint32_t nBytes, uint8_t* pDestination,
     }
 
     mFileStream.read((char*)pDestination, nBytes);
-    uint32_t nRead = (uint32_t)mFileStream.gcount();
+    int64_t nRead = (int64_t)mFileStream.gcount();
     if (mFileStream.fail() && nRead == 0)
     {
         mnLastError = errno;
@@ -131,7 +177,29 @@ bool cZZFileLocal::Read(int64_t nOffset, uint32_t nBytes, uint8_t* pDestination,
     return true;
 }
 
-bool cZZFileLocal::Write(int64_t nOffset, uint32_t nBytes, uint8_t* pSource, uint32_t& nBytesWritten)
+size_t cZZFileLocal::Read(uint8_t* pDestination, int64_t nBytes)
+{
+    int64_t nBytesRead = 0;
+    if (!Read(mnReadOffset, nBytes, pDestination, nBytesRead))
+        return 0;
+
+    mnReadOffset += nBytesRead;
+    return nBytesRead;
+}
+
+
+size_t cZZFileLocal::Write(uint8_t* pSource, int64_t nBytes)
+{
+    int64_t nBytesWritten = 0;
+    if (!Write(mnWriteOffset, nBytes, pSource, nBytesWritten))
+        return false;
+
+    mnWriteOffset += nBytesWritten;
+    return true;
+}
+
+
+bool cZZFileLocal::Write(int64_t nOffset, int64_t nBytes, uint8_t* pSource, int64_t& nBytesWritten)
 {
     std::unique_lock<mutex> lock(mMutex);
 
@@ -142,7 +210,7 @@ bool cZZFileLocal::Write(int64_t nOffset, uint32_t nBytes, uint8_t* pSource, uin
         mFileStream.seekg(0, ios::end);
     }
 
-    uint64_t nOffsetBeforeWrite = mFileStream.tellg();
+    int64_t nOffsetBeforeWrite = (int64_t)mFileStream.tellg();
 
     if (nOffset >= 0)
     {
@@ -211,7 +279,7 @@ void cHTTPFile::unlock_cb(CURL* /*handle*/, curl_lock_data /*data*/, void* userp
 }
 
 
-bool cHTTPFile::OpenInternal(string sURL, bool bWrite, string sName, string sPassword, bool bVerbose)       // todo maybe someday use real URI class
+bool cHTTPFile::OpenInternal(string sURL, bool bWrite, bool bVerbose)       // todo maybe someday use real URI class
 {
     mnLastError = kZZfileError_None;
     mbVerbose = bVerbose;
@@ -223,10 +291,6 @@ bool cHTTPFile::OpenInternal(string sURL, bool bWrite, string sName, string sPas
     }
 
     msURL = sURL;
-    msName = sName;
-    msPassword = sPassword;
-
-
     curl_global_init(CURL_GLOBAL_DEFAULT);
 
     mpCurlShare = curl_share_init();
@@ -317,18 +381,27 @@ bool cHTTPFile::OpenInternal(string sURL, bool bWrite, string sName, string sPas
         return false;
     }
 
+    long code = 0;
+    curl_easy_getinfo(pCurl, CURLINFO_RESPONSE_CODE, &code);
+    if (code >= 400)
+    {
+        std::cerr << "curl failed for url:" << msURL << " http code:" << code << "\n";
+        return false;
+    }
+
+
     CURLHcode hRes = curl_easy_header(pCurl, "Content-Length", 0, CURLH_HEADER, -1, &pHeader);
-    if (hRes != 0)
+    if (hRes != CURLHE_OK)
     {
         std::cerr << "curl to Content-Length for url:" << msURL << " response: " << hRes << "\n";
         return false;
     }
 
     mnFileSize = (uint64_t)strtoull(pHeader->value, nullptr, 10);
-    
 
 
-    cout << "Opened HTTP server_host:\"" << msHost << "\"\n server_path:\"" << msPath << "\"\n";
+    if (bVerbose)
+        cout << "Opened HTTP server_host:\"" << msHost << "\"\n server_path:\"" << msPath << "\"\n";
 
     return true;
 }
@@ -364,40 +437,50 @@ size_t cHTTPFile::write_data(char* buffer, size_t size, size_t nitems, void* use
 
 
 
-bool cHTTPFile::Read(int64_t nOffset, uint32_t nBytes, uint8_t* pDestination, uint32_t& nBytesRead)
+bool cHTTPFile::Read(int64_t nOffset, int64_t nBytes, uint8_t* pDestination, int64_t& nBytesRead)
 {
     mnLastError = kZZfileError_None;
 
     bool bUseCache = false;
     int64_t nOffsetToRequest = nOffset;
-    uint32_t nBytesToRequest = nBytes;
+    int64_t nBytesToRequest = nBytes;
     uint8_t* pBufferWrite = pDestination;
+#ifdef USE_HTTP_CACHE
     shared_ptr<HTTPCacheLine> cacheLine;
 
-    if (nBytesToRequest < kHTTPCacheLineSize && (uint64_t)nOffset + (uint64_t)kHTTPCacheLineSize < mnFileSize)
+    //    if (nBytesToRequest < kHTTPCacheLineSize && (uint64_t)nOffset + (uint64_t)kHTTPCacheLineSize < mnFileSize)
+    if (nBytesToRequest < kHTTPCacheLineSize)
         bUseCache = true;
 
     if (bUseCache)
     {
-        bool bNew = mCache.CheckOrReserve(nOffset, nBytes, cacheLine);           // If a cache line that would contain this data hasn't already been requested this will reserve one and return it
+        bool bNew = mCache.CheckOrReserve(nOffset, (int32_t)nBytes, cacheLine);           // If a cache line that would contain this data hasn't already been requested this will reserve one and return it
         if (!bNew)
         {
-            cacheLine->Get(nOffset, nBytes, pDestination);      // this may block if the line is pending
+            cacheLine->Get(nOffset, (int32_t)nBytes, pDestination);      // this may block if the line is pending
             nBytesRead = nBytes;
 
-            //cout << "HTTP Data read from cache...Requested:" << nBytes << "b at offset:" << nOffset << "\n";
+            //            cout << "HTTP Data read from cache...Requested:" << nBytes << "b at offset:" << nOffset << "\n";
             return true;
         }
 
         int64_t nUnfullfilledBytes = cacheLine->mUnfullfilledInterval.second - cacheLine->mUnfullfilledInterval.first;
+
+        if (nOffset + cacheLine->mnBufferData + nUnfullfilledBytes >= mnFileSize)
+        {
+            nUnfullfilledBytes = mnFileSize - nOffset - cacheLine->mnBufferData;
+            cout << "cache filling nUnfullfilledBytes:" << nUnfullfilledBytes << "\n" << std::flush;
+        }
+
         assert(!cacheLine->mbCommitted);
 
         nOffsetToRequest = cacheLine->mUnfullfilledInterval.first;
-        nBytesToRequest = (uint32_t)nUnfullfilledBytes;
+        nBytesToRequest = nUnfullfilledBytes;
         int64_t nOffsetIntoCacheLine = nOffsetToRequest - cacheLine->mnBaseOffset;
 
         pBufferWrite = &cacheLine->mData[nOffsetIntoCacheLine];
     }
+#endif
 
     if (nBytesToRequest > 0)
     {
@@ -414,6 +497,7 @@ bool cHTTPFile::Read(int64_t nOffset, uint32_t nBytes, uint8_t* pDestination, ui
         curl_easy_setopt(pCurl, CURLOPT_WRITEFUNCTION, write_data);
         curl_easy_setopt(pCurl, CURLOPT_SHARE, mpCurlShare);
         curl_easy_setopt(pCurl, CURLOPT_NOBODY, 0);
+        curl_easy_setopt(pCurl, CURLOPT_FAILONERROR, 1);
         curl_easy_setopt(pCurl, CURLOPT_WRITEDATA, (void*) &response);
 
         if (gbSkipCertCheck)
@@ -441,27 +525,63 @@ bool cHTTPFile::Read(int64_t nOffset, uint32_t nBytes, uint8_t* pDestination, ui
             return false;
         }
 
+        long code = 0;
+        curl_easy_getinfo(pCurl, CURLINFO_HTTP_CONNECTCODE, &code);
+        if (code >= 400)
+        {
+            std::cerr << "curl GET failed. Range:" << ss.str() << " url:" << msURL << " http code:" << code << "\n";
+            return false;
+        }
+
+
+        nBytesRead = nBytes;
         gnTotalHTTPBytesRequested += nBytesToRequest;
         gnTotalRequestsIssued++;
 
         curl_easy_cleanup(pCurl);
     }
 
+#ifdef USE_HTTP_CACHE
     // if the request can be cached
     if (bUseCache)
     {
         //cout << "committed " << nBytesToRequest << "b to cache offset:" << cacheLine->mnBaseOffset << ". Returning:" << nBytes << "\n";
         // cache the retrieved results
         memcpy(pDestination, cacheLine->mData, nBytes);
-        cacheLine->Commit(nBytesToRequest);     // this commits the data to the cache line and frees any waiting requests on it
+        cacheLine->Commit((int32_t)nBytesToRequest);     // this commits the data to the cache line and frees any waiting requests on it
     }
-
+#endif
     return true;
 }
 
-bool cHTTPFile::Write(int64_t, uint32_t, uint8_t*, uint32_t&)
+size_t cHTTPFile::Read(uint8_t* pDestination, int64_t nBytes)
+{
+    int64_t nBytesRead = 0;
+    if (!Read(mnReadOffset, nBytes, pDestination, nBytesRead))
+    {
+        std::cerr << "ERROR Reading\n";
+        return 0;
+    }
+
+    mnReadOffset += nBytesRead;
+    return nBytesRead;
+}
+
+size_t cHTTPFile::Write(uint8_t*, int64_t)
+{
+    std::cerr << "cHTTPFile does not support writing.....yet........maybe ever." << std::endl;
+    return 0;
+}
+
+bool cHTTPFile::Write(int64_t, int64_t, uint8_t*, int64_t&)
 {
     std::cerr << "cHTTPFile does not support writing.....yet........maybe ever." << std::endl;
     return false;
 }
 
+string cHTTPFile::ToURLPath(const string& sPath)
+{
+    string sNewPath(sPath);
+    std::replace(sNewPath.begin(), sNewPath.end(), '\\', '/');
+    return sNewPath;
+}

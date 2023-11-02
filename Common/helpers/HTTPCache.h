@@ -16,6 +16,7 @@
 const uint32_t kHTTPCacheLineSize = 4 * 1024;
 const uint32_t kMaxCacheLines = 64;
 typedef std::pair<int64_t, int64_t> tIntPair;
+typedef std::chrono::time_point<std::chrono::system_clock> tSysClock;
 
 class HTTPCacheLine
 {
@@ -26,13 +27,13 @@ public:
     bool Get(int64_t nOffset, int32_t nBytes, uint8_t* pDestination);   // retrieves the byte range requested. may block until data is fullfilled
     bool Commit(int32_t nBytes);                                        // Commits nBytes and releases the reservation for this cache line
 
-    bool                                        mbCommitted;
-    int64_t                                     mnBaseOffset;
-    int32_t                                     mnBufferData;
-    uint8_t                                     mData[kHTTPCacheLineSize];
-    std::chrono::time_point<std::chrono::system_clock>    mRequestTime;
-    std::chrono::time_point<std::chrono::system_clock>    mFullfilledTime;
-    tIntPair                                    mUnfullfilledInterval;  // lower and upper bounds of data that needs to be fullfilled
+    bool        mbCommitted;
+    int64_t     mnBaseOffset;
+    int32_t     mnBufferData;
+    uint8_t     mData[kHTTPCacheLineSize];
+    tSysClock   mRequestTime;
+    tSysClock   mFullfilledTime;
+    tIntPair    mUnfullfilledInterval;  // lower and upper bounds of data that needs to be fullfilled
 };
 
 typedef std::map< uint64_t, std::shared_ptr<HTTPCacheLine> > tOffsetToHTTPCacheLineMap;
