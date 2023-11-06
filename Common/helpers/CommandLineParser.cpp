@@ -930,7 +930,7 @@ namespace CLP
 
         if (!mGeneralCommandLineParser.CheckAllRequirementsMet())   // single mode
         {
-            cout << "\n\"" << COL_APP << msAppName << COL_PARAM << " -?\" - to see usage.\n" << COL_RESET;
+            cout << "\n\"" << COL_APP << msAppName << COL_PARAM << " ?\" - to see usage.\n" << COL_RESET;
             return false;
         }
 

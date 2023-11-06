@@ -112,6 +112,16 @@ void SH::SplitToken(string& sBefore, string& sAfter, const string& token)
     sAfter = sAfter.substr(pos + token.length()).c_str();
 }
 
+string SH::replaceTokens(std::string input, const std::string& token, const std::string& value)
+{
+    size_t pos = 0;
+    while ((pos = input.find(token, pos)) != std::string::npos)
+    {
+        input.replace(pos, token.length(), value);
+        pos += value.length();
+    }
+    return input;
+}
 
 
 string SH::FormatFriendlyBytes(uint64_t nBytes, int64_t sizeType)

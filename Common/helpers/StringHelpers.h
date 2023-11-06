@@ -124,6 +124,8 @@ namespace SH
     void            SplitToken(std::string& sBefore, std::string& sAfter, const std::string& token);
 
 
+    std::string     replaceTokens(std::string input, const std::string& token, const std::string& value);
+
     //////////////////////////////////////////////////////////////////////////////////////////////
     // Output format helpers
     // A way of formatting output into tabs, commas or HTML

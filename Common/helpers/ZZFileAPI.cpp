@@ -69,14 +69,18 @@ string cZZFile::ParentPath(const std::string& sURL)
 
 
 // Factory
-bool cZZFile::Open(const string& sURL, bool bWrite, shared_ptr<cZZFile>& pFile, bool bVerbose)
+bool cZZFile::Open(const string& sURL, bool bWrite, shared_ptr<cZZFile>& pFile, bool bAppend, bool bVerbose)
 {
     cZZFile* pNewFile = nullptr;
+
+#ifdef ENABLE_LIB_CURL
+
     if (sURL.substr(0, 4) == "http" || sURL.substr(0, 4) == "sftp")
     {
         pNewFile = new cHTTPFile();
     }
     else
+#endif
     {
         pNewFile = new cZZFileLocal();
     }
@@ -84,18 +88,19 @@ bool cZZFile::Open(const string& sURL, bool bWrite, shared_ptr<cZZFile>& pFile, 
     pFile.reset(pNewFile);
     pNewFile->mnReadOffset = 0;
     pNewFile->mnWriteOffset = 0;
-    return pNewFile->OpenInternal(sURL, bWrite, bVerbose);   // call protected virtualized Open
+    return pNewFile->OpenInternal(sURL, bWrite, bAppend, bVerbose);   // call protected virtualized Open
 }
 
 
 bool cZZFile::Exists(const std::string& sURL, bool bVerbose)
 {
+#ifdef ENABLE_LIB_CURL
     if (sURL.substr(0, 4) == "http" || sURL.substr(0, 4) == "sftp")
     {
         cHTTPFile httpFile;
         return httpFile.OpenInternal(sURL, false, bVerbose);    // returns true if it is able to connect and retrieve headers via HEAD request
     }
-
+#endif
     // local file
     return std::filesystem::exists(sURL);
 }
@@ -114,13 +119,18 @@ cZZFileLocal::~cZZFileLocal()
     cZZFileLocal::Close();
 }
 
-bool cZZFileLocal::OpenInternal(string sURL, bool bWrite, bool bVerbose)
+bool cZZFileLocal::OpenInternal(string sURL, bool bWrite, bool bAppend, bool bVerbose)
 {
     mnLastError = kZZfileError_None;
     mbVerbose = bVerbose;
 
     if (bWrite)
-        mFileStream.open(sURL, ios_base::in | ios_base::out | ios_base::binary | ios_base::trunc);
+    {
+        if (bAppend)
+            mFileStream.open(sURL, ios_base::in | ios_base::out | ios_base::binary);
+        else
+            mFileStream.open(sURL, ios_base::in | ios_base::out | ios_base::binary | ios_base::trunc);
+    }
     else
         mFileStream.open(sURL, ios_base::in | ios_base::binary);
 
@@ -243,6 +253,8 @@ bool cZZFileLocal::Write(int64_t nOffset, int64_t nBytes, uint8_t* pSource, int6
 
     return true;
 }
+
+#ifdef ENABLE_LIB_CURL
 
 
 struct HTTPFileResponse
@@ -585,3 +597,4 @@ string cHTTPFile::ToURLPath(const string& sPath)
     std::replace(sNewPath.begin(), sNewPath.end(), '\\', '/');
     return sNewPath;
 }
+#endif

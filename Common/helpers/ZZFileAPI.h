@@ -23,13 +23,7 @@
 #include <fstream>
 #include <atomic>
 #include <mutex>
-#include "curl/include/curl/curl.h"
 
-#define USE_HTTP_CACHE
-
-#ifdef USE_HTTP_CACHE
-#include "helpers/HTTPCache.h"
-#endif
 
 typedef std::shared_ptr<class cZZFile> tZZFilePtr;
 
@@ -63,7 +57,7 @@ public:
 
     // Factory Construction
     // returns either a cZZFileLocal, cHTTPFile* or a cHTTPSFile* depending on the url needs
-    static bool         Open(const std::string& sURL, bool bWrite, tZZFilePtr& pFile, bool bVerbose = false);
+    static bool         Open(const std::string& sURL, bool bWrite, tZZFilePtr& pFile, bool bAppend = false, bool bVerbose = false);
     static bool         Exists(const std::string& sURL, bool bVerbose = false);
 
     virtual             ~cZZFile() {};
@@ -81,7 +75,7 @@ public:
 protected:
     cZZFile();          // private constructor.... use cZZFile::Open factory function for construction
 
-    virtual bool	    OpenInternal(std::string sURL, bool bWrite, bool bVerbose) = 0;
+    virtual bool	    OpenInternal(std::string sURL, bool bWrite, bool bAppend, bool bVerbose) = 0;
     std::string         msPath;
     bool                mbVerbose;
     int64_t		        mnFileSize;
@@ -112,12 +106,24 @@ public:
 protected:
     cZZFileLocal(); // private constructor.... use cZZFile::Open factory function for construction
 
-    virtual bool    OpenInternal(std::string sURL, bool bWrite, bool bVerbose);
+    virtual bool    OpenInternal(std::string sURL, bool bWrite, bool bAppend, bool bVerbose);
 
 protected:
     std::fstream    mFileStream;
     std::mutex      mMutex;
 };
+
+
+
+#ifdef ENABLE_LIB_CURL
+
+#include "curl/include/curl/curl.h"
+
+#define USE_HTTP_CACHE
+
+#ifdef USE_HTTP_CACHE
+#include "helpers/HTTPCache.h"
+#endif
 
 
 
@@ -163,3 +169,4 @@ protected:
 
 
 };
+#endif

@@ -46,5 +46,6 @@ add_subdirectory(FileGen)
 add_subdirectory(DupeScanner)
 add_subdirectory(BinTool)
 add_subdirectory(ZZip)
+add_subdirectory(ZPackager)
 
 ################################################################################
