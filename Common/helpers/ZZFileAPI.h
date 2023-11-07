@@ -118,12 +118,7 @@ protected:
 #ifdef ENABLE_LIB_CURL
 
 #include "curl/include/curl/curl.h"
-
-#define USE_HTTP_CACHE
-
-#ifdef USE_HTTP_CACHE
 #include "helpers/HTTPCache.h"
-#endif
 
 
 
@@ -147,7 +142,7 @@ public:
 protected:
     cHTTPFile();    // private constructor.... use cZZFile::Open factory function for construction
 
-    virtual bool	OpenInternal(std::string sURL, bool bWrite, bool bVerbose);
+    virtual bool	OpenInternal(std::string sURL, bool bWrite, bool bAppend, bool bVerbose);
 
     static size_t   write_data(char* buffer, size_t size, size_t nitems, void* userp);
 
@@ -163,10 +158,6 @@ protected:
     CURLSH* mpCurlShare;
     std::mutex      mCurlMutex;
 
-#ifdef USE_HTTP_CACHE
     HTTPCache       mCache;
-#endif
-
-
 };
 #endif

@@ -98,7 +98,7 @@ bool cZZFile::Exists(const std::string& sURL, bool bVerbose)
     if (sURL.substr(0, 4) == "http" || sURL.substr(0, 4) == "sftp")
     {
         cHTTPFile httpFile;
-        return httpFile.OpenInternal(sURL, false, bVerbose);    // returns true if it is able to connect and retrieve headers via HEAD request
+        return httpFile.OpenInternal(sURL, false, false, bVerbose);    // returns true if it is able to connect and retrieve headers via HEAD request
     }
 #endif
     // local file
@@ -291,11 +291,11 @@ void cHTTPFile::unlock_cb(CURL* /*handle*/, curl_lock_data /*data*/, void* userp
 }
 
 
-bool cHTTPFile::OpenInternal(string sURL, bool bWrite, bool bVerbose)       // todo maybe someday use real URI class
+bool cHTTPFile::OpenInternal(string sURL, bool bWrite, bool bAppend, bool bVerbose)       // todo maybe someday use real URI class
 {
     mnLastError = kZZfileError_None;
     mbVerbose = bVerbose;
-    if (bWrite)
+    if (bWrite || bAppend)
     {
         mnLastError = kZZFileError_Unsupported;
         std::cerr << "cHTTPFile does not support writing.....yet........maybe ever." << std::endl;
@@ -457,7 +457,7 @@ bool cHTTPFile::Read(int64_t nOffset, int64_t nBytes, uint8_t* pDestination, int
     int64_t nOffsetToRequest = nOffset;
     int64_t nBytesToRequest = nBytes;
     uint8_t* pBufferWrite = pDestination;
-#ifdef USE_HTTP_CACHE
+
     shared_ptr<HTTPCacheLine> cacheLine;
 
     //    if (nBytesToRequest < kHTTPCacheLineSize && (uint64_t)nOffset + (uint64_t)kHTTPCacheLineSize < mnFileSize)
@@ -492,7 +492,6 @@ bool cHTTPFile::Read(int64_t nOffset, int64_t nBytes, uint8_t* pDestination, int
 
         pBufferWrite = &cacheLine->mData[nOffsetIntoCacheLine];
     }
-#endif
 
     if (nBytesToRequest > 0)
     {
@@ -553,7 +552,6 @@ bool cHTTPFile::Read(int64_t nOffset, int64_t nBytes, uint8_t* pDestination, int
         curl_easy_cleanup(pCurl);
     }
 
-#ifdef USE_HTTP_CACHE
     // if the request can be cached
     if (bUseCache)
     {
@@ -562,7 +560,7 @@ bool cHTTPFile::Read(int64_t nOffset, int64_t nBytes, uint8_t* pDestination, int
         memcpy(pDestination, cacheLine->mData, nBytes);
         cacheLine->Commit((int32_t)nBytesToRequest);     // this commits the data to the cache line and frees any waiting requests on it
     }
-#endif
+
     return true;
 }
 
