@@ -62,6 +62,13 @@ namespace REG
             return false;
         }
 
+        inline void Remove(const std::string& sGroup, const std::string& sKey)
+        {
+            if (Contains(sGroup, sKey))
+                (*this)[sGroup].erase(sKey);
+        }
+
+
         inline std::string GetValue(const std::string& sGroup, const std::string& sKey)
         {
             if ((*this).contains(sGroup))

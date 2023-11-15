@@ -258,41 +258,75 @@ int Extract(filesystem::path outputFolder)
 }
 
 #ifdef _WIN64
-string SelectFolder()
+bool ShowSelectFolderDialog(std::string& sFilenameResult, std::string sDefaultFolder)
 {
-    char path[MAX_PATH];
+    bool bSuccess = false;
 
-    BROWSEINFO bi = { 0 };
-
-    ITEMIDLIST* pidl = nullptr;
-//    SHGetFolderLocation(NULL, CSIDL_PROGRAM_FILES, NULL, 0, &pidl);
-
-    bi.lpszTitle = ("Select Installation folder");
-//    bi.pidlRoot = pidl;
-    bi.ulFlags = /*BIF_RETURNONLYFSDIRS | BIF_NEWDIALOGSTYLE*/0;
-    bi.lpfn = nullptr;
-    bi.lParam = (LPARAM)"c:\\temp\\";
-
-    LPITEMIDLIST pidl2 = SHBrowseForFolderA(&bi);
-
-    if (pidl2 != 0)
+    HRESULT hr = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
+    if (SUCCEEDED(hr))
     {
-        //get the name of the folder and put it in path
-        SHGetPathFromIDList(pidl2, path);
+        IFileOpenDialog* pFileOpen;
 
-        //free memory used
-        IMalloc* imalloc = 0;
-        if (SUCCEEDED(SHGetMalloc(&imalloc)))
+        // Create the FileOpenDialog object.
+        hr = CoCreateInstance(CLSID_FileOpenDialog, NULL, CLSCTX_ALL, IID_IFileOpenDialog, reinterpret_cast<void**>(&pFileOpen));
+
+        if (SUCCEEDED(hr))
         {
-            imalloc->Free(pidl2);
-            imalloc->Release();
-        }
+            COMDLG_FILTERSPEC rgSpec[] =
+            {
+                      { L"All Files", L"*.*" }
+            };
 
-        return string(path);
+            pFileOpen->SetFileTypes(1, rgSpec);
+
+            DWORD dwOptions;
+            hr = pFileOpen->GetOptions(&dwOptions);
+            if (SUCCEEDED(hr))
+            {
+                hr = pFileOpen->SetOptions(dwOptions | FOS_PICKFOLDERS);
+            }
+
+            if (!sDefaultFolder.empty())
+            {
+                wstring sDefaultFolderW(SH::string2wstring(sDefaultFolder));
+                IShellItem* pShellItem = nullptr;
+                SHCreateItemFromParsingName(sDefaultFolderW.c_str(), nullptr, IID_IShellItem, (void**)(&pShellItem));
+
+                pFileOpen->SetFolder(pShellItem);
+                pShellItem->Release();
+            }
+
+            // Show the Open dialog box.
+            hr = pFileOpen->Show(NULL);
+
+            // Get the file name from the dialog box.
+            if (SUCCEEDED(hr))
+            {
+                IShellItem* pItem;
+                hr = pFileOpen->GetResult(&pItem);
+                if (SUCCEEDED(hr))
+                {
+                    PWSTR pszFilePath;
+                    hr = pItem->GetDisplayName(SIGDN_FILESYSPATH, &pszFilePath);
+
+                    if (SUCCEEDED(hr) && pszFilePath)
+                    {
+                        wstring wideFilename(pszFilePath);
+                        sFilenameResult = SH::wstring2string(wideFilename);
+                    }
+
+                    pItem->Release();
+                    bSuccess = true;
+                }
+            }
+            pFileOpen->Release();
+        }
+        CoUninitialize();
     }
 
-    return "";
+    return bSuccess;
 }
+
 #endif
 
 
@@ -471,9 +505,25 @@ int RunInstall(string sOutputFolder, bool bForce = false)
     if (sOutputFolder.empty() && !sInstalledPath.empty())
         sOutputFolder = sInstalledPath;
     else if (sOutputFolder.empty())         // if installed path is empty and no output folder specified, show selection dialog
-        sOutputFolder = SelectFolder();
+    {
+        if (ShowSelectFolderDialog(sOutputFolder, getenv("ProgramFiles")))
+        {
+            filesystem::path outputFolder(sOutputFolder);
+            outputFolder.append(sAppName);
 
-    // If use canceled, exit
+            char buf[2048];
+            sprintf_s(buf, "OK to install %s version %s to:\n\"%s\" ?", sAppName.c_str(), sPackagedVersion.c_str(), outputFolder.string().c_str());
+
+            if (MessageBox(0, buf, "Confirm location", MB_ICONQUESTION | MB_YESNO) != IDYES)
+            {
+                return -1;
+            }
+
+            sOutputFolder = outputFolder.string();  // letting filesystem do any folder shenanigans and returning back to string
+        }
+    }
+
+    // If user canceled, exit
     if (sOutputFolder.empty())
         return -1;
 
