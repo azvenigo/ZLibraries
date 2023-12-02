@@ -564,6 +564,7 @@ int RunInstall(string sOutputFolder, bool bForce = false)
 }
 
 
+
 int main(int argc, char* argv[])
 {
 //	_CrtMemState s1;
@@ -607,4 +608,11 @@ int main(int argc, char* argv[])
 	return 0;
 
 }
+
+// for windows linking
+int WinMain(HINSTANCE hInst, HINSTANCE hPrev, PSTR cmdline, int cmdshow)
+{
+    return main(__argc, __argv);
+}
+
 

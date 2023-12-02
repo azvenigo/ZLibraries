@@ -222,7 +222,9 @@ int64_t SH::ToInt(string sReadable)
     for (int32_t i = nReadableLength - 1; i >= 0; i--)
     {
         char c = sReadable[i];
-        if (c < 'A' || c > 'Z')
+        if (nNumberBase == 10 && (c < 'A' || c > 'Z'))
+            break;
+        if (nNumberBase == 16 && (c < 'G' || c > 'Z'))
             break;
 
         nLabelChars++;

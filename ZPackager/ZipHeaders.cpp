@@ -633,7 +633,7 @@ cZipCD::~cZipCD()
 bool cZipCD::Init(cZZFile& zzFile)
 {
     // Find the end of CD Record
-    const int32_t kMaxSizeOfCDRec = 1024;
+    const int32_t kMaxSizeOfCDRec = 16*1024;
 
     std::streampos nZipFileSize = zzFile.GetFileSize();
 
