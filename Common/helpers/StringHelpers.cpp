@@ -281,74 +281,74 @@ string SH::ToUserReadable(int64_t nValue)
     return string(buf);
 }
 
-string SH::FromVector(vector<string>& stringVector)
+string SH::FromVector(vector<string>& stringVector, const char token)
 {
     string sValue;
     for (uint32_t i = 0; i < stringVector.size(); i++)
     {
-        assert(stringVector[i].find(kCharSplitToken) == string::npos);   // cannot encode extended ascii character kSplitToken
+        assert(stringVector[i].find(token) == string::npos);   // cannot encode extended ascii character token
 
         if (!stringVector[i].empty())
         {
-            sValue += stringVector[i] + kCharSplitToken;
+            sValue += stringVector[i] + token;
         }
     }
 
     if (!sValue.empty())
-        sValue = sValue.substr(0,sValue.length() - 1);	// remove the trailing kCharSplitToken
+        sValue = sValue.substr(0,sValue.length() - 1);	// remove the trailing token
 
     return sValue;
 }
 
-void SH::ToVector(const string& sEncoded, vector<string>& outStringVector)
+void SH::ToVector(const string& sEncoded, vector<string>& outStringVector, const char token)
 {
     std::size_t current, previous = 0;
 
-    current = sEncoded.find(kCharSplitToken);
+    current = sEncoded.find(token);
     while (current != std::string::npos)
     {
         outStringVector.push_back(sEncoded.substr(previous, current - previous));
         previous = current + 1;
-        current = sEncoded.find(kCharSplitToken, previous);
+        current = sEncoded.find(token, previous);
     }
     outStringVector.push_back(sEncoded.substr(previous, current - previous));
 }
 
-string SH::FromSet(tStringSet& stringSet)
+string SH::FromSet(tStringSet& stringSet, const char token)
 {
     string sValue;
     for (auto s : stringSet)
     {
-        assert(s.find(kCharSplitToken) == string::npos);   // cannot encode extended ascii character kSplitToken
+        assert(s.find(token) == string::npos);   // cannot encode extended ascii character token
 
         if (!s.empty())
         {
-            sValue += s + kCharSplitToken;
+            sValue += s + token;
         }
     }
 
     if (!sValue.empty())
-        sValue = sValue.substr(0, sValue.length() - 1);	// remove the trailing kCharSplitToken
+        sValue = sValue.substr(0, sValue.length() - 1);	// remove the trailing token
 
     return sValue;
 }
 
-void SH::ToSet(const std::string& sEncoded, tStringSet& outStringSet)
+void SH::ToSet(const std::string& sEncoded, tStringSet& outStringSet, const char token)
 {
     std::size_t current, previous = 0;
 
-    current = sEncoded.find(kCharSplitToken);
+    current = sEncoded.find(token);
     while (current != std::string::npos)
     {
         outStringSet.insert(sEncoded.substr(previous, current - previous));
         previous = current + 1;
-        current = sEncoded.find(kCharSplitToken, previous);
+        current = sEncoded.find(token, previous);
     }
     outStringSet.insert(sEncoded.substr(previous, current - previous));
 }
 
 
-string SH::FromMap(const map<string, string>& stringMap)
+string SH::FromMap(const map<string, string>& stringMap, const char token)
 {
     string sReturn;
     for (map<string, string>::const_iterator it = stringMap.begin(); it != stringMap.end(); it++)
@@ -356,8 +356,8 @@ string SH::FromMap(const map<string, string>& stringMap)
         string sKey = (*it).first;
         string sValue = (*it).second;
 
-        if (sKey.find(kCharSplitToken) != string::npos ||
-            sValue.find(kCharSplitToken) != string::npos ||
+        if (sKey.find(token) != string::npos ||
+            sValue.find(token) != string::npos ||
             sKey.find(kCharEqualityToken) != string::npos ||
             sValue.find(kCharEqualityToken) != string::npos)
         {
@@ -366,20 +366,20 @@ string SH::FromMap(const map<string, string>& stringMap)
             return "";
         }
         if (!sKey.empty())
-            sReturn += sKey + kCharEqualityToken + sValue + kCharSplitToken;
+            sReturn += sKey + kCharEqualityToken + sValue + token;
     }
 
     if (!sReturn.empty())
-        sReturn = sReturn.substr(sReturn.length() - 1);	// remove the trailing kCharSplitToken
+        sReturn = sReturn.substr(sReturn.length() - 1);	// remove the trailing token
 
     return sReturn;
 }
 
-void SH::ToMap(const string& sEncoded, map<string, string>& outStringMap)
+void SH::ToMap(const string& sEncoded, map<string, string>& outStringMap, const char token)
 {
     std::size_t current, previous = 0;
 
-    current = sEncoded.find(kCharSplitToken);
+    current = sEncoded.find(token);
     while (current != std::string::npos)
     {
         std::size_t equalIndex = sEncoded.find(kCharEqualityToken, previous);
@@ -391,7 +391,7 @@ void SH::ToMap(const string& sEncoded, map<string, string>& outStringMap)
         }
 
         previous = current + 1;
-        current = sEncoded.find(kCharSplitToken, previous);
+        current = sEncoded.find(token, previous);
     }
 
     // final value

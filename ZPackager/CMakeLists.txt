@@ -16,6 +16,9 @@ set(COMMON_FILES
 ../Common/helpers/CommandLineParser.cpp ../Common/helpers/CommandLineParser.h 
 ../Common/helpers/Crc32Fast.h ../Common/helpers/Crc32Fast.cpp
 ../Common/helpers/ZZFileAPI.h ../Common/helpers/ZZFileAPI.cpp 
+../Common/helpers/FileHelpers.h ../Common/helpers/FileHelpers.cpp
+../Common/helpers/Registry.h ../Common/helpers/Registry.cpp
+
 )
 
 list(APPEND COMMON_FILES ../Common/helpers/FNMatch.h ../Common/helpers/FNMatch.cpp ../Common/helpers/HTTPCache.h ../Common/helpers/HTTPCache.cpp)
@@ -25,13 +28,17 @@ list(APPEND COMMON_FILES  ../Common/zlib-1.2.11/deflate.c  ../Common/zlib-1.2.11
 
 ####################
 # common source
-list(APPEND INCLUDE_DIRS ../Common ../Common/curl/include ../Common/zlib-1.2.11 )
+list(APPEND INCLUDE_DIRS ../Common ../Common/curl/include ../Common/zlib-1.2.11 ../Common/json )
 list(APPEND LINK_DIRS ../Common/curl/lib )
 
 
 ####################
 # PROJECT DEPENDENCY AND INCLUDES
-list(APPEND LINK_LIBS libcurl.lib )
+list(APPEND LINK_LIBS libcurl.lib)
+#if(MSVC)
+list(APPEND LINK_LIBS  Version.lib)
+#endif()
+
 
 
 ####################

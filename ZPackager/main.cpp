@@ -1,5 +1,5 @@
 // MIT License
-// Copyright 2023 Alex Zvenigorodsky
+// Copyright 2024 Alex Zvenigorodsky
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files(the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions :
 // 
@@ -22,8 +22,11 @@
 #include "zlibAPI.h"
 #include <filesystem>
 #include "ZipJob.h"
+#include "helpers/FileHelpers.h"
 #include "helpers/CommandLineParser.h"
 #include "helpers/ThreadPool.h"
+#include "helpers/Registry.h"
+#include <assert.h>
 
 #ifdef _WIN64
 #include <Windows.h>
@@ -36,7 +39,18 @@ using namespace std;
 using namespace CLP;
 
 
+bool gDebug = false;
+
+
 filesystem::path exeFilename;
+
+
+void ShowError(const string& sMessage)
+{
+    cerr << "ERROR: " << sMessage << "\n";
+    MessageBox(nullptr, sMessage.c_str(), "ERROR", MB_OK | MB_ICONERROR);
+}
+
 
 bool ContainsEmbeddedArchive(filesystem::path exeFilename)
 {
@@ -61,7 +75,7 @@ int Create(filesystem::path baseFolder, filesystem::path outputFilename)
 
     if (!exeFile)
     {
-        cerr << "Failed to open myself for cloning\n";
+        ShowError("Failed to open myself for cloning");
         return -1;
     }
 
@@ -83,7 +97,7 @@ int Create(filesystem::path baseFolder, filesystem::path outputFilename)
     ZZipAPI zipAPI;
     if (!zipAPI.Init(outputFilename.string(), ZZipAPI::kZipAppend))
     {
-        cerr << "Failed to create output file\n";
+        ShowError("Failed to create output file");
         return -1;
     }
 
@@ -133,7 +147,7 @@ bool ExtractInstallFile(const string& sArchiveFilename, string& sResult)
     ZZipAPI zipAPI;
     if (!zipAPI.Init(exeFilename.string()))
     {
-        cerr << "ERROR: Couldn't open self archive:\"" << exeFilename << "\" for Decompression Job!";
+        ShowError("ERROR: Couldn't open self archive:\"" + exeFilename.string() + "\" for Decompression Job!");
         return false;
     }
 
@@ -146,7 +160,7 @@ bool ExtractInstallFile(const string& sArchiveFilename, string& sResult)
     cCDFileHeader fileHeader;
     if (!zipCD.GetFileHeader(sArchiveFilename, fileHeader))
     {
-        cerr << "Couldn't extract file:" << sArchiveFilename << "\n";
+        ShowError("Couldn't extract file:" + sArchiveFilename + "\n");
         return false;
     }
 
@@ -165,7 +179,7 @@ int Extract(filesystem::path outputFolder)
     ZZipAPI zipAPI;
     if (!zipAPI.Init(exeFilename.string()))
     {
-        cerr << "ERROR: Couldn't open self archive:\"" << exeFilename << "\" for Decompression Job!";
+        ShowError("ERROR: Couldn't open self archive:\"" + exeFilename.string() + "\" for Decompression Job!");
         return -1;
     }
 
@@ -258,7 +272,7 @@ int Extract(filesystem::path outputFolder)
 }
 
 #ifdef _WIN64
-bool ShowSelectFolderDialog(std::string& sFilenameResult, std::string sDefaultFolder)
+bool ShowSelectFolderDialog(const std::string& sTitle, std::string& sFilenameResult, std::string sDefaultFolder)
 {
     bool bSuccess = false;
 
@@ -278,6 +292,7 @@ bool ShowSelectFolderDialog(std::string& sFilenameResult, std::string sDefaultFo
             };
 
             pFileOpen->SetFileTypes(1, rgSpec);
+            pFileOpen->SetTitle(SH::string2wstring(sTitle).c_str());
 
             DWORD dwOptions;
             hr = pFileOpen->GetOptions(&dwOptions);
@@ -330,7 +345,7 @@ bool ShowSelectFolderDialog(std::string& sFilenameResult, std::string sDefaultFo
 #endif
 
 
-string ParseValue(const string& sKey, const string& sDoc)
+string ParseValue(const string& sKey, const string& sDoc, bool bRequired = false)
 {
     size_t nStartPos = sDoc.find(sKey);
     if (nStartPos != string::npos)
@@ -338,56 +353,83 @@ string ParseValue(const string& sKey, const string& sDoc)
         nStartPos += sKey.length() + 1;
 
         size_t nEndPos = sDoc.find('\r', nStartPos);
-        if (nEndPos != string::npos)
+        string sReturn;
+        if (nEndPos == string::npos)
         {
-            return sDoc.substr(nStartPos, nEndPos - nStartPos);
+            sReturn = sDoc.substr(nStartPos);
         }
+        else
+        {
+            sReturn = sDoc.substr(nStartPos, nEndPos - nStartPos);
+        }
+
+        return sReturn;
     }
 
-    return false;
+    if (bRequired)
+        ShowError("Failed to extract needed value from installation configuration. key:" + sKey);
+
+    return "";
 }
 
-bool GetAppRegistryValue(const string& sAppName, const string& sKey, string& sValue)
+bool SetRegistryString(HKEY key, const string& sPath, const string& sKey, const string& sValue)
 {
-    string sAppRegistryNode = "SOFTWARE\\" + sAppName;
+    int result = REG::SetWindowsRegistryString(key, sPath, sKey, sValue);
 
-    HKEY hKey;
-    LRESULT result = RegOpenKeyEx(HKEY_CURRENT_USER, sAppRegistryNode.c_str(), 0, KEY_READ, &hKey);
+    string section;
+    if (key == HKEY_CURRENT_USER)
+        section = "HKEY_CURRENT_USER";
+    else if (key == HKEY_LOCAL_MACHINE)
+        section = "HKEY_LOCAL_MACHINE";
+    else if (key == HKEY_CLASSES_ROOT)
+        section = "HKEY_CLASSES_ROOT";
+    else
+        section = "unknown section:" + SH::FromInt((int64_t)key);
 
-    if (result == ERROR_SUCCESS)
+
+    if (result != 0)
     {
+        ShowError("Failed to set registry path:" + section + "\\" + sPath + " key:" + sKey + " value:" + sValue + " error code:" + SH::FromInt(result));
+        return result;
+    }
 
-        DWORD nDataSize = 1024;
-        char buffer[1024];
-        DWORD dataType;
+    if (gDebug)
+    {
+        MessageBox(0, string("Set registry path:" + section + "\\" + sPath + " key:" + sKey + " value:" + sValue + " return code:" + SH::FromInt(result)).c_str(), "DEBUG", MB_OK | MB_ICONINFORMATION);
+    }
 
-        result = RegQueryValueEx(hKey, sKey.c_str(), nullptr, &dataType, (LPBYTE)buffer, &nDataSize);
-        RegCloseKey(hKey);
+    return true;
+}
 
-        if (result == ERROR_SUCCESS)
+bool SetFileAssociation(const string& sExecutablePath, const string& sProgIDSubkey, const string& sExtension)
+{
+    // Specify the file extension and executable path
+    //LPCSTR fileExtension = sExtension.c_str();
+    //LPCSTR executablePath = L"your_executable_path.exe";
+
+    // Register the application to handle the file type under HKEY_CURRENT_USER
+    HKEY hKeyExt;
+    string sClass("Software\\Classes\\." + sExtension);
+    if (RegCreateKeyExA(HKEY_CURRENT_USER, sClass.c_str(), 0, NULL, 0, KEY_WRITE, NULL, &hKeyExt, NULL) == ERROR_SUCCESS) 
+    {
+        // Set the command to execute when opening the file under HKEY_CURRENT_USER
+        string sOpenCommand("\"" + sExecutablePath + "\"" + " \"%1\"");
+        if (RegCreateKeyExA(hKeyExt, "shell\\open\\command", 0, NULL, 0, KEY_WRITE, NULL, &hKeyExt, NULL) == ERROR_SUCCESS) 
         {
-            sValue.assign(buffer);
+            RegSetValueExA(hKeyExt, NULL, 0, REG_SZ, (BYTE*)sOpenCommand.data(), (DWORD)sOpenCommand.length());
+            RegCloseKey(hKeyExt);
+
             return true;
         }
     }
 
+    assert(false);
     return false;
 }
 
-bool SetAppRegistryValue(const string& sAppName, const string& sKey, const string& sValue)
-{
-    string sAppRegistryNode = "SOFTWARE\\" + sAppName;
 
-    HKEY hKey;
-    LRESULT result = RegCreateKeyEx(HKEY_CURRENT_USER, sAppRegistryNode.c_str(), 0, NULL, REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hKey, NULL);
-    if (result == ERROR_SUCCESS)
-    {
-        result = RegSetValueEx(hKey, sKey.c_str(), 0, REG_SZ, (uint8_t*)sValue.c_str(), (DWORD)sValue.length());
-        RegCloseKey(hKey);
-    }
 
-    return result == ERROR_SUCCESS;
-}
+
 
 bool IsProcessElevated()
 {
@@ -420,7 +462,21 @@ Cleanup:
     return fIsElevated;
 }
 
-bool RequiresElevationToWrite(const string& folder) 
+bool ElevatedLaunch(const string& sOutputFolder, bool bForceInstall)
+{
+    string sParameters("\"" + sOutputFolder + "\"");
+    if (bForceInstall)
+        sParameters += " -force";
+
+    if (gDebug)
+        sParameters += " -debug";
+
+
+    ShellExecuteA(NULL, "runas", exeFilename.string().c_str(), sParameters.c_str(), NULL, SW_SHOWDEFAULT);
+    return true;
+}
+
+bool DoesFolderRequireElevation(const string& folder) 
 {
     filesystem::path testFile(folder);
     testFile.append("testwritetemp");
@@ -435,18 +491,13 @@ bool RequiresElevationToWrite(const string& folder)
     return false;
 }
 
-bool ElevateIfNeeded(const string& sOutputFolder, bool bForce)
+bool ElevateIfNeeded(const string& sOutputFolder, bool bForceInstall)
 {
-    if (RequiresElevationToWrite(sOutputFolder) && !IsProcessElevated())
+    if (DoesFolderRequireElevation(sOutputFolder) && !IsProcessElevated())
     {
-        string sParameters("\"" + sOutputFolder + "\"");
-        if (bForce)
-            sParameters += " -force";
-
         string sMessage("Folder \"" + sOutputFolder + "\" requires elevated permissions. Restarting installer to request permission.");
-        MessageBox(nullptr, sMessage.c_str(), "Elevated permissions required", MB_ICONINFORMATION|MB_OK);
-        ShellExecuteA(NULL, "runas", exeFilename.string().c_str(), sParameters.c_str(), NULL, SW_SHOWDEFAULT);
-        return true;
+        if (MessageBox(nullptr, sMessage.c_str(), "Elevated permissions required", MB_ICONINFORMATION | MB_OK) == MB_OK)
+            return ElevatedLaunch(sOutputFolder, bForceInstall);
     }
 
     return false;
@@ -463,105 +514,184 @@ int RunInstall(string sOutputFolder, bool bForce = false)
             cout << sInstallDoc << "\n";
     }
 
-    string sAppName = ParseValue("appname", sInstallDoc);
-    string sPackagedVersion = ParseValue("appver", sInstallDoc);
-    string sPostInstallTemplate = ParseValue("post_install_template", sInstallDoc);
+
+//    sInstallDoc = "appname=ZImageViewer\nappver=1.0.0.81\nprogId=ZImageViewer.exe\nprogDesc=Fast image viewer and workflow for photographers\npost_install_template=/install/associate.reg.template\nbuildurl=https://www.azvenigo.com/zimageviewerbuild/index.html\nfile_type_assoc_list=png\n";
 
 
-    string sInstalledVersion;
-    string sInstalledPath;
-    if (GetAppRegistryValue(sAppName, "Version", sInstalledVersion) && GetAppRegistryValue(sAppName, "Path", sInstalledPath))
+
+
+
+
+    string progName = ParseValue("appname", sInstallDoc, true);
+    string sPackagedVersion = ParseValue("appver", sInstallDoc, true);
+    string progID = ParseValue("progId", sInstallDoc, true);
+    string sProgDesc = ParseValue("progDesc", sInstallDoc);
+
+    string sPackedAssociationList = ParseValue("file_type_assoc_list", sInstallDoc);
+
+    // convert the packed list separated by semicolons into an array
+    std::vector<std::string> associationList;
+    SH::ToVector(sPackedAssociationList, associationList, ';');
+
+    // 1) Is registered?
+    //      yes continue to 2
+    //      no
+    //       \_>    elevated?
+    //                 \_     re-run elevated
+    //
+    //       yes (elevated but not registered
+    //              \_>    register and continue to 2
+
+    //
+
+
+
+    string sInstallerCaption(progName + " (v" + sPackagedVersion + ") Installer");
+
+
+
+    string sEXEName(progName + ".exe"); // no path, ex: "MYAPP.exe"
+
+    // my (seemingly working)
+    // for each extension
+    //  HKLM\SOFTWARE\Classes\<appName>.<extension>\shell\Open\command\"app.exe" "%1"
+    // 
+    //  and maybe need for each extension:
+    //      HKCR\<extension>\default = <appName>.<extension>
+
+
+    // 1) HKLM/SOFTWARE/Microsoft/Windows/CurrentVersion/App Paths/<progname>: "" = <appPath>
+
+    string sKey;
+    string sLaunchEXEPath;
+
+    string sInstalledVersion("unknown");
+
+
+    // If no folder provided on command line, look in registry for existing install
+    if (sOutputFolder.empty())
     {
-        filesystem::path installedEXEPath(sInstalledPath);
-        installedEXEPath.append(sAppName + ".exe");
-
-        if (filesystem::exists(installedEXEPath))
+        // Previously installed?
+        sKey = /*HKEY_LOCAL_MACHINE\\*/ "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\" + sEXEName;
+        if (REG::GetWindowsRegistryString(HKEY_LOCAL_MACHINE, sKey, "", sLaunchEXEPath) == 0 && std::filesystem::exists(sLaunchEXEPath))
         {
-            cout << "Installed version:" << sInstalledVersion << "\n";
-            cout << "Packaged version: " << sPackagedVersion << "\n";
+            // already installed to a location.... ask whether to install to same
 
-            if (sInstalledVersion == sPackagedVersion && !bForce)
-            {
+            sInstalledVersion = GetFileVersion(sLaunchEXEPath);
 
-                string sInstalledMessage = "Version " + sInstalledVersion + " already installed to\nPath \"" + sInstalledPath + "\"\n\nRun with \"-force\" command line option to force reinstallation.";
-                MessageBox(0, sInstalledMessage.c_str(), "Already Installed", MB_ICONINFORMATION | MB_OK);
-                cout << "Version already installed. Run with -force to force reinstallation.\n";
+            char buf[2048];
 
-                ShellExecuteA(NULL, "open", sInstalledPath.c_str(), nullptr, NULL, SW_SHOWDEFAULT);
+            if (sInstalledVersion == sPackagedVersion)
+                sprintf_s(buf, "%s (ver %s)\nis already installed in location:\n%s.\n\nReinstall to same location?", progName.c_str(), sInstalledVersion.c_str(), sLaunchEXEPath.c_str());
+            else
+                sprintf_s(buf, "%s (ver %s)\nis installed in location:\n%s.\n\nInstall ver %s to same location?", progName.c_str(), sInstalledVersion.c_str(), sLaunchEXEPath.c_str(), sPackagedVersion.c_str());
 
-                return 0;
-            }
-        }
-        else
-        {
-            sInstalledPath.clear();
-            sInstalledVersion.clear();
+            // if bForce then don't ask
+            if (bForce || MessageBox(0, buf, sInstallerCaption.c_str(), MB_ICONQUESTION | MB_YESNO) == IDYES)
+                sOutputFolder = std::filesystem::path(sLaunchEXEPath).parent_path().string();       // strip off the exe path
+            else
+                sOutputFolder.clear();
         }
     }
 
-
-
-    // If no output folder specified but the app is installed already, use the installed path
-    if (sOutputFolder.empty() && !sInstalledPath.empty())
-        sOutputFolder = sInstalledPath;
-    else if (sOutputFolder.empty())         // if installed path is empty and no output folder specified, show selection dialog
+    // Prompt for location if still don't know where
+    if (sOutputFolder.empty())
     {
-        if (ShowSelectFolderDialog(sOutputFolder, getenv("ProgramFiles")))
+        string sTitle = "Select folder to install " + progName + " ver:" + sPackagedVersion;
+
+        if (ShowSelectFolderDialog(sTitle, sOutputFolder, getenv("ProgramFiles")))
         {
             filesystem::path outputFolder(sOutputFolder);
-            outputFolder.append(sAppName);
+            outputFolder.append(progName);
 
             char buf[2048];
-            sprintf_s(buf, "OK to install %s version %s to:\n\"%s\" ?", sAppName.c_str(), sPackagedVersion.c_str(), outputFolder.string().c_str());
+            sprintf_s(buf, "OK to install %s version %s to:\n\"%s\" ?", progName.c_str(), sPackagedVersion.c_str(), outputFolder.string().c_str());
 
-            if (MessageBox(0, buf, "Confirm location", MB_ICONQUESTION | MB_YESNO) != IDYES)
+            if (MessageBox(0, buf, sInstallerCaption.c_str(), MB_ICONQUESTION | MB_YESNO) != IDYES)
             {
                 return -1;
             }
 
             sOutputFolder = outputFolder.string();  // letting filesystem do any folder shenanigans and returning back to string
         }
+        else
+            return 0;
     }
 
-    // If user canceled, exit
+
     if (sOutputFolder.empty())
+    {
+        ShowError("Something went wrong.... no output folder specified.");
+        return -1;
+    }
+
+
+    // either application hasn't been registered or is no longer at the location being pointed at
+    if (!IsProcessElevated())
+    {
+        ElevatedLaunch(sOutputFolder, bForce);      // restart elevated to perform registration
+        return 0;
+    }
+
+
+
+
+/*    string sMessage = "pretend install to:" + sOutputFolder;
+    MessageBox(0, sMessage.c_str(), "", MB_OK);
+    return 0;*/
+
+
+    filesystem::path appPath(sOutputFolder);    
+    appPath.append(progName + ".exe");  // full path, ex: "c:/stuff/MYAPP.exe"
+    string sOpenValue("\"" + appPath.string() + "\" \"%1\"");
+
+
+    // Register 1)
+    sKey = /*HKEY_LOCAL_MACHINE\\*/ "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\" + sEXEName;
+    if (!SetRegistryString(HKEY_LOCAL_MACHINE, sKey, "", appPath.string()))
         return -1;
 
+    // 2) HKCR\Applications\progName.exe\shell\Open\command\"app.exe" "%1"
+    sKey = /*HKEY_CLASSES_ROOT*/ "Applications\\" + progName + ".exe\\shell\\Open\\command";
+    if (!SetRegistryString(HKEY_CLASSES_ROOT, sKey, "", sOpenValue))
+        return -1;
 
-
-
-    // if we're re-running elevated, just exit
-    if (ElevateIfNeeded(sOutputFolder, bForce))
-        return 0;
-
-
-    string sRegTemplate;
-    if (ExtractInstallFile(sPostInstallTemplate, sRegTemplate))
+    for (auto fileExt : associationList)
     {
-        if (LOG::gnVerbosityLevel > LVL_DEFAULT)
-            cout << "Found registry template\n";
-        if (LOG::gnVerbosityLevel > LVL_DIAG_BASIC)
-            cout << sRegTemplate << "\n";
+        cout << "Setting association:" << fileExt << "\n";
+
+        if (fileExt[0] != '.')
+            fileExt = "." + fileExt;
+
+        // 3) HKLM\SOFTWARE\Classes\<appName>.<extension>\shell\Open\command\"app.exe" "%1"
+        sKey = /*HKEY_LOCAL_MACHINE*/ "SOFTWARE\\Classes\\" + progName + fileExt + "\\shell\\Open\\command";
+        if (!SetRegistryString(HKEY_LOCAL_MACHINE, sKey, "", sOpenValue))
+            return -1;
+
+        // 4) HKCR\Applications\progName.exe\SupportedTypes\<ext>
+        sKey = /*HKEY_CLASSES_ROOT*/ "Applications\\" + progName + ".exe\\SupportedTypes";
+        if (!SetRegistryString(HKEY_CLASSES_ROOT, sKey, fileExt, ""))
+            return -1;
     }
 
-    sRegTemplate = SH::replaceTokens(sRegTemplate, "$$INSTALL_LOC$$", sOutputFolder);
-    sRegTemplate = SH::replaceTokens(sRegTemplate, "$$VERSION$$", sPackagedVersion);
 
-    Extract(sOutputFolder);
+    if (Extract(sOutputFolder) != 0)
+    {
+        ShowError("Failed to install to" + sOutputFolder);
+        return -1;
+    }
 
-    ofstream outRegFile(sOutputFolder + sPostInstallTemplate + ".reg");
-    outRegFile.write(sRegTemplate.c_str(), sRegTemplate.length());
 
-    SetAppRegistryValue(sAppName, "Version", sPackagedVersion);
-    SetAppRegistryValue(sAppName, "Path", sOutputFolder);
+    if (!bForce)
+    {
+        string sInstalledMessage = "Version " + sPackagedVersion + " installed to\nPath \"" + sOutputFolder + "\n\nLaunching...";
+        MessageBox(0, sInstalledMessage.c_str(), sInstallerCaption.c_str(), MB_OK | MB_ICONINFORMATION);
+    }
 
-    string sInstalledMessage = "Version " + sPackagedVersion + " installed to\nPath \"" + sOutputFolder;
-    MessageBox(0, sInstalledMessage.c_str(), "Install complete",  MB_OK);
-
-    ShellExecuteA(NULL, "open", sOutputFolder.c_str(), nullptr, NULL, SW_SHOWDEFAULT);
-
+    ShellExecuteA(NULL, "open", appPath.string().c_str(), nullptr, NULL, SW_SHOWDEFAULT);
     return 0;
 }
+
 
 
 
@@ -571,6 +701,7 @@ int main(int argc, char* argv[])
 //	_CrtMemCheckpoint(&s1);
 
     exeFilename = filesystem::path(argv[0]);
+
 
     // App Globals for reading command line
     string  sOutputFilename;
@@ -583,9 +714,11 @@ int main(int argc, char* argv[])
     if (ContainsEmbeddedArchive(exeFilename))
     {
         parser.RegisterAppDescription("Self extracting installer");
-        parser.RegisterParam(ParamDesc("OUTPUTFOLDER", &sOutputFolder, CLP::kPositional | CLP::kRequired, "Folder into which to extract all files."));
+        parser.RegisterParam(ParamDesc("OUTPUTFOLDER", &sOutputFolder, CLP::kPositional | CLP::kOptional, "Folder into which to extract all files."));
         parser.RegisterParam(ParamDesc("force", &bForce, CLP::kNamed | CLP::kOptional, "Forces overwrite even if installed version matches package."));
 
+        parser.RegisterParam(ParamDesc("debug", &gDebug, CLP::kNamed | CLP::kOptional, "debug installer output"));
+        
         parser.Parse(argc, argv);
 
         RunInstall(sOutputFolder, bForce);

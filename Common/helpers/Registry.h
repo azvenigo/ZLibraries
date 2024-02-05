@@ -3,6 +3,10 @@
 #include <map>
 #include <vector>
 
+#ifdef _WIN64
+#include <Windows.h>
+#endif
+
 //#define NDEBUG
 
 #include "json.hpp"
@@ -92,6 +96,16 @@ namespace REG
     protected:
         std::string         msRegistryFilename;
     };
+
+
+
+
+
+#ifdef _WIN64
+    int GetWindowsRegistryString(HKEY key, const std::string& sPath, const std::string& sKey, std::string& sValue);
+    int SetWindowsRegistryString(HKEY key, const std::string& sPath, const std::string& sKey, const std::string& sValue);
+#endif
+
 };  // namespace REG
 extern REG::Registry gRegistry;
 

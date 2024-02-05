@@ -112,14 +112,14 @@ namespace SH
     std::string     ToUserReadable(int64_t nValue);
     int64_t         ToInt(std::string sReadable);
 
-    std::string     FromVector(std::vector<std::string>& stringVector);
-    void            ToVector(const std::string& sEncoded, std::vector<std::string>& outStringVector);
+    std::string     FromVector(std::vector<std::string>& stringVector, const char token = kCharSplitToken);
+    void            ToVector(const std::string& sEncoded, std::vector<std::string>& outStringVector, const char token = kCharSplitToken);
 
-    std::string     FromMap(const std::map<std::string, std::string>& stringMap);
-    void            ToMap(const std::string& sEncoded, std::map<std::string, std::string>& outStringMap);
+    std::string     FromMap(const std::map<std::string, std::string>& stringMap, const char token = kCharSplitToken);
+    void            ToMap(const std::string& sEncoded, std::map<std::string, std::string>& outStringMap, const char token = kCharSplitToken);
 
-    std::string     FromSet(tStringSet& stringSet);
-    void            ToSet(const std::string& sEncoded, tStringSet& outStringSet);
+    std::string     FromSet(tStringSet& stringSet, const char delimiter = kCharSplitToken);
+    void            ToSet(const std::string& sEncoded, tStringSet& outStringSet, const char token = kCharSplitToken);
 
     void            SplitToken(std::string& sBefore, std::string& sAfter, const std::string& token);
 

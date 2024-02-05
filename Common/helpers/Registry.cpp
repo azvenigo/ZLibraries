@@ -2,7 +2,6 @@
 #include <assert.h>
 #include <iostream>
 #include <fstream>
-#include <ZXMLNode.h>
 #include "helpers/StringHelpers.h"
 
 using namespace std;
@@ -191,4 +190,63 @@ namespace REG
 
         return (*group).second.size();
     }*/
+
+
+#ifdef _WIN64
+
+int GetWindowsRegistryString(HKEY key, const string& sPath, const string& sKey, string& sValue)
+{
+    HKEY hKey;
+    LRESULT result = RegOpenKeyEx(key, sPath.c_str(), 0, KEY_READ, &hKey);
+
+    if (result == ERROR_SUCCESS)
+    {
+        DWORD nDataSize = 2048;
+        char buffer[2048];
+        DWORD dataType;
+
+        result = RegQueryValueEx(hKey, sKey.c_str(), nullptr, &dataType, (LPBYTE)buffer, &nDataSize);
+        RegCloseKey(hKey);
+
+        if (result == ERROR_SUCCESS)
+        {
+            sValue.assign(buffer);
+            return 0;
+        }
+    }
+
+    return (int)result;
+}
+
+int SetWindowsRegistryString(HKEY key, const string& sPath, const string& sKey, const string& sValue)
+{
+    HKEY hKey;
+    LRESULT result = RegCreateKeyEx(key, sPath.c_str(), 0, NULL, REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hKey, NULL);
+    if (result == ERROR_SUCCESS)
+    {
+        result = RegSetValueEx(hKey, sKey.c_str(), 0, REG_SZ, (uint8_t*)sValue.c_str(), (DWORD)sValue.length());
+        RegCloseKey(hKey);
+        return true;
+    }
+
+    string section;
+    if (key == HKEY_CURRENT_USER)
+        section = "HKEY_CURRENT_USER";
+    else if (key == HKEY_LOCAL_MACHINE)
+        section = "HKEY_LOCAL_MACHINE";
+    else if (key == HKEY_CLASSES_ROOT)
+        section = "HKEY_CLASSES_ROOT";
+    else
+        section = "unknown section:" + SH::FromInt((int64_t)key);
+
+    cerr << "Failed to set registry path:" << section << "\\" << sPath << " key:" << sKey << " value:" << sValue << " error code:" << SH::FromInt(result) << "\n";
+    return (int)result;
+}
+#endif
+
+
+
+
+
+
 };  // namespace REG
