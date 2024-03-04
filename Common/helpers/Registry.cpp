@@ -226,7 +226,7 @@ int SetWindowsRegistryString(HKEY key, const string& sPath, const string& sKey, 
     {
         result = RegSetValueEx(hKey, sKey.c_str(), 0, REG_SZ, (uint8_t*)sValue.c_str(), (DWORD)sValue.length());
         RegCloseKey(hKey);
-        return true;
+        return 0;
     }
 
     string section;
