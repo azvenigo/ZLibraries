@@ -222,7 +222,7 @@ int Extract(filesystem::path outputFolder)
                 // decompress
                 if (!filesystem::is_directory(fullPath.parent_path()))
                 {
-                    cout << "Creating Path: \"" << fullPath.parent_path().c_str() << "\"\n";
+                    cout << "Creating Path: \"" << fullPath.parent_path() << "\"\n";
                     std::filesystem::create_directories(fullPath.parent_path());
                 }
 

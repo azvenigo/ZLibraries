@@ -33,7 +33,7 @@ namespace REG
         // GetOrSetDefault will return a value if it is already in the registry.
         // Otherwise will set the registry key to the passed in default and return that
         template <typename T>
-        inline bool SetDefault(const std::string& sGroup, const std::string& sKey, const T& default)
+        inline bool SetDefault(const std::string& sGroup, const std::string& sKey, const T& _default)
         {
             if (Contains(sGroup, sKey))
             {
@@ -41,7 +41,7 @@ namespace REG
                 return false;
             }
 
-            (*this)[sGroup][sKey] = default;
+            (*this)[sGroup][sKey] = _default;
             return true;
         }
 
