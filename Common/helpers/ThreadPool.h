@@ -17,9 +17,9 @@
 class ThreadPool {
 public:
     ThreadPool(size_t thread = std::thread::hardware_concurrency());
+
     template<class F, class... Args>
-    auto enqueue(F&& f, Args&&... args)
-        ->std::future<typename std::result_of<F(Args...)>::type>;
+    auto enqueue(F&& f, Args&&... args) ->std::future<typename std::invoke_result_t<F, Args...> >;
     ~ThreadPool();
     size_t size() { return workers.size(); }
 private:
@@ -35,8 +35,7 @@ private:
 };
 
 // the constructor just launches some amount of workers
-inline ThreadPool::ThreadPool(size_t threads)
-    : stop(false)
+inline ThreadPool::ThreadPool(size_t threads) : stop(false)
 {
     for (size_t i = 0; i < threads; ++i)
         workers.emplace_back(
@@ -62,16 +61,14 @@ inline ThreadPool::ThreadPool(size_t threads)
             );
 }
 
-// add new work item to the pool
 template<class F, class... Args>
-auto ThreadPool::enqueue(F&& f, Args&&... args)
--> std::future<typename std::result_of<F(Args...)>::type>
+auto ThreadPool::enqueue(F&& f, Args&&... args) -> std::future<typename std::invoke_result_t<F, Args...>>
 {
-    using return_type = typename std::result_of<F(Args...)>::type;
+    using return_type = typename std::invoke_result_t<F, Args...>;
 
     auto task = std::make_shared< std::packaged_task<return_type()> >(
         std::bind(std::forward<F>(f), std::forward<Args>(args)...)
-        );
+    );
 
     std::future<return_type> res = task->get_future();
     {
@@ -86,6 +83,7 @@ auto ThreadPool::enqueue(F&& f, Args&&... args)
     condition.notify_one();
     return res;
 }
+
 
 // the destructor joins all threads
 inline ThreadPool::~ThreadPool()

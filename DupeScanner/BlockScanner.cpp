@@ -621,7 +621,7 @@ SearchJobResult BlockScanner::SearchProc(const string& sSearchFilename, uint8_t*
             // Try a true MD5 match
             for (auto block : blockSet)
             {
-                if (sha256 == block.mSHA256)
+                if (sha256.operator==(block.mSHA256))
                 {
 //                    cout << "True match found offset: " << nOffset << "  Source:" << block.mpPath << " offset :" << block.mnOffset << "\n";
 
