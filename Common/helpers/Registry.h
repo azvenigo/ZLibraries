@@ -46,7 +46,7 @@ namespace REG
         }
 
         template <typename T>
-        inline void Set(const std::string& sGroup, const std::string& sKey, T& arg)
+        inline void Set(const std::string& sGroup, const std::string& sKey, const T& arg)
         {
             (*this)[sGroup][sKey] = arg;
         }
