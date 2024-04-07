@@ -252,12 +252,12 @@ int main(int argc, char* argv[])
     parser.RegisterParam(ParamDesc("FILENAME",      &sFilename,         CLP::kPositional| CLP::kRequired, "Name of file to create. Multiple files in a folder will have numbers included."));
     parser.RegisterParam(ParamDesc("SIZE",          &nFileSize,         CLP::kPositional | CLP::kRequired,  "Size of file(s) to create."));
 
-    parser.RegisterParam(ParamDesc("dest",         &sDestPath,          CLP::kNamed | CLP::kOptional,       "base path to where to create data files. defaults to working directory"));
-    parser.RegisterParam(ParamDesc("folders",      &nFolders,           CLP::kNamed | CLP::kOptional,       "number of folders to generate. default is 0"));
-    parser.RegisterParam(ParamDesc("files",        &nFilesPerFolder,    CLP::kNamed | CLP::kOptional,       "number of files in each folder. default is 1"));
+    parser.RegisterParam(ParamDesc("dest",         &sDestPath,          CLP::kNamed,       "base path to where to create data files. defaults to working directory"));
+    parser.RegisterParam(ParamDesc("folders",      &nFolders,           CLP::kNamed,       "number of folders to generate. default is 0"));
+    parser.RegisterParam(ParamDesc("files",        &nFilesPerFolder,    CLP::kNamed,       "number of files in each folder. default is 1"));
 
-    parser.RegisterParam(ParamDesc("skipexisting", &bSkipExistingFiles, CLP::kNamed | CLP::kOptional,       "skips overwriting destination file (even with different values or size) if it already exists."));
-//    parser.RegisterParam(ParamDesc("verbose",      &bVerbose,           CLP::kNamed | CLP::kOptional,       "hear all the gritty details about everthing that's happening. (Can slow down operation due to command line output.)"));
+    parser.RegisterParam(ParamDesc("skipexisting", &bSkipExistingFiles, CLP::kNamed ,       "skips overwriting destination file (even with different values or size) if it already exists."));
+//    parser.RegisterParam(ParamDesc("verbose",      &bVerbose,           CLP::kNamed,       "hear all the gritty details about everthing that's happening. (Can slow down operation due to command line output.)"));
 
     if (!parser.Parse(argc, argv))
     {

@@ -39,6 +39,9 @@ namespace CLP
         mbFound = false;
         msUsage = sUsage;
         mAllowedStrings = allowedStrings;
+
+        if (!mAllowedStrings.empty())
+            mBehaviorFlags |= kRangeRestricted;
     }
 
 
@@ -52,7 +55,7 @@ namespace CLP
         msUsage = sUsage;
     }
 
-    ParamDesc::ParamDesc(const string& sName, int64_t* pInt, eBehavior behavior, const string& sUsage, int64_t nRangeMin, int64_t nRangeMax)
+    ParamDesc::ParamDesc(const string& sName, int64_t* pInt, eBehavior behavior, const string& sUsage, std::optional<int64_t> nRangeMin, std::optional<int64_t> nRangeMax)
     {
         mValueType = kInt64;
         msName = sName;
@@ -60,11 +63,15 @@ namespace CLP
         mBehaviorFlags = behavior;
         mnMinInt = nRangeMin;
         mnMaxInt = nRangeMax;
+
+        if (mnMinInt.has_value() || mnMaxInt.has_value())
+            mBehaviorFlags |= kRangeRestricted;
+
         mbFound = false;
         msUsage = sUsage;
     }
 
-    ParamDesc::ParamDesc(const string& sName, float* pFloat, eBehavior behavior, const string& sUsage, float fRangeMin, float fRangeMax)
+    ParamDesc::ParamDesc(const string& sName, float* pFloat, eBehavior behavior, const string& sUsage, std::optional<float> fRangeMin, std::optional<float> fRangeMax)
     {
         mValueType = kFloat;
         msName = sName;
@@ -72,6 +79,10 @@ namespace CLP
         mBehaviorFlags = behavior;
         mfMinFloat = fRangeMin;
         mfMaxFloat = fRangeMax;
+
+        if (mfMinFloat.has_value() || mfMaxFloat.has_value())
+            mBehaviorFlags |= kRangeRestricted;
+
         mbFound = false;
         msUsage = sUsage;
     }
@@ -120,7 +131,7 @@ namespace CLP
             {
                 sParameter += ":";
                 if (IsRangeRestricted())
-                    sType = "(" + std::to_string(mnMinInt) + "-" + std::to_string(mnMaxInt) + ")";
+                    sType = "(" + std::to_string(mnMinInt.value()) + "-" + std::to_string(mnMaxInt.value()) + ")";
                 else
                     sType = "#";
             }
@@ -129,7 +140,7 @@ namespace CLP
             {
                 sParameter += ":";
                 if (IsRangeRestricted())
-                    sType = "(" + SH::FromDouble(mfMinFloat, 2) + "-" + SH::FromDouble(mfMaxFloat, 2) + ")";
+                    sType = "(" + SH::FromDouble(mfMinFloat.value(), 2) + "-" + SH::FromDouble(mfMaxFloat.value(), 2) + ")";
                 else
                     sType = "#.#";
             }
@@ -156,7 +167,7 @@ namespace CLP
             case ParamDesc::kInt64:
             {
                 if (IsRangeRestricted())
-                    sType = "(" + std::to_string(mnMinInt) + "-" + std::to_string(mnMaxInt) + ")";
+                    sType = "(" + std::to_string(mnMinInt.value()) + "-" + std::to_string(mnMaxInt.value()) + ")";
                 else
                     sType = "#";
             }
@@ -164,7 +175,7 @@ namespace CLP
             case ParamDesc::kFloat:
             {
                 if (IsRangeRestricted())
-                    sType = "(" + SH::FromDouble(mfMinFloat, 2) + "-" + SH::FromDouble(mfMaxFloat, 2) + ")";
+                    sType = "(" + SH::FromDouble(mfMinFloat.value(), 2) + "-" + SH::FromDouble(mfMaxFloat.value(), 2) + ")";
                 else
                     sType = "#.#";
             }
@@ -331,7 +342,7 @@ namespace CLP
                     {
                         if (nValue < pDesc->mnMinInt || nValue > pDesc->mnMaxInt)
                         {
-                            cerr << COL_ERROR << "Error: Value for \"" << sArg << "\" OUT OF RANGE." << COL_RESET << " Allowed range:(" << COL_PARAM << pDesc->mnMinInt << "-" << pDesc->mnMaxInt << COL_RESET << ")\n";
+                            cerr << COL_ERROR << "Error: Value for \"" << sArg << "\" OUT OF RANGE." << COL_RESET << " Allowed range:(" << COL_PARAM << pDesc->mnMinInt.value() << "-" << pDesc->mnMaxInt.value() << COL_RESET << ")\n";
                             return false;
                         }
                     }
@@ -350,7 +361,7 @@ namespace CLP
                     {
                         if (fValue < pDesc->mfMinFloat || fValue > pDesc->mfMaxFloat)
                         {
-                            cerr << COL_ERROR << "Error: Value for \"" << sArg << "\" OUT OF RANGE." << COL_RESET << " Allowed range:(" << COL_PARAM << pDesc->mfMinFloat << "-" << pDesc->mfMaxFloat << COL_RESET << ")\n";
+                            cerr << COL_ERROR << "Error: Value for \"" << sArg << "\" OUT OF RANGE." << COL_RESET << " Allowed range:(" << COL_PARAM << pDesc->mfMinFloat.value() << "-" << pDesc->mfMaxFloat.value() << COL_RESET << ")\n";
                             return false;
                         }
                     }
@@ -411,7 +422,7 @@ namespace CLP
                     {
                         if (nValue < pPositionalDesc->mnMinInt || nValue > pPositionalDesc->mnMaxInt)
                         {
-                            cerr << COL_ERROR << "Error: Value for \"" << sArg << "\" OUT OF RANGE." << COL_RESET << " Allowed range:(" << COL_PARAM << pPositionalDesc->mnMinInt << "-" << pPositionalDesc->mnMaxInt << COL_RESET << ")\n";
+                            cerr << COL_ERROR << "Error: Value for \"" << sArg << "\" OUT OF RANGE." << COL_RESET << " Allowed range:(" << COL_PARAM << pPositionalDesc->mnMinInt.value() << "-" << pPositionalDesc->mnMaxInt.value() << COL_RESET << ")\n";
                             return false;
                         }
                     }
@@ -430,7 +441,7 @@ namespace CLP
                     {
                         if (fValue < pPositionalDesc->mfMinFloat || fValue > pPositionalDesc->mfMaxFloat)
                         {
-                            cerr << COL_ERROR << "Error: Value for \"" << sArg << "\" OUT OF RANGE." << COL_RESET << " Allowed range:(" << COL_PARAM << pPositionalDesc->mfMinFloat << "-" << pPositionalDesc->mfMaxFloat << COL_RESET << ")\n";
+                            cerr << COL_ERROR << "Error: Value for \"" << sArg << "\" OUT OF RANGE." << COL_RESET << " Allowed range:(" << COL_PARAM << pPositionalDesc->mfMinFloat.value() << "-" << pPositionalDesc->mfMaxFloat.value() << COL_RESET << ")\n";
                             return false;
                         }
                     }

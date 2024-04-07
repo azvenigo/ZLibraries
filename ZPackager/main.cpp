@@ -384,18 +384,18 @@ bool SetRegistryString(HKEY key, const string& sPath, const string& sKey, const 
     else if (key == HKEY_CLASSES_ROOT)
         section = "HKEY_CLASSES_ROOT";
     else
-        section = "unknown section:" + SH::FromInt((int64_t)key);
+        section = "unknown section:" + to_string((int64_t)key);
 
 
     if (result != 0)
     {
-        ShowError("Failed to set registry path:" + section + "\\" + sPath + " key:" + sKey + " value:" + sValue + " error code:" + SH::FromInt(result));
+        ShowError("Failed to set registry path:" + section + "\\" + sPath + " key:" + sKey + " value:" + sValue + " error code:" + to_string(result));
         return result;
     }
 
     if (gDebug)
     {
-        MessageBox(0, string("Set registry path:" + section + "\\" + sPath + " key:" + sKey + " value:" + sValue + " return code:" + SH::FromInt(result)).c_str(), "DEBUG", MB_OK | MB_ICONINFORMATION);
+        MessageBox(0, string("Set registry path:" + section + "\\" + sPath + " key:" + sKey + " value:" + sValue + " return code:" + to_string(result)).c_str(), "DEBUG", MB_OK | MB_ICONINFORMATION);
     }
 
     return true;

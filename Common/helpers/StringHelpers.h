@@ -126,6 +126,9 @@ namespace SH
 
     std::string     replaceTokens(std::string input, const std::string& token, const std::string& value);
 
+    size_t          FindMatching(const std::string& s, size_t i);   // given a character in s at i, find the accomanying closure. for example '"' -> '"' or '{' -> '}'  Different pairs (excluding the closure token for current) inside the enclosure are skipped
+
+
     //////////////////////////////////////////////////////////////////////////////////////////////
     // Output format helpers
     // A way of formatting output into tabs, commas or HTML

@@ -4,6 +4,7 @@
 #include <vector>
 #include <set>
 #include <iostream>
+#include <optional>
 #include "LoggingHelpers.h"
 #include "StringHelpers.h"
 
@@ -131,8 +132,8 @@ namespace CLP
         // named string
         ParamDesc(const std::string& sName, std::string* pString, eBehavior behavior, const std::string& sUsage = "", const SH::tStringSet& allowedStrings = {});
         ParamDesc(const std::string& sName, bool* pBool, eBehavior behavior, const std::string& sUsage = "");
-        ParamDesc(const std::string& sName, int64_t* pInt, eBehavior behavior, const std::string& sUsage = "", int64_t nRangeMin = 0, int64_t nRangeMax = 0);
-        ParamDesc(const std::string& sName, float* pFloat, eBehavior behavior, const std::string& sUsage = "", float fRangeMin = 0.0, float fRangeMax = 0.0);
+        ParamDesc(const std::string& sName, int64_t* pInt, eBehavior behavior, const std::string& sUsage = "", std::optional<int64_t> nRangeMin = std::nullopt, std::optional<int64_t> nRangeMax = std::nullopt);
+        ParamDesc(const std::string& sName, float* pFloat, eBehavior behavior, const std::string& sUsage = "", std::optional<float> fRangeMin = std::nullopt, std::optional<float> fRangeMax = std::nullopt);
 
     private:
 
@@ -170,12 +171,12 @@ namespace CLP
         eBehavior                   mBehaviorFlags;
 
         // range restricted parameters
-        int64_t                     mnMinInt;
-        int64_t                     mnMaxInt;
-        float                       mfMinFloat;
-        float                       mfMaxFloat;
+        std::optional<int64_t>      mnMinInt;
+        std::optional<int64_t>      mnMaxInt;
+        std::optional<float>        mfMinFloat;
+        std::optional<float>        mfMaxFloat;
 
-        SH::tStringSet   mAllowedStrings;
+        SH::tStringSet              mAllowedStrings;
 
         // Parameter usage for help text
         std::string                 msUsage;

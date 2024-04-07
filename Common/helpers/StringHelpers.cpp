@@ -404,4 +404,102 @@ void SH::ToMap(const string& sEncoded, map<string, string>& outStringMap, const 
     }
 }
 
+size_t SH::FindMatching(const std::string& s, size_t i)
+{
+    // any enclosing pairs should be accounted for......
+    // for example <"blah" [blah] "<<<<" >
+
+    if (i == string::npos || i + 1 > s.length())
+        return string::npos;
+
+    char start = s[i];
+    char end;
+    switch (start)
+    {
+    case '\"':          // ""
+        end = '\"';
+        break;
+    case '\'':          // ''
+        end = '\'';
+        break;
+    case  '{':          // {}
+        end = '}';
+        break;
+    case '[':           // []
+        end = ']';
+        break;
+    case '<':           // <>
+        end = '>';
+        break;
+    default:
+        return string::npos;
+    }
+
+    do
+    {
+        i++;
+
+        if (i < s.length() && s[i] == end)
+            return i;
+
+        if (s[i] == '\"' || s[i] == '\'' || s[i] == '{' || s[i] == '[' || s[i] == '[' || s[i] == '<')   // another enclosure?
+        {
+            i = FindMatching(s, i); // find that enclosure
+            if (i == string::npos)
+            {
+                // couldn't find enclosing message
+                assert(false);
+                return string::npos;
+            }
+        }
+    } while (i < s.length());
+
+    return string::npos;
+}
+
+#ifdef _DEBUG
+class FindMatchingUnitTest
+{
+public:
+    FindMatchingUnitTest()
+    {
+        // empty
+        string s1("");
+        assert(SH::FindMatching(s1, 0) == string::npos);
+        assert(SH::FindMatching(s1, 6) == string::npos);
+
+        string s2("<>");
+        assert(SH::FindMatching(s2, 0) == 1);
+        assert(SH::FindMatching(s2, 1) == string::npos);
+
+        string s3("<test>");
+        assert(SH::FindMatching(s3, 0) == 5);
+        assert(SH::FindMatching(s3, 1) == string::npos);
+
+        string s4("[enclose<>enclose]");
+        assert(SH::FindMatching(s4, 0) == 17);
+
+        string s5("[< <<>><<<>>> >]");
+        assert(SH::FindMatching(s5, 0) == 15);
+        assert(SH::FindMatching(s5, 1) == 14);
+
+
+
+        // malformed tests
+        string m1("<");
+        assert(SH::FindMatching(m1, 0) == string::npos);
+
+        string m2("<<blah>");   // malformed
+        assert(SH::FindMatching(m2, 0) == string::npos);
+        assert(SH::FindMatching(m2, 1) == 6);   // however if we look for enclosure starting with second, that should work
+
+        string m3("{}\"\'blah\'<>");    // no closing '"'
+        assert(SH::FindMatching(m3, 1) == string::npos);    // starting on a '}' is not correct
+        assert(SH::FindMatching(m3, 2) == string::npos);
+    }
+};
+
+FindMatchingUnitTest gFindMatchingUnitTestInstance;
+
+#endif
 

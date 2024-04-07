@@ -237,9 +237,9 @@ int SetWindowsRegistryString(HKEY key, const string& sPath, const string& sKey, 
     else if (key == HKEY_CLASSES_ROOT)
         section = "HKEY_CLASSES_ROOT";
     else
-        section = "unknown section:" + SH::FromInt((int64_t)key);
+        section = "unknown section:" + to_string((int64_t)key);
 
-    cerr << "Failed to set registry path:" << section << "\\" << sPath << " key:" << sKey << " value:" << sValue << " error code:" << SH::FromInt(result) << "\n";
+    cerr << "Failed to set registry path:" << section << "\\" << sPath << " key:" << sKey << " value:" << sValue << " error code:" << to_string(result) << "\n";
     return (int)result;
 }
 #endif
