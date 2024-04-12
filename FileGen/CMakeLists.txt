@@ -20,7 +20,13 @@ endif()
 # FileGen
 
 set(FILEGEN_SOURCES FileGen.cpp)
-set(COMMON_FILES ../Common/helpers/CommandLineParser.cpp ../Common/helpers/CommandLineParser.h ../Common/helpers/StringHelpers.h ../Common/helpers/StringHelpers.cpp)
+set(COMMON_FILES 
+    ../Common/helpers/CommandLineEditor.cpp 
+    ../Common/helpers/CommandLineEditor.h 
+    ../Common/helpers/CommandLineParser.cpp 
+    ../Common/helpers/CommandLineParser.h 
+    ../Common/helpers/StringHelpers.h 
+    ../Common/helpers/StringHelpers.cpp)
 
 
 ####################
