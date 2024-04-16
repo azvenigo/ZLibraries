@@ -128,6 +128,7 @@ namespace CLP
     public:
         friend class CLModeParser;
         friend class CommandLineParser;
+        friend class CommandLineEditor;
 
         // named string
         ParamDesc(const std::string& sName, std::string* pString, eBehavior behavior, const std::string& sUsage = "", const SH::tStringSet& allowedStrings = {});
@@ -192,6 +193,7 @@ namespace CLP
     class CLModeParser
     {
         friend class CommandLineParser;
+        friend class CommandLineEditor;
 
     public:
         // Registration Functions
@@ -225,7 +227,7 @@ namespace CLP
         std::list<std::string>  mAdditionalInfo;
 
     private:
-        // Positional parameters
+        // Parameters
         std::vector<ParamDesc>  mParameterDescriptors;
     };
 
@@ -242,6 +244,8 @@ namespace CLP
     class CommandLineParser
     {
     public:
+        friend class CommandLineEditor;
+
         CommandLineParser(bool bEnableVerbosity = true);
 
         // Registration Functions

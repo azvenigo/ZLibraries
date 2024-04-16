@@ -2,6 +2,7 @@
 #include "LoggingHelpers.h"
 #include <Windows.h>
 #include <iostream>
+#include <assert.h>
 
 #include <stdio.h>
 
@@ -11,6 +12,7 @@ namespace CLP
 {
     CommandLineEditor::CommandLineEditor()
     {
+        mpCLP = nullptr;
     }
 
     void CommandLineEditor::UpdateCursorPos()
@@ -87,6 +89,64 @@ namespace CLP
         return (i >= normalizedStart && i < normalizedEnd);
     }
 
+
+    tStringList CommandLineEditor::GetCLPModes()
+    {
+        tStringList modes;
+        if (mpCLP)
+        {
+            for (auto& mode : mpCLP->mModeToCommandLineParser)
+                modes.push_back(mode.first);
+        }
+
+        return modes;
+    }
+
+    CLP::ParamDesc* CommandLineEditor::GetParamDesc(int64_t position)
+    {
+        if (mpCLP)
+        {
+            ParamDesc* pDesc = nullptr;
+            // if CLP is configured with a specific mode go through parameters for that mode
+            if (!mpCLP->msMode.empty())
+            {
+                CLP::CLModeParser& parser = mpCLP->mModeToCommandLineParser[mpCLP->msMode];
+
+                if (parser.GetDescriptor(position, &pDesc))
+                    return pDesc;
+            }
+
+            // no mode specific param, search general params
+            if (mpCLP->mGeneralCommandLineParser.GetDescriptor(position, &pDesc))
+                return pDesc;
+        }
+
+        return nullptr;
+    }
+
+    CLP::ParamDesc* CommandLineEditor::GetParamDesc(std::string& paramName)
+    {
+        if (mpCLP)
+        {
+            ParamDesc* pDesc = nullptr;
+            // if CLP is configured with a specific mode go through parameters for that mode
+            if (!mpCLP->msMode.empty())
+            {
+                CLP::CLModeParser& parser = mpCLP->mModeToCommandLineParser[mpCLP->msMode];
+
+                if (parser.GetDescriptor(paramName, &pDesc))
+                    return pDesc;
+            }
+
+            // no mode specific param, search general params
+            if (mpCLP->mGeneralCommandLineParser.GetDescriptor(paramName, &pDesc))
+                return pDesc;
+        }
+
+        return nullptr;
+    }
+
+
     string CommandLineEditor::GetSelectedText()
     {
         if (!IsTextSelected())
@@ -103,22 +163,91 @@ namespace CLP
         return mText.substr(normalizedStart, normalizedEnd - normalizedStart);
     }
 
+    bool CommandLineEditor::GetParameterUnderCursor(size_t& outStart, size_t& outEnd, string& outParam)
+    {
+        outStart = CursorToTextIndex(mCursorPos);
+        if (outStart == string::npos)
+            return false;
+
+        outEnd = outStart;
+        while (outStart > 0 && !isblank((int)mText[outStart]))
+            outStart--;
+        while (outEnd < mText.size() && !isblank((int)mText[outEnd]))
+            outEnd++;
+
+        outParam = mText.substr(outStart, outEnd - outStart);
+        return true;
+    }
+
+    void CommandLineEditor::DrawText(size_t x, size_t y, std::string text, WORD attributes, bool bWrap)
+    {
+        SHORT screenw = screenBufferInfo.dwSize.X;
+
+        COORD start((SHORT)x, (SHORT)y);
+        size_t bufferindex = y * screenw + x;
+
+        size_t remainingchars;
+        if (bWrap)
+            remainingchars = consoleBuf.size() - bufferindex;   // remaining chars in buffer
+        else
+            remainingchars = screenw - x;     // remaining chars on row
+
+        for (size_t textindex = 0; textindex < text.size(); textindex++)
+        {
+            consoleBuf[bufferindex].Char.AsciiChar = text[textindex];
+            consoleBuf[bufferindex].Attributes = attributes;
+            bufferindex++;
+        }
+    }
 
 
     void CommandLineEditor::UpdateDisplay()
     {
         memset(&consoleBuf[0], 0, consoleBuf.size() * sizeof(CHAR_INFO));
 
-        string displayText(mText);
-        if (displayText.length() > consoleBuf.size())
-            displayText = mText.substr(mText.length() - consoleBuf.size());
 
+        // top half will be list of params
+        size_t rawCommandLineDisplay = consoleBuf.size() / 2;
+        size_t paramList = rawCommandLineDisplay;
+        
+
+        string displayText(mText);
+        if (displayText.length() > rawCommandLineDisplay)
+            displayText = mText.substr(mText.length() - rawCommandLineDisplay);
+
+        WORD col = FOREGROUND_GREEN | FOREGROUND_BLUE | FOREGROUND_RED;
         for (size_t i = 0; i < displayText.length(); i++)
         {
             consoleBuf[i].Char.AsciiChar = displayText[i];
-            consoleBuf[i].Attributes = FOREGROUND_GREEN | FOREGROUND_BLUE | FOREGROUND_RED;
+            consoleBuf[i].Attributes = col;
             if (IsIndexInSelection(i))
                 consoleBuf[i].Attributes |= BACKGROUND_BLUE;
+        }
+
+        for (size_t i = 0; i < displayText.length(); i++)
+        {
+            size_t matching = SH::FindMatching(displayText, i);
+            if (matching != string::npos)
+            {
+                while (i <= matching)
+                {
+                    consoleBuf[i].Attributes |= BACKGROUND_INTENSITY;
+                    i++;
+                }
+            }
+        }
+
+
+        size_t lastCommandLineRow = TextIndexToCursor(mText.length() - 1).Y;
+        size_t lastRow = screenBufferInfo.dwSize.Y;
+
+        size_t row = lastCommandLineRow + 1;
+        for (int paramindex = 0; paramindex < mParams.size(); paramindex++)
+        {
+            DrawText(0, row, mParams[paramindex].sParamText, FOREGROUND_GREEN | FOREGROUND_BLUE, false);
+           
+            if (row++ > lastRow)
+                break;
         }
 
         DrawToScreen();
@@ -127,38 +256,7 @@ namespace CLP
         char buf[64];
         sprintf(buf, "draw:%d\n", count++);
         OutputDebugString(buf);
-
-        /*
-        if (mText == mDisplayedtext && displayedSelectionStart == selectionstart && displayedSelectionEnd == selectionend)
-            return;
-
-        mDisplayedtext = mText;
-        displayedSelectionStart = selectionstart;
-        displayedSelectionEnd = selectionend;
-
-        CONSOLE_SCREEN_BUFFER_INFO csbi;
-        GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &csbi);
-        cout << "\r" << string(csbi.dwSize.X - 1, ' ');
-
-        if (selectionstart < 0)
-        {
-            cout << "\r" << mText;
-        }
-        else
-        {
-            int64_t normalizedStart = selectionstart;
-            int64_t normalizedEnd = selectionend;
-            if (normalizedEnd < normalizedStart)
-            {
-                normalizedStart = selectionend;
-                normalizedEnd = selectionstart;
-            }
-
-            cout << "\r" << mText.substr(0, normalizedStart);
-            cout << COL_BG_BLUE << mText.substr(normalizedStart, normalizedEnd - normalizedStart) << COL_RESET;
-            cout << mText.substr(normalizedEnd);
-        }*/
-    
+   
     }
 
 
@@ -235,6 +333,21 @@ namespace CLP
         CloseClipboard();
         return true;
     }
+
+    bool CommandLineEditor::HandleParamContext()
+    {
+        size_t start = string::npos;
+        size_t end = string::npos;
+        string sText;
+        if (!GetParameterUnderCursor(start, end, sText))
+            return false;
+
+        // Find set of auto complete for param
+
+
+        return true;
+    }
+
 
     void CommandLineEditor::ClearScreenBuffer()
     {
@@ -354,11 +467,100 @@ namespace CLP
         }
     }
 
-
-
-    string CommandLineEditor::Edit(int argc, char* argv[])
+    std::string CommandLineEditor::ParamNameFromText(std::string sParamText)
     {
-        mText = "Hello, world! Hello, world! Hello, world! Hello, world! Hello, world! Hello, world! Hello, world! Hello, world! Hello, world! Hello, world! Hello, world! Hello, world! Hello, world! Hello, world! Hello, world! Hello, world!";
+        // named parameters always start with -
+        if (!sParamText.empty() && sParamText[0] == '-')
+        {
+            size_t nIndexOfColon = sParamText.find(':');
+            if (nIndexOfColon != string::npos)
+            {
+                return sParamText.substr(1, nIndexOfColon - 1).c_str();    // everything from first char to colon
+            }
+            else
+            {
+                // flag with no value is the same as -flag:true
+                return sParamText.substr(1, nIndexOfColon).c_str();
+            }
+        }
+
+        return "";
+    }
+
+    std::string CommandLineEditor::EnteredParamsToText()
+    {
+        std::string sText;
+        for (int i = 0; i < mParams.size(); i++)
+        {
+            sText += mParams[i].sParamText + " ";
+        }
+
+        if (!sText.empty())
+            sText = sText.substr(0, sText.length() - 1);    // strip last space
+
+        return sText;
+    }
+
+    CommandLineEditor::tEnteredParams CommandLineEditor::ParamsFromText(const std::string& sText)
+    {
+        CommandLineEditor::tEnteredParams params;
+
+        int positionalindex = 0;
+        size_t length = sText.length();
+        for (size_t i = 0; i < sText.length(); i++)
+        {   
+            // find start of param
+            while (isblank(sText[i]) && i < length) // skip whitespace
+                i++;
+
+            size_t endofparam = i;
+            // find end of param
+            while (!isblank(sText[endofparam]) && endofparam < length)
+            {
+                // if this is an enclosing
+                size_t match = SH::FindMatching(sText, endofparam);
+                if (match != string::npos) // if enclosure, skip to end
+                    endofparam = match;
+                else
+                    endofparam++;
+            }
+
+            EnteredParams param;
+            param.sParamText = sText.substr(i, endofparam - i);
+            string sParamName = ParamNameFromText(param.sParamText);
+            if (sParamName.empty())
+            {
+                param.positionalindex = positionalindex;
+                param.pRelatedDesc = GetParamDesc(positionalindex);
+                positionalindex++;
+            }
+            else
+            {
+                param.pRelatedDesc = GetParamDesc(sParamName);
+            }
+
+            params.push_back(param);
+
+            i = endofparam;
+        }
+
+        return params;
+    }
+
+    void CommandLineEditor::UpdateParams()
+    {
+        if (mLastParsedText == mText)
+            return;
+
+        mParams = ParamsFromText(mText);
+        mLastParsedText = mText;
+    }
+
+    string CommandLineEditor::Edit(const string& sCommandLine)
+    {
+        mText  = sCommandLine;
+
+        assert(mText == sCommandLine);  // should bew the same, right?
 
         // Get the handle to the standard input
         mhInput = GetStdHandle(STD_INPUT_HANDLE);
@@ -410,6 +612,8 @@ namespace CLP
 
         while (true)
         {
+            UpdateParams();
+
             // Check for hotkey events
             MSG msg;
             if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
@@ -567,18 +771,7 @@ namespace CLP
                         // handle copy
                         CopyTextToClipboard(GetSelectedText());
                     }
-                    /*                else if (vkCode == 0x56 && bCTRLHeld) // CTRL-V
-                                    {
-                                        // paste already handled...do nothing
-                                    }*/
                     else if (c >= 32)
-                        
-                        /*if ((vkCode >= 0x30 && vkCode <= 0x5A)
-                        || vkCode == VK_SPACE
-                        || (vkCode >= 0x60 && vkCode <= 0x6f)
-                        || (vkCode >= 0xBB && vkCode <= 0xBE))*/
-
-
                     {
                         if (IsTextSelected())
                             DeleteSelection();

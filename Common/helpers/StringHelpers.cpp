@@ -431,6 +431,12 @@ size_t SH::FindMatching(const std::string& s, size_t i)
     case '<':           // <>
         end = '>';
         break;
+    case '(':           // ()
+        end = ')';
+        break;
+    case '`':
+        end = '`';      // ``
+        break;
     default:
         return string::npos;
     }
@@ -442,14 +448,14 @@ size_t SH::FindMatching(const std::string& s, size_t i)
         if (i < s.length() && s[i] == end)
             return i;
 
-        if (s[i] == '\"' || s[i] == '\'' || s[i] == '{' || s[i] == '[' || s[i] == '[' || s[i] == '<')   // another enclosure?
+        if (s[i] == '\"' || s[i] == '\'' || s[i] == '{' || s[i] == '[' || s[i] == '[' || s[i] == '<' || s[i] == '(' || s[i] == '`')   // another enclosure?
         {
             i = FindMatching(s, i); // find that enclosure
             if (i == string::npos)
             {
                 // couldn't find enclosing message
-                assert(false);
-                return string::npos;
+//                assert(false);
+//                return string::npos;
             }
         }
     } while (i < s.length());
