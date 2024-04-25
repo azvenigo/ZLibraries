@@ -141,6 +141,9 @@ namespace CLP
         void        GetExample(std::string& sParameter, std::string& sType, std::string& sDefault, std::string& sUsage);
         std::string ValueToString();
 
+        bool        Satisfied();                    // If value is required and set and (if appropriate) within required range
+
+
         // Behavior Accessors
         bool        IsNamed()               const { return mBehaviorFlags & kNamed; }
         bool        IsPositional()          const { return !IsNamed(); }

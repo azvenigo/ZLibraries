@@ -3,6 +3,7 @@
 #include <Windows.h>
 #include <iostream>
 #include <assert.h>
+#include <format>
 
 #include <stdio.h>
 
@@ -25,6 +26,37 @@ namespace CLP
         }
         
         SetConsoleCursorPosition(GetStdHandle(STD_OUTPUT_HANDLE), mCursorPos);
+    }
+
+
+    CommandLineEditor::tEnteredParams CommandLineEditor::GetPositionalEntries()
+    {
+        CommandLineEditor::tEnteredParams posparams;
+        for (auto& param : mParams)
+            if (param.positionalindex >= 0)
+                posparams.push_back(param);
+
+        return posparams;
+    }
+
+    CommandLineEditor::tEnteredParams CommandLineEditor::GetNamedEntries()
+    {
+        CommandLineEditor::tEnteredParams namedparams;
+        bool bFirstParam = true;
+        for (auto& param : mParams)
+        {
+            if (param.positionalindex < 0)
+            {
+                if (bFirstParam)
+                {
+                    bFirstParam = false;
+                }
+                else
+                    namedparams.push_back(param);
+            }
+        }
+
+        return namedparams;
     }
 
 
@@ -179,75 +211,243 @@ namespace CLP
         return true;
     }
 
-    void CommandLineEditor::DrawText(size_t x, size_t y, std::string text, WORD attributes, bool bWrap)
+
+    bool ConsoleBuffer::Init(size_t w, size_t h)
     {
-        SHORT screenw = screenBufferInfo.dwSize.X;
+        mBuffer.resize(w * h);
+        mWidth = w;
+        mHeight = h;
+        Clear();
+        return true;
+    }
 
-        COORD start((SHORT)x, (SHORT)y);
-        size_t bufferindex = y * screenw + x;
-
-        size_t remainingchars;
-        if (bWrap)
-            remainingchars = consoleBuf.size() - bufferindex;   // remaining chars in buffer
-        else
-            remainingchars = screenw - x;     // remaining chars on row
-
-        for (size_t textindex = 0; textindex < text.size(); textindex++)
+    void ConsoleBuffer::Clear(WORD attrib)
+    {
+        for (size_t i = 0; i < mBuffer.size(); i++)
         {
-            consoleBuf[bufferindex].Char.AsciiChar = text[textindex];
-            consoleBuf[bufferindex].Attributes = attributes;
-            bufferindex++;
+            mBuffer[i].Char.AsciiChar = 0;
+            mBuffer[i].Attributes = attrib;
+        }
+
+    }
+
+    void ConsoleBuffer::DrawCharClipped(char c, size_t x, size_t y, WORD attrib)
+    {
+        size_t offset = y * mWidth + x;
+        DrawCharClipped(c, (int64_t)offset, attrib);
+    }
+
+    void ConsoleBuffer::DrawCharClipped(char c, int64_t offset, WORD attrib)
+    {
+        if (offset >= 0 && offset < (int64_t)mBuffer.size())    // clip
+        {
+            mBuffer[offset].Char.AsciiChar = c;
+            mBuffer[offset].Attributes |= attrib;
         }
     }
 
 
+
+    void ConsoleBuffer::DrawFixedColumnStrings(size_t x, size_t y, tStringArray& strings, vector<size_t>& colWidths, tAttribArray attribs)
+    {
+        assert(strings.size() == colWidths.size() && colWidths.size() == attribs.size());
+
+        for (int i = 0; i < strings.size(); i++)
+        {
+            string sDraw(strings[i].substr(0, colWidths[i]));
+            DrawClippedText(x, y, sDraw, attribs[i]);
+            x += colWidths[i];
+        }
+    }
+
+    void ConsoleBuffer::DrawClippedText(size_t x, size_t y, std::string text, WORD attributes, bool bWrap)
+    {
+        COORD cursor((SHORT)x, (SHORT)y);
+
+        for (size_t textindex = 0; textindex < text.size(); textindex++)
+        {
+            char c = text[textindex];
+            if (c == '\n' && bWrap)
+            {
+                cursor.X = 0;
+                cursor.Y++;
+            }
+            else
+            {
+                DrawCharClipped(c, cursor.X, cursor.Y, attributes);
+            }
+
+            cursor.X++;
+            if (cursor.X >= mWidth && !bWrap)
+                break;
+        }
+    }
+
+    void ConsoleBuffer::PaintToWindowsConsole(HANDLE hOut)
+    {
+        COORD origin(0, 0);
+        SMALL_RECT writeRegion((SHORT)mX, (SHORT)mY, (SHORT)(mX + mWidth), (SHORT)(mY + mHeight));
+        COORD bufsize((SHORT)mWidth, (SHORT)mHeight);
+        WriteConsoleOutput(hOut, &mBuffer[0], bufsize, origin, &writeRegion);
+    }
+
+
+
     void CommandLineEditor::UpdateDisplay()
     {
-        memset(&consoleBuf[0], 0, consoleBuf.size() * sizeof(CHAR_INFO));
+        //paramListBufTopRow = 0;
 
+        size_t rows = std::max<size_t>(1, (mText.size() + screenBufferInfo.dwSize.X - 1) / screenBufferInfo.dwSize.X);
+//        rawCommandBufTopRow = screenBufferInfo.dwSize.Y - rows;
 
-        // top half will be list of params
-        size_t rawCommandLineDisplay = consoleBuf.size() / 2;
-        size_t paramList = rawCommandLineDisplay;
-        
+        ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+        // Clear the raw command buffer and param buffers
+        rawCommandBuf.Clear();
+        paramListBuf.Clear(BACKGROUND_BLUE);
+        ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-        string displayText(mText);
-        if (displayText.length() > rawCommandLineDisplay)
-            displayText = mText.substr(mText.length() - rawCommandLineDisplay);
+        // if the command line is bigger than the screen, show the last n rows that fit
 
-        WORD col = FOREGROUND_GREEN | FOREGROUND_BLUE | FOREGROUND_RED;
-        for (size_t i = 0; i < displayText.length(); i++)
+        int64_t rawCommandRows = (mText.size() + rawCommandBuf.mWidth - 1) / rawCommandBuf.mWidth;
+        int64_t firstRenderRow = 0;
+
+        if (rawCommandRows > (int64_t)rawCommandBuf.mHeight)
+            firstRenderRow = (int64_t)rawCommandBuf.mHeight - rawCommandRows;    // could be negative as we're clipping into the raw command console
+
+//        rawCommandBuf.DrawClippedText(0, 0, mText);
+        int64_t consoleBufIndex = firstRenderRow * (int64_t)(rawCommandBuf.mWidth);
+        for (size_t i = 0; i < mText.length(); i++)
         {
-            consoleBuf[i].Char.AsciiChar = displayText[i];
-            consoleBuf[i].Attributes = col;
+            WORD attrib = FOREGROUND_WHITE;
             if (IsIndexInSelection(i))
-                consoleBuf[i].Attributes |= BACKGROUND_BLUE;
+                attrib |= BACKGROUND_INTENSITY;
+            rawCommandBuf.DrawCharClipped(mText[i], consoleBufIndex, attrib);
+            consoleBufIndex++;
         }
 
-        for (size_t i = 0; i < displayText.length(); i++)
+        if (!mParams.empty())   // if there are params entered
         {
-            size_t matching = SH::FindMatching(displayText, i);
-            if (matching != string::npos)
+            // compute column widths
+
+            const int kColName = 0;
+            const int kColEntry = 1;
+            const int kColUsage = 2;
+
+            vector<size_t> colWidths;
+            colWidths.resize(3);
+            colWidths[kColName] = 12;
+            colWidths[kColEntry] = 12;
+            colWidths[kColUsage] = screenBufferInfo.dwSize.X - (colWidths[kColName] + colWidths[kColEntry]);
+            for (int paramindex = 1; paramindex < mParams.size(); paramindex++)
             {
-                while (i <= matching)
+                string sText(mParams[paramindex].sParamText);
+                colWidths[kColEntry] = std::max<size_t>(sText.length(), colWidths[0]);
+
+                ParamDesc* pPD = mParams[paramindex].pRelatedDesc;
+                if (pPD)
                 {
-                    consoleBuf[i].Attributes |= BACKGROUND_INTENSITY;
-                    i++;
+                    colWidths[kColName] = std::max<size_t>(pPD->msName.length(), colWidths[1]);
+                    colWidths[kColUsage] = std::max<size_t>(pPD->msUsage.length(), colWidths[2]);
                 }
             }
-        }
+
+            for (auto& i : colWidths)   // pad all cols
+                i+=2;
+
+            tStringArray strings(3);
+            tAttribArray attribs(3);
 
 
-        size_t lastCommandLineRow = TextIndexToCursor(mText.length() - 1).Y;
-        size_t lastRow = screenBufferInfo.dwSize.Y;
+            // first param is mode
+            size_t row = 0;
+            string sMode(mParams[0].sParamText);
 
-        size_t row = lastCommandLineRow + 1;
-        for (int paramindex = 0; paramindex < mParams.size(); paramindex++)
-        {
-            DrawText(0, row, mParams[paramindex].sParamText, FOREGROUND_GREEN | FOREGROUND_BLUE, false);
-           
-            if (row++ > lastRow)
-                break;
+            strings[kColName] = "MODE";
+            attribs[kColName] = FOREGROUND_WHITE;
+
+            strings[kColEntry] = sMode;
+            attribs[kColUsage] = FOREGROUND_WHITE;
+
+            tStringList modes = GetCLPModes();
+            bool bModePermitted = modes.empty() || std::find(modes.begin(), modes.end(), sMode) != modes.end(); // if no modes registered or (if there are) if the first param matches one
+            if (bModePermitted)
+            {
+                attribs[kColEntry] = FOREGROUND_GREEN;
+
+                if (mpCLP)
+                {
+                    mpCLP->GetCommandLineExample(strings[kColUsage]);
+                }
+            }
+            else
+            {
+                attribs[kColEntry] = FOREGROUND_RED;
+                strings[kColUsage] = "Unknown mode";
+            }
+
+            paramListBuf.DrawFixedColumnStrings(0, row, strings, colWidths, attribs);
+
+
+
+
+            // next list positional params
+            row+=2;
+            paramListBuf.DrawClippedText(0, row++, "*Positional Parameters*");
+
+
+            tEnteredParams posParams = GetPositionalEntries();
+
+            for (auto& param : posParams)
+            {
+                strings[kColName] = "[" + SH::FromInt(param.positionalindex) + "]";
+
+                if (param.pRelatedDesc)
+                {
+                    strings[kColName] += " " + param.pRelatedDesc->msName;
+                    strings[kColUsage] = param.pRelatedDesc->msUsage;
+                }
+                else
+                {
+                    strings[kColUsage] = "Unexpected parameter";
+                    attribs[kColUsage] = FOREGROUND_RED;
+                }
+
+                strings[kColEntry] = param.sParamText;
+
+                paramListBuf.DrawFixedColumnStrings(0, row++, strings, colWidths, attribs);
+            }
+
+
+            row++;
+            paramListBuf.DrawClippedText(0, row++, "*Named Parameters*");
+
+            tEnteredParams namedParams = GetNamedEntries();
+
+            for (auto& param : namedParams)
+            {
+                strings[kColName] = "-";
+                if (param.pRelatedDesc)
+                {
+                    strings[kColName] += param.pRelatedDesc->msName;
+                    attribs[kColName] = FOREGROUND_WHITE;
+
+                    attribs[kColEntry] = FOREGROUND_GREEN;
+
+                    strings[kColUsage] = param.pRelatedDesc->msUsage;
+                    attribs[kColUsage] = FOREGROUND_WHITE;
+                }
+                else
+                {
+                    attribs[kColEntry] = FOREGROUND_RED;
+                    strings[kColUsage] = "Unknown parameter";
+                    attribs[kColUsage] = FOREGROUND_RED;
+                }
+
+
+                strings[kColEntry] = param.sParamText;
+
+                paramListBuf.DrawFixedColumnStrings(0, row++, strings, colWidths, attribs);
+            }
         }
 
         DrawToScreen();
@@ -348,22 +548,21 @@ namespace CLP
         return true;
     }
 
-
-    void CommandLineEditor::ClearScreenBuffer()
-    {
-        consoleBuf.resize(screenBufferInfo.dwSize.X * screenBufferInfo.dwSize.Y);
-        for (int i = 0; i < screenBufferInfo.dwSize.X * screenBufferInfo.dwSize.Y; ++i)
-        {
-            consoleBuf[i].Char.UnicodeChar = L' ';
-            consoleBuf[i].Attributes = FOREGROUND_GREEN | FOREGROUND_BLUE | FOREGROUND_RED;
-        }
-    }
-
     void CommandLineEditor::DrawToScreen()
     {
-        COORD bufferCoord = { 0, 0 };
-        SMALL_RECT writeRegion = { 0, 0, screenBufferInfo.dwSize.X - 1, screenBufferInfo.dwSize.Y - 1 };
-        WriteConsoleOutput(mhOutput, &consoleBuf[0], screenBufferInfo.dwSize, bufferCoord, &writeRegion);
+        SHORT paramListRows = (SHORT)mParams.size();
+
+
+        tConsoleBuffer blank;
+        blank.resize(screenBufferInfo.dwSize.X * screenBufferInfo.dwSize.Y);
+
+/*        COORD origin(0, 0);
+        SHORT paramListTop = (SHORT)rawCommandBufTopRow - paramListRows - 1;
+        SMALL_RECT clearRegion = { 0, 0, screenBufferInfo.dwSize.X - 1, paramListTop-1};
+        WriteConsoleOutput(mhOutput, &blank[0], screenBufferInfo.dwSize, origin, &clearRegion);*/
+
+        paramListBuf.PaintToWindowsConsole(mhOutput);
+        rawCommandBuf.PaintToWindowsConsole(mhOutput);
     }
 
     void CommandLineEditor::SaveConsoleState()
@@ -389,7 +588,7 @@ namespace CLP
 
     size_t CommandLineEditor::CursorToTextIndex(COORD coord)
     {
-        size_t i = coord.Y * screenBufferInfo.dwSize.X + coord.X;
+        size_t i = (coord.Y-rawCommandBuf.mY) * screenBufferInfo.dwSize.X + coord.X;
         return std::min<size_t>(i, mText.size());
     }
 
@@ -400,9 +599,19 @@ namespace CLP
 
         int w = screenBufferInfo.dwSize.X;
 
+        int64_t rawCommandRows = (mText.size() + rawCommandBuf.mWidth - 1) / rawCommandBuf.mWidth;
+        int64_t firstVisibleRow = 0;
+
+        if (rawCommandRows > (int64_t)rawCommandBuf.mHeight)
+            firstVisibleRow = rawCommandRows - (int64_t)rawCommandBuf.mHeight;    // could be negative as we're clipping into the raw command console
+
+        int64_t hiddenChars = firstVisibleRow * w;
+
+        i -= (size_t)hiddenChars;
+
         COORD c;
         c.X = (SHORT)(i) % w;
-        c.Y = (SHORT)(i) / w;
+        c.Y = ((SHORT)rawCommandBuf.mY + (SHORT)(i) / w);
         return c;
     }
 
@@ -467,7 +676,7 @@ namespace CLP
         }
     }
 
-    std::string CommandLineEditor::ParamNameFromText(std::string sParamText)
+    bool CommandLineEditor::ParseParam(const std::string sParamText, std::string& outName, std::string& outValue)
     {
         // named parameters always start with -
         if (!sParamText.empty() && sParamText[0] == '-')
@@ -475,16 +684,18 @@ namespace CLP
             size_t nIndexOfColon = sParamText.find(':');
             if (nIndexOfColon != string::npos)
             {
-                return sParamText.substr(1, nIndexOfColon - 1).c_str();    // everything from first char to colon
+                outName = sParamText.substr(1, nIndexOfColon - 1).c_str();    // everything from first char to colon
+                outValue = sParamText.substr(nIndexOfColon + 1);    // everything after colon
             }
             else
             {
                 // flag with no value is the same as -flag:true
-                return sParamText.substr(1, nIndexOfColon).c_str();
+                outName = sParamText.substr(1, nIndexOfColon).c_str();
             }
+            return true;
         }
 
-        return "";
+        return false;   // not a named param
     }
 
     std::string CommandLineEditor::EnteredParamsToText()
@@ -505,7 +716,7 @@ namespace CLP
     {
         CommandLineEditor::tEnteredParams params;
 
-        int positionalindex = 0;
+        int positionalindex = -1;
         size_t length = sText.length();
         for (size_t i = 0; i < sText.length(); i++)
         {   
@@ -519,7 +730,7 @@ namespace CLP
             {
                 // if this is an enclosing
                 size_t match = SH::FindMatching(sText, endofparam);
-                if (match != string::npos) // if enclosure, skip to end
+                if (match != string::npos) // if enclosure, skip to endYour location
                     endofparam = match;
                 else
                     endofparam++;
@@ -527,16 +738,32 @@ namespace CLP
 
             EnteredParams param;
             param.sParamText = sText.substr(i, endofparam - i);
-            string sParamName = ParamNameFromText(param.sParamText);
-            if (sParamName.empty())
+
+            string sParamName;
+            string sParamValue;
+
+            if (positionalindex == -1)   // mode position
             {
-                param.positionalindex = positionalindex;
-                param.pRelatedDesc = GetParamDesc(positionalindex);
                 positionalindex++;
+            }
+            else if (ParseParam(param.sParamText, sParamName, sParamValue)) // is it a named parameter
+            {
+                param.pRelatedDesc = GetParamDesc(sParamName);
             }
             else
             {
-                param.pRelatedDesc = GetParamDesc(sParamName);
+                param.positionalindex = positionalindex;
+                param.pRelatedDesc = GetParamDesc(positionalindex);
+
+                if (param.pRelatedDesc)
+                {
+                    if (!param.pRelatedDesc->Satisfied())
+                    {
+                        param.drawAttributes = FOREGROUND_RED;
+                    }
+                }
+
+                positionalindex++;
             }
 
             params.push_back(param);
@@ -555,6 +782,20 @@ namespace CLP
         mParams = ParamsFromText(mText);
         mLastParsedText = mText;
     }
+
+    std::string CommandLineEditor::Edit(int argc, char* argv[])
+    {
+        string sCommandLine;
+        for (int i = 1; i < argc; i++)  // skip app in argv[0]
+        {
+            sCommandLine += string(argv[i]) + " ";
+        }
+        if (!sCommandLine.empty())
+            sCommandLine = sCommandLine.substr(0, sCommandLine.length() - 1);   // strip last ' '
+
+        return Edit(sCommandLine);
+    }
+
 
     string CommandLineEditor::Edit(const string& sCommandLine)
     {
@@ -581,7 +822,13 @@ namespace CLP
 
 
         SaveConsoleState();
-        ClearScreenBuffer();
+
+        rawCommandBuf.Init(screenBufferInfo.dwSize.X, 4);
+        rawCommandBuf.mY = screenBufferInfo.dwSize.Y - 4;
+
+        paramListBuf.Init(screenBufferInfo.dwSize.X, screenBufferInfo.dwSize.Y-4);
+
+
 
 
         // Set console mode to allow reading mouse and key events
@@ -683,7 +930,7 @@ namespace CLP
                     else if (vkCode == VK_UP)
                     {
                         UpdateSelection();
-                        if (mCursorPos.Y > 0)
+                        if (mCursorPos.Y > rawCommandBuf.mY)
                             mCursorPos.Y--;
                         UpdateSelection();
                     }

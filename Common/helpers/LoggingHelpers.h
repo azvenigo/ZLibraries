@@ -335,6 +335,19 @@ public:
         return tableWidth;
     }
 
+
+    operator std::string()
+    {
+        std::ostringstream ss;
+        ss << *this;
+        std::string sTable(ss.str());
+        for (size_t i = 0; i < sTable.length(); i++)
+            if (sTable[i] == 0)
+                sTable[i] = '\n';
+
+        return sTable;
+    }
+
 #define PAD(n) std::string(n, ' ')
 
     friend std::ostream& operator <<(std::ostream& os, const TableOutput& tableOut)

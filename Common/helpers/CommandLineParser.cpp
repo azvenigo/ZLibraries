@@ -106,6 +106,47 @@ namespace CLP
         return "unknown_value";
     }
 
+    bool ParamDesc::Satisfied()
+    {
+        // basic case of optional unrestricted
+        if (IsOptional() && !IsRangeRestricted())
+            return true;
+
+        if (IsRangeRestricted())
+        {
+            if (mpValue)
+            {
+                switch (mValueType)
+                {
+                    case ParamDesc::kString: 
+                    {
+                        string sValue = *(string*)mpValue;
+                        return mAllowedStrings.find(sValue) != mAllowedStrings.end();
+                    }
+                    case ParamDesc::kInt64:
+                    {
+                        int64_t nValue = *(int64_t*)mpValue;
+                        return nValue >= mnMinInt && nValue <= mnMaxInt;
+                    }
+                    case ParamDesc::kFloat:
+                    {
+                        float fValue = *(float*)mpValue;
+                        return fValue >= mfMaxFloat && fValue <= mfMaxFloat;
+                    }
+                    case ParamDesc::kBool:
+                    {
+                        return true;
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        return true;    // not range restricted and optional
+    }
+
+
     void ParamDesc::GetExample(std::string& sParameter, std::string& sType, std::string& sDefault, std::string& sUsage)
     {
         // for unrequired params, surround with brackets
@@ -202,6 +243,8 @@ namespace CLP
         // Assign positional index based on how many have been registered
         if (param.IsPositional())
             param.mnPosition = GetNumPositionalParamsRegistered();
+        else
+            param.mnPosition = -1;
 
         mParameterDescriptors.emplace_back(param);
 
@@ -552,8 +595,7 @@ namespace CLP
     void CommandLineParser::GetCommandLineExample(string& sCommandLineExample)
     {
         // create example command line with positional params first followed by named
-        sCommandLineExample = COL_APP + msAppName + " " + COL_PARAM + msMode + COL_RESET;
-        sCommandLineExample += COL_PARAM;
+        sCommandLineExample = msAppName + " " + msMode;
 
         for (auto& desc : mGeneralCommandLineParser.mParameterDescriptors)
         {
@@ -579,10 +621,6 @@ namespace CLP
                     sCommandLineExample += " " + desc.msName;
             }
         }
-
-
-
-        sCommandLineExample += COL_RESET;
     }
 
 
