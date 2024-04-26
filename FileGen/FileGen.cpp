@@ -4,6 +4,7 @@
 #include "helpers/InlineFormatter.h"
 #include "helpers/RandHelpers.h"
 #include "helpers/StringHelpers.h"
+#include "helpers/CommandLineEditor.h"
 #include <filesystem>
 
 InlineFormatter gFormatter;
@@ -215,6 +216,11 @@ int main(int argc, char* argv[])
 //    SetConsoleMode(hConsole, ENABLE_VIRTUAL_TERMINAL_PROCESSING);
 
 
+
+
+
+
+
     string sDestPath;
     string sFilename("data");
     string sExtension("bin");
@@ -250,7 +256,7 @@ int main(int argc, char* argv[])
 
 
     parser.RegisterParam(ParamDesc("FILENAME",      &sFilename,         CLP::kPositional| CLP::kRequired, "Name of file to create. Multiple files in a folder will have numbers included."));
-    parser.RegisterParam(ParamDesc("SIZE",          &nFileSize,         CLP::kPositional | CLP::kRequired,  "Size of file(s) to create."));
+    parser.RegisterParam(ParamDesc("SIZE",          &nFileSize,         CLP::kPositional | CLP::kRequired | CLP::kRangeRestricted,  "Size of file(s) to create.", 100, 500));
 
     parser.RegisterParam(ParamDesc("dest",         &sDestPath,          CLP::kNamed,       "base path to where to create data files. defaults to working directory"));
     parser.RegisterParam(ParamDesc("folders",      &nFolders,           CLP::kNamed,       "number of folders to generate. default is 0"));
@@ -259,7 +265,19 @@ int main(int argc, char* argv[])
     parser.RegisterParam(ParamDesc("skipexisting", &bSkipExistingFiles, CLP::kNamed ,       "skips overwriting destination file (even with different values or size) if it already exists."));
 //    parser.RegisterParam(ParamDesc("verbose",      &bVerbose,           CLP::kNamed,       "hear all the gritty details about everthing that's happening. (Can slow down operation due to command line output.)"));
 
-    if (!parser.Parse(argc, argv))
+
+    bool bParseSuccess = parser.Parse(argc, argv);
+
+    CLP::CommandLineEditor editor;
+    editor.SetConfiguredCLP(&parser);
+    string result = editor.Edit(argc, argv);
+    cout << "Result is:\"" << result << "\"\n";
+
+    return 0;
+
+
+
+    if (!bParseSuccess)
     {
         cerr << "Aborting.\n";
         return -1;

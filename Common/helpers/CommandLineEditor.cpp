@@ -11,20 +11,21 @@ using namespace std;
 
 namespace CLP
 {
+
+    bool CopyTextToClipboard(const std::string& text);
+
     CommandLineEditor::CommandLineEditor()
     {
         mpCLP = nullptr;
     }
 
-    void CommandLineEditor::UpdateCursorPos()
+    void ConsoleWin::UpdateCursorPos(COORD newPos)
     {
-        int index = (int)CursorToTextIndex(mCursorPos);
+        int index = (int)CursorToTextIndex(newPos);
         if (index > (int)mText.length())
-        {
             index = (int)mText.length();
-            mCursorPos = TextIndexToCursor(index);
-        }
-        
+
+        mCursorPos = TextIndexToCursor(index);
         SetConsoleCursorPosition(GetStdHandle(STD_OUTPUT_HANDLE), mCursorPos);
     }
 
@@ -60,7 +61,7 @@ namespace CLP
     }
 
 
-    void CommandLineEditor::FindNextBreak(int nDir)
+    void ConsoleWin::FindNextBreak(int nDir)
     {
         int index = (int)CursorToTextIndex(mCursorPos);
 
@@ -105,10 +106,10 @@ namespace CLP
         if (index > (int)mText.length())
             index = (int)mText.length();
 
-        mCursorPos = TextIndexToCursor(index);
+        UpdateCursorPos(TextIndexToCursor(index));
     }
 
-    bool CommandLineEditor::IsIndexInSelection(int64_t i)
+    bool ConsoleWin::IsIndexInSelection(int64_t i)
     {
         int64_t normalizedStart = selectionstart;
         int64_t normalizedEnd = selectionend;
@@ -179,7 +180,7 @@ namespace CLP
     }
 
 
-    string CommandLineEditor::GetSelectedText()
+    string ConsoleWin::GetSelectedText()
     {
         if (!IsTextSelected())
             return "";
@@ -197,31 +198,58 @@ namespace CLP
 
     bool CommandLineEditor::GetParameterUnderCursor(size_t& outStart, size_t& outEnd, string& outParam)
     {
-        outStart = CursorToTextIndex(mCursorPos);
+        outStart = rawCommandBuf.GetCursorIndex();
         if (outStart == string::npos)
             return false;
 
+        string sText(rawCommandBuf.GetText());
+
         outEnd = outStart;
-        while (outStart > 0 && !isblank((int)mText[outStart]))
+        while (outStart > 0 && !isblank((int)sText[outStart]))
             outStart--;
-        while (outEnd < mText.size() && !isblank((int)mText[outEnd]))
+        while (outEnd < sText.size() && !isblank((int)sText[outEnd]))
             outEnd++;
 
-        outParam = mText.substr(outStart, outEnd - outStart);
+        outParam = sText.substr(outStart, outEnd - outStart);
         return true;
     }
 
 
-    bool ConsoleBuffer::Init(size_t w, size_t h)
+    bool ConsoleWin::Init(int64_t l, int64_t t, int64_t r, int64_t b, string sText)
     {
-        mBuffer.resize(w * h);
-        mWidth = w;
-        mHeight = h;
-        Clear();
+        SetArea(l, t, r, b);
+        mText = sText;
+        mCursorPos = TextIndexToCursor((int64_t)mText.size());
         return true;
     }
 
-    void ConsoleBuffer::Clear(WORD attrib)
+    void ConsoleWin::SetArea(int64_t l, int64_t t, int64_t r, int64_t b)
+    {
+        mX = l;
+        mY = t;
+
+        int64_t newW = r - l;
+        int64_t newH = b - t;
+        if (mWidth != newW || mHeight != newH)
+        {
+            mBuffer.resize(newW * newH);
+            mWidth = newW;
+            mHeight = newH;
+            Clear();
+        }
+    }
+
+    void ConsoleWin::GetArea(int64_t& l, int64_t& t, int64_t& r, int64_t& b)
+    {
+        l = mX;
+        t = mY;
+        r = l + mWidth;
+        b = t + mHeight;
+    }
+
+
+
+    void ConsoleWin::Clear(WORD attrib)
     {
         for (size_t i = 0; i < mBuffer.size(); i++)
         {
@@ -231,13 +259,13 @@ namespace CLP
 
     }
 
-    void ConsoleBuffer::DrawCharClipped(char c, size_t x, size_t y, WORD attrib)
+    void ConsoleWin::DrawCharClipped(char c, int64_t x, int64_t y, WORD attrib)
     {
         size_t offset = y * mWidth + x;
         DrawCharClipped(c, (int64_t)offset, attrib);
     }
 
-    void ConsoleBuffer::DrawCharClipped(char c, int64_t offset, WORD attrib)
+    void ConsoleWin::DrawCharClipped(char c, int64_t offset, WORD attrib)
     {
         if (offset >= 0 && offset < (int64_t)mBuffer.size())    // clip
         {
@@ -248,7 +276,7 @@ namespace CLP
 
 
 
-    void ConsoleBuffer::DrawFixedColumnStrings(size_t x, size_t y, tStringArray& strings, vector<size_t>& colWidths, tAttribArray attribs)
+    void ConsoleWin::DrawFixedColumnStrings(int64_t x, int64_t y, tStringArray& strings, vector<size_t>& colWidths, tAttribArray attribs)
     {
         assert(strings.size() == colWidths.size() && colWidths.size() == attribs.size());
 
@@ -260,7 +288,7 @@ namespace CLP
         }
     }
 
-    void ConsoleBuffer::DrawClippedText(size_t x, size_t y, std::string text, WORD attributes, bool bWrap)
+    void ConsoleWin::DrawClippedText(int64_t x, int64_t y, std::string text, WORD attributes, bool bWrap)
     {
         COORD cursor((SHORT)x, (SHORT)y);
 
@@ -283,21 +311,227 @@ namespace CLP
         }
     }
 
-    void ConsoleBuffer::PaintToWindowsConsole(HANDLE hOut)
+    void ConsoleWin::PaintToWindowsConsole(HANDLE hOut)
     {
+        // Update display
+
+        int64_t rawCommandRows = (mText.size() + mWidth - 1) / mWidth;
+        int64_t firstRenderRow = 0;
+
+        if (rawCommandRows > mHeight)
+            firstRenderRow = mHeight - rawCommandRows;    // could be negative as we're clipping into the raw command console
+
+        int64_t consoleBufIndex = firstRenderRow * mWidth;
+        for (size_t i = 0; i < mText.length(); i++)
+        {
+            WORD attrib = FOREGROUND_WHITE;
+            if (IsIndexInSelection(i))
+                attrib |= BACKGROUND_INTENSITY;
+            DrawCharClipped(mText[i], consoleBufIndex, attrib);
+            consoleBufIndex++;
+        }
+
+
+
+
+
+
         COORD origin(0, 0);
         SMALL_RECT writeRegion((SHORT)mX, (SHORT)mY, (SHORT)(mX + mWidth), (SHORT)(mY + mHeight));
         COORD bufsize((SHORT)mWidth, (SHORT)mHeight);
         WriteConsoleOutput(hOut, &mBuffer[0], bufsize, origin, &writeRegion);
     }
 
+    void ConsoleWin::OnKey(int keycode, char c)
+    {
+        static int count = 0;
+
+        char buf[64];
+        sprintf(buf, "count:%d key:%c\n", count++, c);
+        OutputDebugString(buf);
+
+
+
+
+        bool bCTRLHeld = GetKeyState(VK_CONTROL) & 0x800;
+        bool bSHIFTHeld = GetKeyState(VK_SHIFT) & 0x800;
+
+        switch (keycode)
+        {
+        case VK_RETURN:
+            mbDone = true;
+            return;
+        case VK_ESCAPE:
+        {
+            if (IsTextSelected())
+            {
+                ClearSelection();
+            }
+            else
+            {
+                mText = "";
+                mbDone = true;
+            }
+        }
+        return;
+        case VK_HOME:
+        {
+            UpdateSelection();
+            UpdateCursorPos(TextIndexToCursor(0));
+            UpdateSelection();
+        }
+        return;
+        case VK_END:
+        {
+            UpdateSelection();
+            UpdateCursorPos(TextIndexToCursor((int64_t)mText.size()));
+            UpdateSelection();
+        }
+        return;
+        case VK_UP:
+        {
+            UpdateSelection();
+            COORD newPos = mCursorPos;
+
+            if (newPos.Y > mY)
+            {
+                newPos.Y--;
+                UpdateCursorPos(newPos);
+            }
+
+            UpdateSelection();
+        }     
+        return;
+        case VK_DOWN:
+        {
+            UpdateSelection();
+            int64_t newindex = CursorToTextIndex(mCursorPos) + mWidth;
+            if (newindex < (int64_t)mText.size())
+            {
+                COORD newPos = mCursorPos;
+                newPos.Y++;
+                UpdateCursorPos(newPos);
+            }
+            UpdateSelection();
+        }
+        return;
+        case VK_LEFT:
+        {
+            UpdateSelection();
+            // Move cursor left
+            int64_t index = CursorToTextIndex(mCursorPos);
+            if (index > 0)
+            {
+                if (bCTRLHeld)
+                    FindNextBreak(-1);
+                else
+                    UpdateCursorPos(TextIndexToCursor(index - 1));
+            }
+            UpdateSelection();
+        }
+        return;
+        case VK_RIGHT:
+        {
+            UpdateSelection();
+            if (bCTRLHeld)
+            {
+                FindNextBreak(1);
+            }
+            else
+            {
+                // Move cursor right
+                int64_t index = CursorToTextIndex(mCursorPos);
+                if (index < (int64_t)mText.size())
+                {
+                    UpdateCursorPos(TextIndexToCursor(index + 1));
+                }
+
+            }
+            UpdateSelection();
+        }
+        return;
+        case VK_BACK:
+        {
+            if (IsTextSelected())
+            {
+                DeleteSelection();
+            }
+            else
+            {
+                // Delete character before cursor
+                int64_t index = CursorToTextIndex(mCursorPos);
+                if (index > 0)
+                {
+                    mText.erase(index - 1, 1);
+                    UpdateCursorPos(TextIndexToCursor(index - 1));
+                }
+                UpdateSelection();
+            }
+        }
+        return;
+        case VK_DELETE:
+        {
+            if (IsTextSelected())
+            {
+                DeleteSelection();
+            }
+            else
+            {
+                // Delete character at cursor
+                int64_t index = CursorToTextIndex(mCursorPos);
+                if (index < (int64_t)(mText.size()))
+                {
+                    mText.erase(index, 1);
+                }
+            }
+            UpdateSelection();
+        }
+        return;
+        case 0x41:  
+        {
+            if (bCTRLHeld)  // CTRL-A
+            {
+                selectionstart = 0;
+                selectionend = mText.length();
+                return;
+            }
+        }
+        break;
+        case 0x43:
+        {
+            if (bCTRLHeld)  // CTRL-C
+            {
+                // handle copy
+                CopyTextToClipboard(GetSelectedText());
+                return;
+            }
+        }
+        break;
+        }
+
+        // nothing handled above....regular text entry
+        if (keycode >= 32)
+        {
+            if (IsTextSelected())
+                DeleteSelection();
+
+            // Insert character at cursor position
+            int index = (int)CursorToTextIndex(mCursorPos);
+            mText.insert(index, 1, c);
+            UpdateCursorPos(TextIndexToCursor(index + 1));
+            UpdateSelection();
+        }
+    }
+
+
 
 
     void CommandLineEditor::UpdateDisplay()
     {
-        //paramListBufTopRow = 0;
 
-        size_t rows = std::max<size_t>(1, (mText.size() + screenBufferInfo.dwSize.X - 1) / screenBufferInfo.dwSize.X);
+        string sRaw(rawCommandBuf.GetText());
+       
+        size_t rows = std::max<size_t>(1, (sRaw.size() + mScreenInfo.dwSize.X - 1) / mScreenInfo.dwSize.X);
 //        rawCommandBufTopRow = screenBufferInfo.dwSize.Y - rows;
 
         ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -308,22 +542,6 @@ namespace CLP
 
         // if the command line is bigger than the screen, show the last n rows that fit
 
-        int64_t rawCommandRows = (mText.size() + rawCommandBuf.mWidth - 1) / rawCommandBuf.mWidth;
-        int64_t firstRenderRow = 0;
-
-        if (rawCommandRows > (int64_t)rawCommandBuf.mHeight)
-            firstRenderRow = (int64_t)rawCommandBuf.mHeight - rawCommandRows;    // could be negative as we're clipping into the raw command console
-
-//        rawCommandBuf.DrawClippedText(0, 0, mText);
-        int64_t consoleBufIndex = firstRenderRow * (int64_t)(rawCommandBuf.mWidth);
-        for (size_t i = 0; i < mText.length(); i++)
-        {
-            WORD attrib = FOREGROUND_WHITE;
-            if (IsIndexInSelection(i))
-                attrib |= BACKGROUND_INTENSITY;
-            rawCommandBuf.DrawCharClipped(mText[i], consoleBufIndex, attrib);
-            consoleBufIndex++;
-        }
 
         if (!mParams.empty())   // if there are params entered
         {
@@ -337,7 +555,7 @@ namespace CLP
             colWidths.resize(3);
             colWidths[kColName] = 12;
             colWidths[kColEntry] = 12;
-            colWidths[kColUsage] = screenBufferInfo.dwSize.X - (colWidths[kColName] + colWidths[kColEntry]);
+            colWidths[kColUsage] = mScreenInfo.dwSize.X - (colWidths[kColName] + colWidths[kColEntry]);
             for (int paramindex = 1; paramindex < mParams.size(); paramindex++)
             {
                 string sText(mParams[paramindex].sParamText);
@@ -460,7 +678,7 @@ namespace CLP
     }
 
 
-    string CommandLineEditor::GetTextFromClipboard() 
+    string GetTextFromClipboard() 
     {
         if (!OpenClipboard(NULL)) 
             return "";
@@ -487,7 +705,7 @@ namespace CLP
         return clipboardText;
     }
 
-    bool CommandLineEditor::CopyTextToClipboard(const std::string& text)
+    bool CopyTextToClipboard(const std::string& text)
     {
         if (!OpenClipboard(NULL)) 
         {
@@ -554,7 +772,7 @@ namespace CLP
 
 
         tConsoleBuffer blank;
-        blank.resize(screenBufferInfo.dwSize.X * screenBufferInfo.dwSize.Y);
+        blank.resize(mScreenInfo.dwSize.X * mScreenInfo.dwSize.Y);
 
 /*        COORD origin(0, 0);
         SHORT paramListTop = (SHORT)rawCommandBufTopRow - paramListRows - 1;
@@ -567,61 +785,53 @@ namespace CLP
 
     void CommandLineEditor::SaveConsoleState()
     {
-        if (!GetConsoleScreenBufferInfo(mhOutput, &screenBufferInfo))
-        {
-            cerr << "Failed to get console info." << endl;
-            return;
-        }
-
-        originalConsoleBuf.resize(screenBufferInfo.dwSize.X * screenBufferInfo.dwSize.Y);
-        SMALL_RECT readRegion = { 0, 0, screenBufferInfo.dwSize.X - 1, screenBufferInfo.dwSize.Y - 1 };
-        ReadConsoleOutput(mhOutput, &originalConsoleBuf[0], screenBufferInfo.dwSize, { 0, 0 }, &readRegion);
+        originalConsoleBuf.resize(mScreenInfo.dwSize.X * mScreenInfo.dwSize.Y);
+        SMALL_RECT readRegion = { 0, 0, mScreenInfo.dwSize.X - 1, mScreenInfo.dwSize.Y - 1 };
+        ReadConsoleOutput(mhOutput, &originalConsoleBuf[0], mScreenInfo.dwSize, { 0, 0 }, &readRegion);
     }
 
     void CommandLineEditor::RestoreConsoleState()
     {
-        SMALL_RECT writeRegion = { 0, 0, screenBufferInfo.dwSize.X - 1, screenBufferInfo.dwSize.Y - 1 };
-        WriteConsoleOutput(mhOutput, &originalConsoleBuf[0], screenBufferInfo.dwSize, { 0, 0 }, &writeRegion);
-        SetConsoleCursorPosition(mhOutput, screenBufferInfo.dwCursorPosition);
+        SMALL_RECT writeRegion = { 0, 0, mScreenInfo.dwSize.X - 1, mScreenInfo.dwSize.Y - 1 };
+        WriteConsoleOutput(mhOutput, &originalConsoleBuf[0], mScreenInfo.dwSize, { 0, 0 }, &writeRegion);
+        SetConsoleCursorPosition(mhOutput, mScreenInfo.dwCursorPosition);
     }
 
 
-    size_t CommandLineEditor::CursorToTextIndex(COORD coord)
+    int64_t ConsoleWin::CursorToTextIndex(COORD coord)
     {
-        size_t i = (coord.Y-rawCommandBuf.mY) * screenBufferInfo.dwSize.X + coord.X;
+        int64_t i = (coord.Y-mY) * mWidth + coord.X;
         return std::min<size_t>(i, mText.size());
     }
 
-    COORD CommandLineEditor::TextIndexToCursor(size_t i)
+    COORD ConsoleWin::TextIndexToCursor(int64_t i)
     {
-        if (i > mText.length())
-            i = mText.length();
+        if (i > (int64_t)mText.size())
+            i = (int64_t)mText.size();
 
-        int w = screenBufferInfo.dwSize.X;
-
-        int64_t rawCommandRows = (mText.size() + rawCommandBuf.mWidth - 1) / rawCommandBuf.mWidth;
+        int64_t rawCommandRows = ((int64_t)mText.size() + mWidth - 1) / mWidth;
         int64_t firstVisibleRow = 0;
 
-        if (rawCommandRows > (int64_t)rawCommandBuf.mHeight)
-            firstVisibleRow = rawCommandRows - (int64_t)rawCommandBuf.mHeight;    // could be negative as we're clipping into the raw command console
+        if (rawCommandRows > mHeight)
+            firstVisibleRow = rawCommandRows - mHeight;    // could be negative as we're clipping into the raw command console
 
-        int64_t hiddenChars = firstVisibleRow * w;
+        int64_t hiddenChars = firstVisibleRow * mWidth;
 
         i -= (size_t)hiddenChars;
 
         COORD c;
-        c.X = (SHORT)(i) % w;
-        c.Y = ((SHORT)rawCommandBuf.mY + (SHORT)(i) / w);
+        c.X = (SHORT)(i) % mWidth;
+        c.Y = ((SHORT)mY + (SHORT)(i / mWidth));
         return c;
     }
 
-    void CommandLineEditor::HandlePaste(string text)
+    void ConsoleWin::HandlePaste(string text)
     {
         DeleteSelection();  // delete any selection if needed
-        int curindex = (int)CursorToTextIndex(mCursorPos);
+        int64_t curindex = CursorToTextIndex(mCursorPos);
         mText.insert(curindex, text);
         curindex += (int)text.length();
-        mCursorPos = TextIndexToCursor(curindex);
+        UpdateCursorPos(TextIndexToCursor(curindex));
 
         static int count = 1;
         char buf[64];
@@ -629,7 +839,7 @@ namespace CLP
         OutputDebugString(buf);
     }
 
-    void CommandLineEditor::DeleteSelection()
+    void ConsoleWin::DeleteSelection()
     {
         if (!IsTextSelected())
             return;
@@ -649,18 +859,18 @@ namespace CLP
         int curindex = (int)CursorToTextIndex(mCursorPos);
         if (curindex > normalizedStart)
             curindex -= (int)(curindex- normalizedStart);
-        mCursorPos = TextIndexToCursor(curindex);
+        UpdateCursorPos(TextIndexToCursor(curindex));
 
         ClearSelection();
     }
 
-    void CommandLineEditor::ClearSelection()
+    void ConsoleWin::ClearSelection()
     {
         selectionstart = -1;
         selectionend = -1;
     }
 
-    void CommandLineEditor::UpdateSelection()
+    void ConsoleWin::UpdateSelection()
     {
         if (!(GetKeyState(VK_SHIFT) & 0x800))
         {
@@ -776,11 +986,13 @@ namespace CLP
 
     void CommandLineEditor::UpdateParams()
     {
-        if (mLastParsedText == mText)
+        string sText = rawCommandBuf.GetText();
+        if (mLastParsedText == sText)
             return;
 
-        mParams = ParamsFromText(mText);
-        mLastParsedText = mText;
+        mLastParsedText = sText;
+
+        mParams = ParamsFromText(mLastParsedText);
     }
 
     std::string CommandLineEditor::Edit(int argc, char* argv[])
@@ -796,13 +1008,28 @@ namespace CLP
         return Edit(sCommandLine);
     }
 
+    void CommandLineEditor::UpdateFromConsoleSize()
+    {
+        CONSOLE_SCREEN_BUFFER_INFO screenInfo;
+        if (!GetConsoleScreenBufferInfo(mhOutput, &screenInfo))
+        {
+            cerr << "Failed to get console info." << endl;
+            return;
+        }
+
+        if (memcmp(&screenInfo, &mScreenInfo, sizeof(screenInfo) != 0))
+        {
+            mScreenInfo = screenInfo;
+            rawCommandBuf.SetArea(0, mScreenInfo.dwSize.Y - 4, mScreenInfo.dwSize.X, mScreenInfo.dwSize.Y);
+            paramListBuf.SetArea(0, 0, mScreenInfo.dwSize.X, mScreenInfo.dwSize.Y - 4);
+        }
+
+
+
+    }
 
     string CommandLineEditor::Edit(const string& sCommandLine)
     {
-        mText  = sCommandLine;
-
-        assert(mText == sCommandLine);  // should bew the same, right?
-
         // Get the handle to the standard input
         mhInput = GetStdHandle(STD_INPUT_HANDLE);
         mhOutput = GetStdHandle(STD_OUTPUT_HANDLE);
@@ -820,13 +1047,21 @@ namespace CLP
             return "";
         }
 
+        if (!GetConsoleScreenBufferInfo(mhOutput, &mScreenInfo))
+        {
+            cerr << "Failed to get console info." << endl;
+            return sCommandLine;
+        }
+
+        rawCommandBuf.Init(0, mScreenInfo.dwSize.Y - 4, mScreenInfo.dwSize.X, mScreenInfo.dwSize.Y, sCommandLine);
+        paramListBuf.Init(0, 0, mScreenInfo.dwSize.X, mScreenInfo.dwSize.Y - 4, "");
 
         SaveConsoleState();
 
-        rawCommandBuf.Init(screenBufferInfo.dwSize.X, 4);
-        rawCommandBuf.mY = screenBufferInfo.dwSize.Y - 4;
 
-        paramListBuf.Init(screenBufferInfo.dwSize.X, screenBufferInfo.dwSize.Y-4);
+        pFocusWin = &rawCommandBuf;
+
+
 
 
 
@@ -836,7 +1071,7 @@ namespace CLP
         if (!GetConsoleMode(mhInput, &mode)) 
         {
             cerr << "Failed to get console mode." << endl;
-            return mText;
+            return sCommandLine;
         }
         mode |= ENABLE_MOUSE_INPUT | ENABLE_EXTENDED_FLAGS | ENABLE_WINDOW_INPUT;
         mode &= ~ENABLE_PROCESSED_INPUT ;
@@ -844,21 +1079,16 @@ namespace CLP
         if (!SetConsoleMode(mhInput, mode  ))
         {
             cerr << "Failed to set console mode." << endl;
-            return mText;
+            return sCommandLine;
         }
-
-
-        mCursorPos = TextIndexToCursor(mText.size());
-
-        // Display the text with cursor position
-        //cout << text;
 
         // Main loop to read input events
         INPUT_RECORD inputRecord;
         DWORD numEventsRead;
 
-        while (true)
+        while (!rawCommandBuf.mbDone)
         {
+            UpdateFromConsoleSize();
             UpdateParams();
 
             // Check for hotkey events
@@ -867,20 +1097,18 @@ namespace CLP
             {
                 if (msg.message == WM_HOTKEY && msg.wParam == MY_HOTKEY_ID)
                 {
-                    HandlePaste(GetTextFromClipboard());
+                    rawCommandBuf.HandlePaste(GetTextFromClipboard());
                 }
                 else
                 {
                     TranslateMessage(&msg);
                     DispatchMessage(&msg);
                 }
-                UpdateDisplay();
-                UpdateCursorPos();
-
             }
 
             if (PeekConsoleInput(mhInput, &inputRecord, 1, &numEventsRead) && numEventsRead > 0)
             {
+                UpdateDisplay();
 
                 if (!ReadConsoleInput(mhInput, &inputRecord, 1, &numEventsRead))
                 {
@@ -888,154 +1116,17 @@ namespace CLP
                     return "";
                 }
 
-                // Check if the input event is a keyboard event
-                if (inputRecord.EventType == KEY_EVENT && inputRecord.Event.KeyEvent.bKeyDown)
+                if (pFocusWin)
                 {
-                    // Get the virtual key code from the key event
-                    int vkCode = inputRecord.Event.KeyEvent.wVirtualKeyCode;
-                    char c = inputRecord.Event.KeyEvent.uChar.AsciiChar;
-
-                    bool bCTRLHeld = GetKeyState(VK_CONTROL) & 0x800;
-                    bool bSHIFTHeld = GetKeyState(VK_SHIFT) & 0x800;
-
-                    // Check for arrow keys
-                    if (vkCode == VK_ESCAPE)
+                    if (inputRecord.EventType == KEY_EVENT && inputRecord.Event.KeyEvent.bKeyDown)
                     {
-                        if (IsTextSelected())
-                        {
-                            ClearSelection();
-                        }
-                        else
-                        {
-                            mText = "";
-                            break;
-                        }
-                    }
-                    else if (vkCode == VK_RETURN)
-                    {
-                        break;
-                    }
-                    else if (vkCode == VK_HOME)
-                    {
-                        UpdateSelection();
-                        mCursorPos = TextIndexToCursor(0);
-                        UpdateSelection();
-                    }
-                    else if (vkCode == VK_END)
-                    {
-                        UpdateSelection();
-                        mCursorPos = TextIndexToCursor(mText.size());
-                        UpdateSelection();
-                    }
-                    else if (vkCode == VK_UP)
-                    {
-                        UpdateSelection();
-                        if (mCursorPos.Y > rawCommandBuf.mY)
-                            mCursorPos.Y--;
-                        UpdateSelection();
-                    }
-                    else if (vkCode == VK_DOWN)
-                    {
-                        UpdateSelection();
-                        int newindex = (int)CursorToTextIndex(mCursorPos) + screenBufferInfo.dwSize.X;
-                        if (newindex < mText.size())
-                            mCursorPos.Y++;
-                        UpdateSelection();
-                    }
-                    else if (vkCode == VK_LEFT)
-                    {
-                        UpdateSelection();
-                        // Move cursor left
-                        int index = (int)CursorToTextIndex(mCursorPos);
-                        if (index > 0)
-                        {
-                            if (bCTRLHeld)
-                                FindNextBreak(-1);
-                            else
-                                mCursorPos = TextIndexToCursor(index - 1);
-                        }
-                        UpdateSelection();
-                    }
-                    else if (vkCode == VK_RIGHT)
-                    {
-                        UpdateSelection();
-                        if (bCTRLHeld)
-                        {
-                            FindNextBreak(1);
-                        }
-                        else
-                        {
-                            // Move cursor right
-                            int index = (int)CursorToTextIndex(mCursorPos);
-                            if (index < mText.size())
-                                mCursorPos = TextIndexToCursor(index + 1);
-
-                        }
-                        UpdateSelection();
-                    }
-                    else if (vkCode == VK_BACK)
-                    {
-                        if (IsTextSelected())
-                        {
-                            DeleteSelection();
-                        }
-                        else
-                        {
-                            // Delete character before cursor
-                            int index = (int)CursorToTextIndex(mCursorPos);
-                            if (index > 0)
-                            {
-                                mText.erase(index - 1, 1);
-                                mCursorPos = TextIndexToCursor(index - 1);
-                            }
-                            UpdateSelection();
-                        }
-                    }
-                    else if (vkCode == VK_DELETE)
-                    {
-                        if (IsTextSelected())
-                        {
-                            DeleteSelection();
-                        }
-                        else
-                        {
-                            // Delete character at cursor
-                            int index = (int)CursorToTextIndex(mCursorPos);
-                            if (index < (int64_t)(mText.size()))
-                            {
-                                mText.erase(index, 1);
-                            }
-                        }
-                        UpdateSelection();
-                    }
-                    else if (vkCode == 0x41 && bCTRLHeld)
-                    {
-                        selectionstart = 0;
-                        selectionend = mText.length();
-                    }
-                    else if (vkCode == 0x43 && bCTRLHeld) // CTRL-C
-                    {
-                        // handle copy
-                        CopyTextToClipboard(GetSelectedText());
-                    }
-                    else if (c >= 32)
-                    {
-                        if (IsTextSelected())
-                            DeleteSelection();
-
-                        // ASCII key pressed (printable character)
-                        char ch = inputRecord.Event.KeyEvent.uChar.AsciiChar;
-
-                        // Insert character at cursor position
-                        int index = (int)CursorToTextIndex(mCursorPos);
-                        mText.insert(index, 1, ch);
-                        mCursorPos = TextIndexToCursor(index + 1);
-                        UpdateSelection();
+                        int keycode = inputRecord.Event.KeyEvent.wVirtualKeyCode;
+                        char c = inputRecord.Event.KeyEvent.uChar.AsciiChar;
+                        pFocusWin->OnKey(keycode, c);
                     }
                 }
 
                 UpdateDisplay();
-                UpdateCursorPos();
             }
         }
 
@@ -1043,6 +1134,6 @@ namespace CLP
         RestoreConsoleState();
         cout << "restoring\n";
 
-        return mText;
+        return rawCommandBuf.GetText();
     }
 };

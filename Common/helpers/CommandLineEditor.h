@@ -13,28 +13,66 @@ typedef std::vector<CHAR_INFO> tConsoleBuffer;
 
 namespace CLP
 {
-    class ConsoleBuffer
+    class ConsoleWin
     {
     public:
-        bool Init(size_t w, size_t h);
+        bool Init(int64_t l, int64_t t, int64_t r, int64_t b, std::string sText);
 
         void Clear(WORD attrib = 0);
 
-        void DrawCharClipped(char c, size_t x, size_t y, WORD attrib = FOREGROUND_WHITE);
+        void DrawCharClipped(char c, int64_t x, int64_t y, WORD attrib = FOREGROUND_WHITE);
         void DrawCharClipped(char c, int64_t offset, WORD attrib = FOREGROUND_WHITE);
 
-        void DrawClippedText(size_t x, size_t y, std::string text, WORD attributes = FOREGROUND_WHITE, bool bWrap = true);
-        void DrawFixedColumnStrings(size_t x, size_t y, tStringArray& strings, std::vector<size_t>& colWidths, tAttribArray attribs);
+        void DrawClippedText(int64_t x, int64_t y, std::string text, WORD attributes = FOREGROUND_WHITE, bool bWrap = true);
+        void DrawFixedColumnStrings(int64_t x, int64_t y, tStringArray& strings, std::vector<size_t>& colWidths, tAttribArray attribs);
 
         void PaintToWindowsConsole(HANDLE hOut);
 
+        void OnKey(int keycode, char c);
 
-        tConsoleBuffer mBuffer;
-        size_t mWidth = 0;
-        size_t mHeight = 0;
+        void SetArea(int64_t l, int64_t t, int64_t r, int64_t b);
+        void GetArea(int64_t& l, int64_t& t, int64_t& r, int64_t& b);
 
-        size_t mX = 0;
-        size_t mY = 0;
+        std::string GetText() { return mText; }
+        COORD GetCursorPos() { return mCursorPos; }
+        int64_t GetCursorIndex() { return CursorToTextIndex(mCursorPos); }
+
+        void FindNextBreak(int nDir);
+        void UpdateCursorPos(COORD newPos);
+
+        void HandlePaste(std::string text);
+        void ClearScreenBuffer();
+        void UpdateSelection();
+        void DeleteSelection();
+        void ClearSelection();
+        bool IsIndexInSelection(int64_t i);
+        bool IsTextSelected() { return selectionstart >= 0 && selectionend >= 0; }
+        std::string GetSelectedText();
+
+
+
+        bool mbDone = false;
+
+        tConsoleBuffer  mBuffer;
+
+    protected:
+        int64_t CursorToTextIndex(COORD coord);
+        COORD TextIndexToCursor(int64_t i);
+
+
+        std::string     mText;
+
+
+        COORD mCursorPos;
+
+        int64_t selectionstart = -1;
+        int64_t selectionend = -1;
+
+        int64_t mWidth = 0;
+        int64_t mHeight = 0;
+
+        int64_t mX = 0;
+        int64_t mY = 0;
     };
 
 
@@ -67,52 +105,27 @@ namespace CLP
         tEnteredParams GetNamedEntries();
 
 
-        void FindNextBreak(int nDir);
-        void UpdateCursorPos();
+        void UpdateFromConsoleSize();
         void UpdateDisplay();
-        void ClearScreenBuffer();
         void DrawToScreen();
         void SaveConsoleState();
         void RestoreConsoleState();
-        void UpdateSelection();
-        void DeleteSelection();
-        void ClearSelection();
         bool HandleParamContext();
-        void HandlePaste(std::string text);
-        bool CopyTextToClipboard(const std::string& text);
-        std::string GetTextFromClipboard();
-        int64_t selectionstart = -1;
-        int64_t selectionend = -1;
-
-
-
-        bool IsIndexInSelection(int64_t i);
-        bool IsTextSelected() { return selectionstart >= 0 && selectionend >= 0; }
-        std::string GetSelectedText();
-
-        size_t CursorToTextIndex(COORD coord);
-        COORD TextIndexToCursor(size_t i);
 
         void UpdateParams();        // parse mText and break into parameter fields
         std::string     mLastParsedText;
 
-
-        COORD mCursorPos;
-
-        std::string     mText;
-
         HANDLE mhInput;
         HANDLE mhOutput;
-        CONSOLE_SCREEN_BUFFER_INFO screenBufferInfo;
+        CONSOLE_SCREEN_BUFFER_INFO mScreenInfo;
         tConsoleBuffer originalConsoleBuf;
 
 
-        ConsoleBuffer   rawCommandBuf;
-//        size_t          rawCommandBufTopRow;
+        ConsoleWin   rawCommandBuf;
+        ConsoleWin   paramListBuf;
+        ConsoleWin   popupBuf;
 
-        ConsoleBuffer   paramListBuf;
-//        size_t          paramListBufTopRow;
-
+        ConsoleWin* pFocusWin = nullptr;
 
 
         tEnteredParams    mParams;
