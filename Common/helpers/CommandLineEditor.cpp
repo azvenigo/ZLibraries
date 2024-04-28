@@ -220,6 +220,8 @@ namespace CLP
         SetArea(l, t, r, b);
         mText = sText;
         mCursorPos = TextIndexToCursor((int64_t)mText.size());
+        mbVisible = true;
+        mbDone = false;
         return true;
     }
 
@@ -261,6 +263,11 @@ namespace CLP
 
     void ConsoleWin::DrawCharClipped(char c, int64_t x, int64_t y, WORD attrib)
     {
+        WORD foregroundColor = attrib & 0x0F;
+        WORD backgroundColor = (attrib >> 4) & 0x0F;
+        if (foregroundColor == backgroundColor)
+            attrib = FOREGROUND_WHITE;
+
         size_t offset = y * mWidth + x;
         DrawCharClipped(c, (int64_t)offset, attrib);
     }
@@ -311,10 +318,186 @@ namespace CLP
         }
     }
 
+    bool getANSIColorAttribute(const std::string& str, size_t offset, WORD& attribute, size_t& length)
+    {
+        // Check if there are enough characters after the offset to form an ANSI sequence
+        if (offset + 2 >= str.size())
+        {
+            return false; // Not a valid ANSI sequence
+        }
+
+        // Check if the sequence starts with the ANSI escape character '\x1B' (27 in decimal)
+        if (str[offset] != '\x1B')
+        {
+            return false; // Not a valid ANSI sequence
+        }
+
+        // Check if the next character is '[' which indicates the beginning of an ANSI sequence
+        if (str[offset + 1] != '[')
+        {
+            return false; // Not a valid ANSI sequence
+        }
+
+        // Find the end of the ANSI sequence
+        size_t endIndex = offset + 2;
+        while (endIndex < str.size() && str[endIndex] != 'm')
+        {
+            endIndex++;
+        }
+
+        // Extract the ANSI sequence
+        std::string sequence = str.substr(offset, endIndex - offset + 1);
+
+        // Check if the sequence contains color information
+        if (sequence.find("m") != std::string::npos)
+        {
+            // Convert ANSI color code to Windows console attribute
+            attribute = 0;
+            size_t pos = sequence.find("[");
+            if (pos != std::string::npos)
+            {
+                std::string colorStr = sequence.substr(pos + 1, sequence.size() - 2); // Extract color code part
+                std::vector<std::string> colorCodes;
+                size_t start = 0;
+                size_t comma = colorStr.find(",");
+                while (comma != std::string::npos)
+                {
+                    colorCodes.push_back(colorStr.substr(start, comma - start));
+                    start = comma + 1;
+                    comma = colorStr.find(",", start);
+                }
+                colorCodes.push_back(colorStr.substr(start, colorStr.size() - start));
+
+                for (const auto& code : colorCodes)
+                {
+                    int colorCode = std::stoi(code);
+                    if (colorCode >= 30 && colorCode <= 37)
+                    { // Foreground colors
+                        attribute |= FOREGROUND_INTENSITY;
+                        switch (colorCode)
+                        {
+                        case 30: attribute |= FOREGROUND_BLUE; break;
+                        case 31: attribute |= FOREGROUND_RED; break;
+                        case 32: attribute |= FOREGROUND_GREEN; break;
+                        case 33: attribute |= FOREGROUND_RED | FOREGROUND_GREEN; break; // Yellow
+                        case 34: attribute |= FOREGROUND_BLUE | FOREGROUND_GREEN; break; // Cyan
+                        case 35: attribute |= FOREGROUND_RED | FOREGROUND_BLUE; break; // Magenta
+                        case 36: attribute |= FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE; break; // White
+                        case 37: break; // Default color
+                        }
+                    }
+                    else if (colorCode >= 40 && colorCode <= 47)
+                    { // Background colors
+                        attribute |= BACKGROUND_INTENSITY;
+                        attribute |= (colorCode - 40) << 4; // Shift left by 4 bits to set the background color
+                    }
+                }
+            }
+            length = endIndex - offset + 1;
+            return true;
+        }
+
+        return false; // Not a valid ANSI color sequence
+    }
+
+    void ConsoleWin::GetTextOuputRect(std::string text, int64_t& w, int64_t& h)
+    {
+        w = 0;
+        h = 0;
+        int64_t x = 0;
+        int64_t y = 0;
+        WORD attrib = FOREGROUND_WHITE;
+        for (size_t i = 0; i < text.length(); i++)
+        {
+            size_t skiplength = 0;
+            if (getANSIColorAttribute(text, i, attrib, skiplength))
+            {
+                i += skiplength - 1;    // -1 so that the i++ above will be correct
+            }
+            else
+            {
+                char c = text[i];
+                if (c == '\n' || x >= mWidth)
+                {
+                    x = 0;
+                    y++;
+                    h = std::max<int64_t>(h, y);
+                }
+                else
+                {
+                    x++;
+                    w = std::max<int64_t>(w, x);
+                }
+            }
+        }
+    }
+
+
+    void ConsoleWin::DrawClippedAnsiText(int64_t x, int64_t y, std::string ansitext, bool bWrap)
+    {
+        COORD cursor((SHORT)x, (SHORT)y);
+
+        WORD attrib = FOREGROUND_WHITE;
+
+        for (size_t i = 0; i < ansitext.length(); i++)
+        {
+            size_t skiplength = 0;
+            if (getANSIColorAttribute(ansitext, i, attrib, skiplength))
+            {
+                i += skiplength - 1;    // -1 so that the i++ above will be correct
+            }
+            else
+            {
+                char c = ansitext[i];
+                if (c == '\n' && bWrap)
+                {
+                    cursor.X = 0;
+                    cursor.Y++;
+                }
+                else
+                {
+                    DrawCharClipped(c, cursor.X, cursor.Y, attrib);
+                }
+
+                cursor.X++;
+                if (cursor.X >= mWidth && !bWrap)
+                    break;
+            }
+        }
+    }
+
+    std::string removeANSISequences(const std::string& str) 
+    {
+        std::string result;
+        bool inEscapeSequence = false;
+
+        for (char ch : str) 
+        {
+            if (inEscapeSequence) 
+            {
+                if (ch == 'm') 
+                {
+                    inEscapeSequence = false;
+                }
+                continue;
+            }
+            if (ch == '\x1B') 
+            {
+                inEscapeSequence = true;
+                continue;
+            }
+            result.push_back(ch);
+        }
+
+        return result;
+    }
+
     void ConsoleWin::PaintToWindowsConsole(HANDLE hOut)
     {
         // Update display
-
+        if (!mbVisible)
+            return;
+/*
         int64_t rawCommandRows = (mText.size() + mWidth - 1) / mWidth;
         int64_t firstRenderRow = 0;
 
@@ -329,8 +512,9 @@ namespace CLP
                 attrib |= BACKGROUND_INTENSITY;
             DrawCharClipped(mText[i], consoleBufIndex, attrib);
             consoleBufIndex++;
-        }
+        }*/
 
+        DrawClippedAnsiText(0, 0, mText);
 
 
 
@@ -576,18 +760,18 @@ namespace CLP
             tAttribArray attribs(3);
 
 
-            // first param is mode
+            // first param is command
             size_t row = 0;
-            string sMode(mParams[0].sParamText);
+            msMode = mParams[0].sParamText;
 
-            strings[kColName] = "MODE";
+            strings[kColName] = "COMMAND";
             attribs[kColName] = FOREGROUND_WHITE;
 
-            strings[kColEntry] = sMode;
+            strings[kColEntry] = msMode;
             attribs[kColUsage] = FOREGROUND_WHITE;
 
             tStringList modes = GetCLPModes();
-            bool bModePermitted = modes.empty() || std::find(modes.begin(), modes.end(), sMode) != modes.end(); // if no modes registered or (if there are) if the first param matches one
+            bool bModePermitted = modes.empty() || std::find(modes.begin(), modes.end(), msMode) != modes.end(); // if no modes registered or (if there are) if the first param matches one
             if (bModePermitted)
             {
                 attribs[kColEntry] = FOREGROUND_GREEN;
@@ -600,7 +784,7 @@ namespace CLP
             else
             {
                 attribs[kColEntry] = FOREGROUND_RED;
-                strings[kColUsage] = "Unknown mode";
+                strings[kColUsage] = "Unknown Command";
             }
 
             paramListBuf.DrawFixedColumnStrings(0, row, strings, colWidths, attribs);
@@ -779,8 +963,16 @@ namespace CLP
         SMALL_RECT clearRegion = { 0, 0, screenBufferInfo.dwSize.X - 1, paramListTop-1};
         WriteConsoleOutput(mhOutput, &blank[0], screenBufferInfo.dwSize, origin, &clearRegion);*/
 
-        paramListBuf.PaintToWindowsConsole(mhOutput);
-        rawCommandBuf.PaintToWindowsConsole(mhOutput);
+        if (helpBuf.mbVisible)
+        {
+            helpBuf.PaintToWindowsConsole(mhOutput);
+        }
+        else
+        {
+            paramListBuf.PaintToWindowsConsole(mhOutput);
+            rawCommandBuf.PaintToWindowsConsole(mhOutput);
+            popupBuf.PaintToWindowsConsole(mhOutput);
+        }
     }
 
     void CommandLineEditor::SaveConsoleState()
@@ -1022,11 +1214,28 @@ namespace CLP
             mScreenInfo = screenInfo;
             rawCommandBuf.SetArea(0, mScreenInfo.dwSize.Y - 4, mScreenInfo.dwSize.X, mScreenInfo.dwSize.Y);
             paramListBuf.SetArea(0, 0, mScreenInfo.dwSize.X, mScreenInfo.dwSize.Y - 4);
+            helpBuf.SetArea(0, 0, mScreenInfo.dwSize.X, mScreenInfo.dwSize.Y);
         }
 
 
 
     }
+
+    void CommandLineEditor::ShowHelp()
+    {
+        if (mpCLP)
+        {
+            string help;
+            if (mpCLP->IsRegisteredMode(msMode))
+                help = mpCLP->GetHelpString(msMode, true);
+            else
+                help = mpCLP->GetModesString();
+
+//            std::string help = "\x1B[32;41mHello\x1B[0m";
+            helpBuf.Init(0, 0, mScreenInfo.dwSize.X, mScreenInfo.dwSize.Y, help);
+        }
+    }
+
 
     string CommandLineEditor::Edit(const string& sCommandLine)
     {
@@ -1057,13 +1266,6 @@ namespace CLP
         paramListBuf.Init(0, 0, mScreenInfo.dwSize.X, mScreenInfo.dwSize.Y - 4, "");
 
         SaveConsoleState();
-
-
-        pFocusWin = &rawCommandBuf;
-
-
-
-
 
 
         // Set console mode to allow reading mouse and key events
@@ -1116,13 +1318,25 @@ namespace CLP
                     return "";
                 }
 
-                if (pFocusWin)
+                if (inputRecord.EventType == KEY_EVENT && inputRecord.Event.KeyEvent.bKeyDown)
                 {
-                    if (inputRecord.EventType == KEY_EVENT && inputRecord.Event.KeyEvent.bKeyDown)
+                    int keycode = inputRecord.Event.KeyEvent.wVirtualKeyCode;
+                    char c = inputRecord.Event.KeyEvent.uChar.AsciiChar;
+
+                    if (popupBuf.mbVisible)
                     {
-                        int keycode = inputRecord.Event.KeyEvent.wVirtualKeyCode;
-                        char c = inputRecord.Event.KeyEvent.uChar.AsciiChar;
-                        pFocusWin->OnKey(keycode, c);
+                        popupBuf.OnKey(keycode, c);
+                    }
+                    else if (helpBuf.mbVisible)
+                    {
+                        helpBuf.OnKey(keycode, c);
+                    }
+                    else
+                    {
+                        if (keycode == VK_F1)
+                            ShowHelp();
+                        else
+                            rawCommandBuf.OnKey(keycode, c);
                     }
                 }
 
@@ -1136,4 +1350,43 @@ namespace CLP
 
         return rawCommandBuf.GetText();
     }
+
+    void InfoWin::PaintToWindowsConsole(HANDLE hOut)
+    {
+        if (!mbVisible)
+            return;
+
+        Clear(BACKGROUND_INTENSITY);
+        DrawClippedAnsiText(0, -firstVisibleRow, mText);
+
+        COORD origin(0, 0);
+        SMALL_RECT writeRegion((SHORT)mX, (SHORT)mY, (SHORT)(mX + mWidth), (SHORT)(mY + mHeight));
+        COORD bufsize((SHORT)mWidth, (SHORT)mHeight);
+        WriteConsoleOutput(hOut, &mBuffer[0], bufsize, origin, &writeRegion);
+    }
+
+    void InfoWin::OnKey(int keycode, char c)
+    {
+        if (keycode == VK_F1 || keycode == VK_ESCAPE)
+        {
+            mText.clear();
+            mbVisible = false;
+            mbDone = true;
+        }
+        else if (keycode == VK_UP)
+        {
+            if (firstVisibleRow > 0)
+                firstVisibleRow--;
+        }
+        else if (keycode == VK_DOWN)
+        {
+            int64_t w = 0;
+            int64_t h = 0;
+            GetTextOuputRect(mText, w, h);
+
+            if (firstVisibleRow < (h - mHeight))
+                firstVisibleRow++;
+        }
+    }
+
 };

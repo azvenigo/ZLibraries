@@ -123,6 +123,35 @@ namespace CLP
     const static uint32_t kCaseInsensitive      = 0;    // default
     const static uint32_t kCaseSensitive        = 8;    // if set the named key must match case 
 
+
+    // decorations
+    const static uint32_t kRESET            = 0;
+    const static uint32_t kAPP              = 1;
+    const static uint32_t kSECTION          = 2;
+    const static uint32_t kPARAM            = 3;
+    const static uint32_t kERROR            = 4;
+
+    const static uint32_t kMAX_CATEGORIES   = 5;
+
+    // array of colors
+    extern std::string     cols[kMAX_CATEGORIES];
+
+    static void ResetCols()            // reset colored output
+    {
+        cols[kRESET]    = COL_RESET;
+        cols[kAPP]      = COL_YELLOW;
+        cols[kSECTION]  = COL_CYAN;
+        cols[kPARAM]    = COL_YELLOW;
+        cols[kERROR]    = COL_RED;
+    };
+
+    static void DisableCols()          // disable colored output
+    {
+        for (int i = 0; i < kMAX_CATEGORIES; i++)
+            cols[i] = "";
+    };
+
+
     class ParamDesc
     {
     public:
@@ -249,13 +278,13 @@ namespace CLP
     public:
         friend class CommandLineEditor;
 
-        CommandLineParser(bool bEnableVerbosity = true);
+        CommandLineParser(bool bEnableVerbosity = true, bool bEnableColoredOutput = true);
 
         // Registration Functions
         void                RegisterAppDescription(const std::string& sDescription);
         bool                Parse(int argc, char* argv[]);
-        void                ListModes();
-        void                OutputHelp(bool bDetailed = false);
+        std::string         GetModesString();
+        std::string         GetHelpString(const std::string& sMode = "", bool bDetailed = false);
         void                GetCommandLineExample(std::string& sCommandLineExample);
 
         // Accessors

@@ -24,11 +24,14 @@ namespace CLP
         void DrawCharClipped(char c, int64_t offset, WORD attrib = FOREGROUND_WHITE);
 
         void DrawClippedText(int64_t x, int64_t y, std::string text, WORD attributes = FOREGROUND_WHITE, bool bWrap = true);
+        void DrawClippedAnsiText(int64_t x, int64_t y, std::string ansitext, bool bWrap = true);
         void DrawFixedColumnStrings(int64_t x, int64_t y, tStringArray& strings, std::vector<size_t>& colWidths, tAttribArray attribs);
 
-        void PaintToWindowsConsole(HANDLE hOut);
+        void GetTextOuputRect(std::string text, int64_t& w, int64_t& h);        
 
-        void OnKey(int keycode, char c);
+        virtual void PaintToWindowsConsole(HANDLE hOut);
+
+        virtual void OnKey(int keycode, char c);
 
         void SetArea(int64_t l, int64_t t, int64_t r, int64_t b);
         void GetArea(int64_t& l, int64_t& t, int64_t& r, int64_t& b);
@@ -52,7 +55,7 @@ namespace CLP
 
 
         bool mbDone = false;
-
+        bool mbVisible = false;
         tConsoleBuffer  mBuffer;
 
     protected:
@@ -61,7 +64,6 @@ namespace CLP
 
 
         std::string     mText;
-
 
         COORD mCursorPos;
 
@@ -74,6 +76,18 @@ namespace CLP
         int64_t mX = 0;
         int64_t mY = 0;
     };
+
+
+    // InfoWin - read only window (maybe add scrolling around?) that closes on esc
+    class InfoWin : public ConsoleWin
+    {
+    public:
+        void PaintToWindowsConsole(HANDLE hOut);
+        void OnKey(int keycode, char c);
+
+        int64_t firstVisibleRow = 0;
+    };
+
 
 
     class CommandLineEditor
@@ -111,9 +125,13 @@ namespace CLP
         void SaveConsoleState();
         void RestoreConsoleState();
         bool HandleParamContext();
+        void ShowHelp();
 
         void UpdateParams();        // parse mText and break into parameter fields
         std::string     mLastParsedText;
+
+        std::string     msMode;       
+
 
         HANDLE mhInput;
         HANDLE mhOutput;
@@ -121,12 +139,10 @@ namespace CLP
         tConsoleBuffer originalConsoleBuf;
 
 
-        ConsoleWin   rawCommandBuf;
-        ConsoleWin   paramListBuf;
-        ConsoleWin   popupBuf;
-
-        ConsoleWin* pFocusWin = nullptr;
-
+        ConsoleWin      rawCommandBuf;
+        ConsoleWin      paramListBuf;
+        InfoWin         helpBuf;
+        InfoWin         popupBuf;
 
         tEnteredParams    mParams;
         std::string EnteredParamsToText();
