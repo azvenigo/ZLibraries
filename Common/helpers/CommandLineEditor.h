@@ -13,10 +13,26 @@ typedef std::vector<CHAR_INFO> tConsoleBuffer;
 
 namespace CLP
 {
+
+    // for processing entered parameters
+    struct EnteredParams
+    {
+        int64_t positionalindex = -1;            // if not a named param, must have a position
+        std::string sParamText;                 // raw parameter text
+        ParamDesc* pRelatedDesc = nullptr;     // associated param descriptor if available
+
+        WORD drawAttributes = FOREGROUND_WHITE;
+        std::string sStatusMessage;
+    };
+
+
+    typedef std::vector<EnteredParams> tEnteredParams;
+
+
     class ConsoleWin
     {
     public:
-        bool Init(int64_t l, int64_t t, int64_t r, int64_t b, std::string sText);
+        bool Init(int64_t l, int64_t t, int64_t r, int64_t b);
 
         void Clear(WORD attrib = 0);
 
@@ -29,12 +45,42 @@ namespace CLP
 
         void GetTextOuputRect(std::string text, int64_t& w, int64_t& h);        
 
-        virtual void PaintToWindowsConsole(HANDLE hOut);
+        //virtual void PaintToWindowsConsole(HANDLE hOut);
+        virtual void Paint(tConsoleBuffer& backBuf);
 
-        virtual void OnKey(int keycode, char c);
 
-        void SetArea(int64_t l, int64_t t, int64_t r, int64_t b);
+        virtual void OnKey(int keycode, char c) {}
+
+        virtual void SetArea(int64_t l, int64_t t, int64_t r, int64_t b);
         void GetArea(int64_t& l, int64_t& t, int64_t& r, int64_t& b);
+
+        void ClearScreenBuffer();
+
+        bool mbDone = false;
+        bool mbVisible = false;
+        tConsoleBuffer  mBuffer;
+
+    protected:
+        SHORT mClearAttrib = 0;
+
+        int64_t mWidth = 0;
+        int64_t mHeight = 0;
+
+        int64_t mX = 0;
+        int64_t mY = 0;
+    };
+
+    class RawEntryWin : public ConsoleWin
+    {
+    public:
+
+        void SetText(const std::string& text);
+
+        void DrawClippedText(int64_t x, int64_t y, std::string text, WORD attributes = FOREGROUND_WHITE, bool bWrap = true, bool bHeightlightSelection = true);
+
+        void Paint(tConsoleBuffer& backBuf);
+        bool GetParameterUnderIndex(int64_t index, size_t& outStart, size_t& outEnd, std::string& outParam);
+        bool HandleParamContext();
 
         std::string GetText() { return mText; }
         COORD GetCursorPos() { return mCursorPos; }
@@ -43,21 +89,22 @@ namespace CLP
         void FindNextBreak(int nDir);
         void UpdateCursorPos(COORD newPos);
 
+        bool IsIndexInSelection(int64_t i);
+        bool IsTextSelected() { return selectionstart >= 0 && selectionend >= 0; }
+
+        void SetArea(int64_t l, int64_t t, int64_t r, int64_t b);
+
+        virtual void OnKey(int keycode, char c);
+
         void HandlePaste(std::string text);
-        void ClearScreenBuffer();
+
+
         void UpdateSelection();
         void DeleteSelection();
         void ClearSelection();
-        bool IsIndexInSelection(int64_t i);
-        bool IsTextSelected() { return selectionstart >= 0 && selectionend >= 0; }
         std::string GetSelectedText();
 
-
-
-        bool mbDone = false;
-        bool mbVisible = false;
-        tConsoleBuffer  mBuffer;
-
+        tEnteredParams mEnteredParams;
     protected:
         int64_t CursorToTextIndex(COORD coord);
         COORD TextIndexToCursor(int64_t i);
@@ -69,25 +116,32 @@ namespace CLP
 
         int64_t selectionstart = -1;
         int64_t selectionend = -1;
-
-        int64_t mWidth = 0;
-        int64_t mHeight = 0;
-
-        int64_t mX = 0;
-        int64_t mY = 0;
     };
+
 
 
     // InfoWin - read only window (maybe add scrolling around?) that closes on esc
     class InfoWin : public ConsoleWin
     {
     public:
-        void PaintToWindowsConsole(HANDLE hOut);
+        void SetText(const std::string& text) { mText = text; }
+        void Paint(tConsoleBuffer& backBuf);
         void OnKey(int keycode, char c);
 
         int64_t firstVisibleRow = 0;
+    protected:
+        std::string     mText;
     };
 
+
+    class AnsiColorWin : public ConsoleWin
+    {
+    public:
+        void SetText(const std::string& text) { mText = text; }
+        void Paint(tConsoleBuffer& backBuf);
+    protected:
+        std::string     mText;
+    };
 
 
     class CommandLineEditor
@@ -103,18 +157,6 @@ namespace CLP
 
     private:
 
-        // for processing entered parameters
-        struct EnteredParams
-        {
-            int64_t positionalindex = -1;            // if not a named param, must have a position
-            std::string sParamText;                 // raw parameter text
-            ParamDesc*  pRelatedDesc = nullptr;     // associated param descriptor if available
-
-            WORD drawAttributes = FOREGROUND_WHITE;
-            std::string sStatusMessage;
-        };
-        typedef std::vector<CommandLineEditor::EnteredParams> tEnteredParams;
-
         tEnteredParams GetPositionalEntries();
         tEnteredParams GetNamedEntries();
 
@@ -124,7 +166,6 @@ namespace CLP
         void DrawToScreen();
         void SaveConsoleState();
         void RestoreConsoleState();
-        bool HandleParamContext();
         void ShowHelp();
 
         void UpdateParams();        // parse mText and break into parameter fields
@@ -137,12 +178,19 @@ namespace CLP
         HANDLE mhOutput;
         CONSOLE_SCREEN_BUFFER_INFO mScreenInfo;
         tConsoleBuffer originalConsoleBuf;
+        tConsoleBuffer backBuffer;      // for double buffering
 
 
-        ConsoleWin      rawCommandBuf;
-        ConsoleWin      paramListBuf;
-        InfoWin         helpBuf;
-        InfoWin         popupBuf;
+        RawEntryWin     rawCommandBuf;  // raw editing buffer 
+        AnsiColorWin    paramListBuf;   // parsed parameter list with additional info
+
+        AnsiColorWin    topInfoBuf;
+        AnsiColorWin    usageBuf;       // simple one line drawing of usage
+
+
+        InfoWin         helpBuf;        // popup help window
+        InfoWin         popupBuf;       // tbd
+
 
         tEnteredParams    mParams;
         std::string EnteredParamsToText();
@@ -153,7 +201,6 @@ namespace CLP
 
 
         // Processing of registered CLP
-        bool GetParameterUnderCursor(size_t& outStart, size_t& outEnd, std::string& outParam);
         CommandLineParser* mpCLP;
         tStringList GetCLPModes();
         CLP::ParamDesc* GetParamDesc(std::string& paramName);

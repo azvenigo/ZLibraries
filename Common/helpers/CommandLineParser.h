@@ -171,6 +171,7 @@ namespace CLP
         std::string ValueToString();
 
         bool        Satisfied();                    // If value is required and set and (if appropriate) within required range
+        bool        DoesValueSatifsy(const std::string& sValue);        // converts string form of value into eParamValueType and returns whether it satisfies conditions
 
 
         // Behavior Accessors
@@ -281,17 +282,18 @@ namespace CLP
         CommandLineParser(bool bEnableVerbosity = true, bool bEnableColoredOutput = true);
 
         // Registration Functions
-        void                RegisterAppDescription(const std::string& sDescription);
-        bool                Parse(int argc, char* argv[]);
-        std::string         GetModesString();
-        std::string         GetHelpString(const std::string& sMode = "", bool bDetailed = false);
-        void                GetCommandLineExample(std::string& sCommandLineExample);
+        void            RegisterAppDescription(const std::string& sDescription);
+        bool            Parse(int argc, char* argv[]);
+        std::string     GetModesString();
+        std::string     GetHelpString(const std::string& sMode = "", bool bDetailed = false);
+        void            GetCommandLineExample(const std::string& sMode, std::string& sCommandLineExample);
 
         // Accessors
         std::string     GetAppMode() { return msMode; }         // empty string if default mode
         std::string     GetAppPath() { return msAppPath; }
         std::string     GetAppName() { return msAppName; }
         bool            IsCurrentMode(std::string sMode);           // true if current mode matches (case insensitive)
+        bool            IsMultiMode() const { return !mModeToCommandLineParser.empty(); }
         bool            IsRegisteredMode(std::string sMode);        // true if this mode has been registered
 
         bool            GetParamWasFound(const std::string& sKey);  // returns true if the parameter was found when parsing

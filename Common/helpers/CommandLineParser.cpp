@@ -139,6 +139,44 @@ namespace CLP
         return true;    // not range restricted and optional
     }
 
+    bool ParamDesc::DoesValueSatifsy(const std::string& sValue)
+    {
+        // basic case of optional unrestricted
+        if (IsOptional() && !IsRangeRestricted())
+            return true;
+
+        if (IsRangeRestricted())
+        {
+            switch (mValueType)
+            {
+                case ParamDesc::kString:
+                {
+                    return mAllowedStrings.find(sValue) != mAllowedStrings.end();
+                }
+                case ParamDesc::kInt64:
+                {
+                    int64_t nValue = SH::ToInt(sValue);
+                    return nValue >= mnMinInt && nValue <= mnMaxInt;
+                }
+                case ParamDesc::kFloat:
+                {
+                    float fValue = (float)SH::ToDouble(sValue);
+                    return fValue >= mfMaxFloat && fValue <= mfMaxFloat;
+                }
+                case ParamDesc::kBool:
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        return true;    // not range restricted and optional
+
+    }
+
+
 
     void ParamDesc::GetExample(std::string& sParameter, std::string& sType, std::string& sDefault, std::string& sUsage)
     {
@@ -585,25 +623,26 @@ namespace CLP
     }
 
 
-    void CommandLineParser::GetCommandLineExample(string& sCommandLineExample)
+    void CommandLineParser::GetCommandLineExample(const std::string& sMode, string& sCommandLineExample)
     {
-        // create example command line with positional params first followed by named
-        sCommandLineExample = msAppName + " " + msMode;
+        sCommandLineExample = msAppName;
 
+        string sGeneralCommands;
         for (auto& desc : mGeneralCommandLineParser.mParameterDescriptors)
         {
             if (desc.IsPositional() && desc.IsRequired())
-                sCommandLineExample += " " + desc.msName;
+                sGeneralCommands += " " + desc.msName;
         }
         for (auto& desc : mGeneralCommandLineParser.mParameterDescriptors)
         {
             if (desc.IsNamed() && desc.IsRequired())
-                sCommandLineExample += " " + desc.msName;
+                sGeneralCommands += " " + desc.msName;
         }
 
-        if (!msMode.empty())
+        if (IsMultiMode() && IsRegisteredMode(sMode))
         {
-            for (auto& desc : mModeToCommandLineParser[msMode].mParameterDescriptors)
+            sCommandLineExample += " " + sMode + sGeneralCommands;
+            for (auto& desc : mModeToCommandLineParser[sMode].mParameterDescriptors)
             {
                 if (desc.IsPositional() && desc.IsRequired())
                     sCommandLineExample += " " + desc.msName;
@@ -614,6 +653,8 @@ namespace CLP
                     sCommandLineExample += " " + desc.msName;
             }
         }
+        else
+            sCommandLineExample += " COMMAND";
     }
 
 
@@ -915,7 +956,7 @@ namespace CLP
 
                     string sCommandLineExample;
                     TableOutput usageTable;
-                    GetCommandLineExample(sCommandLineExample);
+                    GetCommandLineExample(msMode, sCommandLineExample);
                     usageTable.AddRow(cols[kSECTION] + "--------Usage---------" + cols[kRESET]);
                     usageTable.AddRow(sCommandLineExample);
                     cout << usageTable;
@@ -952,7 +993,7 @@ namespace CLP
 
                     string sCommandLineExample;
                     TableOutput usageTable;
-                    GetCommandLineExample(sCommandLineExample);
+                    GetCommandLineExample("", sCommandLineExample);
                     usageTable.AddRow(cols[kSECTION] + "--------Usage---------" + cols[kRESET]);
                     usageTable.AddRow(sCommandLineExample);
                     cout << usageTable;
@@ -1054,7 +1095,7 @@ namespace CLP
             }
 
 
-            GetCommandLineExample(sCommandLineExample);
+            GetCommandLineExample(sMode, sCommandLineExample);
             mModeToCommandLineParser[sMode].GetModeUsageTables(sMode, descriptionTable, requiredParamTable, optionalParamTable, additionalInfoTable);
             mGeneralCommandLineParser.GetModeUsageTables("", descriptionTable, requiredParamTable, optionalParamTable, additionalInfoTable);
         }
@@ -1094,7 +1135,7 @@ namespace CLP
                 optionalParamTable.SetSeparator(' ', 1);
             }
 
-            GetCommandLineExample(sCommandLineExample);
+            GetCommandLineExample("", sCommandLineExample);
             mGeneralCommandLineParser.GetModeUsageTables("", descriptionTable, requiredParamTable, optionalParamTable, additionalInfoTable);
         }
 
@@ -1125,7 +1166,7 @@ namespace CLP
         }
 
 
-        size_t nMinTableWidth = std::max({ (size_t) 120, 
+        size_t nMinTableWidth = std::max({ (size_t) 80, 
                                             descriptionTable.GetTableWidth(), 
                                             requiredParamTable.GetTableWidth(), 
                                             optionalParamTable.GetTableWidth(), 
@@ -1194,12 +1235,7 @@ namespace CLP
                 commandsTable.AddRow(cols[kPARAM] + sCommand + cols[kRESET], sModeDescription);
         }
 
-        commandsTable.AddRow(cols[kSECTION] + "--------------Help---------------" + cols[kRESET]);
-        commandsTable.AddRow(cols[kPARAM] + "COMMAND ?" + cols[kRESET], "Add '?' anywhere on command line for list of commands or context specific help.");
-        commandsTable.AddRow(cols[kPARAM] + "COMMAND ??" + cols[kRESET], "Detailed help including parameter keys.");
-
-
-        size_t nMinTableWidth = std::max({ (size_t) 120, commandsTable.GetTableWidth(), descriptionTable.GetTableWidth() });
+        size_t nMinTableWidth = std::max({ (size_t) 80, commandsTable.GetTableWidth(), descriptionTable.GetTableWidth() });
 
         descriptionTable.SetMinimumOutputWidth(nMinTableWidth);
         commandsTable.SetMinimumOutputWidth(nMinTableWidth);

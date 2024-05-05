@@ -1,4 +1,4 @@
-#include "CommandLineEditor.h"
+﻿#include "CommandLineEditor.h"
 #include "LoggingHelpers.h"
 #include <Windows.h>
 #include <iostream>
@@ -19,8 +19,11 @@ namespace CLP
         mpCLP = nullptr;
     }
 
-    void ConsoleWin::UpdateCursorPos(COORD newPos)
+    void RawEntryWin::UpdateCursorPos(COORD newPos)
     {
+        if (!mbVisible)
+            return;
+
         int index = (int)CursorToTextIndex(newPos);
         if (index > (int)mText.length())
             index = (int)mText.length();
@@ -30,9 +33,9 @@ namespace CLP
     }
 
 
-    CommandLineEditor::tEnteredParams CommandLineEditor::GetPositionalEntries()
+    tEnteredParams CommandLineEditor::GetPositionalEntries()
     {
-        CommandLineEditor::tEnteredParams posparams;
+        tEnteredParams posparams;
         for (auto& param : mParams)
             if (param.positionalindex >= 0)
                 posparams.push_back(param);
@@ -40,9 +43,9 @@ namespace CLP
         return posparams;
     }
 
-    CommandLineEditor::tEnteredParams CommandLineEditor::GetNamedEntries()
+    tEnteredParams CommandLineEditor::GetNamedEntries()
     {
-        CommandLineEditor::tEnteredParams namedparams;
+        tEnteredParams namedparams;
         bool bFirstParam = true;
         for (auto& param : mParams)
         {
@@ -61,7 +64,7 @@ namespace CLP
     }
 
 
-    void ConsoleWin::FindNextBreak(int nDir)
+    void RawEntryWin::FindNextBreak(int nDir)
     {
         int index = (int)CursorToTextIndex(mCursorPos);
 
@@ -109,7 +112,7 @@ namespace CLP
         UpdateCursorPos(TextIndexToCursor(index));
     }
 
-    bool ConsoleWin::IsIndexInSelection(int64_t i)
+    bool RawEntryWin::IsIndexInSelection(int64_t i)
     {
         int64_t normalizedStart = selectionstart;
         int64_t normalizedEnd = selectionend;
@@ -180,7 +183,7 @@ namespace CLP
     }
 
 
-    string ConsoleWin::GetSelectedText()
+    string RawEntryWin::GetSelectedText()
     {
         if (!IsTextSelected())
             return "";
@@ -196,33 +199,39 @@ namespace CLP
         return mText.substr(normalizedStart, normalizedEnd - normalizedStart);
     }
 
-    bool CommandLineEditor::GetParameterUnderCursor(size_t& outStart, size_t& outEnd, string& outParam)
+    bool RawEntryWin::GetParameterUnderIndex(int64_t index, size_t& outStart, size_t& outEnd, string& outParam)
     {
-        outStart = rawCommandBuf.GetCursorIndex();
-        if (outStart == string::npos)
+        if (index == string::npos || index >= (int64_t)mText.size())
             return false;
 
-        string sText(rawCommandBuf.GetText());
+        if (isblank((int)mText[index])) 
+            return false;
 
-        outEnd = outStart;
-        while (outStart > 0 && !isblank((int)sText[outStart]))
+        outStart = index;
+        outEnd = index;
+        while (outStart > 1 && !isblank((int)mText[outStart-1]))
             outStart--;
-        while (outEnd < sText.size() && !isblank((int)sText[outEnd]))
+        while (outEnd < mText.size() && !isblank((int)mText[outEnd]))
             outEnd++;
 
-        outParam = sText.substr(outStart, outEnd - outStart);
+        outParam = mText.substr(outStart, outEnd - outStart);
         return true;
     }
 
 
-    bool ConsoleWin::Init(int64_t l, int64_t t, int64_t r, int64_t b, string sText)
+    bool ConsoleWin::Init(int64_t l, int64_t t, int64_t r, int64_t b)
     {
+        assert((r - l) > 0 && (b - t) > 0);
         SetArea(l, t, r, b);
-        mText = sText;
-        mCursorPos = TextIndexToCursor((int64_t)mText.size());
         mbVisible = true;
         mbDone = false;
         return true;
+    }
+
+    void RawEntryWin::SetText(const std::string& text)
+    {
+        mText = text;
+        mCursorPos = TextIndexToCursor((int64_t)text.size());
     }
 
     void ConsoleWin::SetArea(int64_t l, int64_t t, int64_t r, int64_t b)
@@ -234,11 +243,21 @@ namespace CLP
         int64_t newH = b - t;
         if (mWidth != newW || mHeight != newH)
         {
-            mBuffer.resize(newW * newH);
-            mWidth = newW;
-            mHeight = newH;
-            Clear();
+            if (newW > 0 && newH > 0)
+            {
+                mBuffer.resize(newW * newH);
+                mWidth = newW;
+                mHeight = newH;
+                Clear();
+            }
+
         }
+    }
+
+    void RawEntryWin::SetArea(int64_t l, int64_t t, int64_t r, int64_t b)
+    {
+        ConsoleWin::SetArea(l, t, r, b);
+        UpdateCursorPos(mCursorPos);
     }
 
     void ConsoleWin::GetArea(int64_t& l, int64_t& t, int64_t& r, int64_t& b)
@@ -253,10 +272,11 @@ namespace CLP
 
     void ConsoleWin::Clear(WORD attrib)
     {
+        mClearAttrib = attrib;
         for (size_t i = 0; i < mBuffer.size(); i++)
         {
             mBuffer[i].Char.AsciiChar = 0;
-            mBuffer[i].Attributes = attrib;
+            mBuffer[i].Attributes = mClearAttrib;
         }
 
     }
@@ -265,8 +285,13 @@ namespace CLP
     {
         WORD foregroundColor = attrib & 0x0F;
         WORD backgroundColor = (attrib >> 4) & 0x0F;
-        if (foregroundColor == backgroundColor)
-            attrib = FOREGROUND_WHITE;
+        if (foregroundColor == backgroundColor && backgroundColor == mClearAttrib)  // would be invisible
+        {
+            if (backgroundColor == FOREGROUND_WHITE)
+                attrib = 0;
+            else
+                attrib = FOREGROUND_WHITE;
+        }
 
         size_t offset = y * mWidth + x;
         DrawCharClipped(c, (int64_t)offset, attrib);
@@ -317,6 +342,33 @@ namespace CLP
                 break;
         }
     }
+
+    void RawEntryWin::DrawClippedText(int64_t x, int64_t y, std::string text, WORD attributes, bool bWrap, bool bHeightlightSelection)
+    {
+        COORD cursor((SHORT)x, (SHORT)y);
+
+        for (size_t textindex = 0; textindex < text.size(); textindex++)
+        {
+            char c = text[textindex];
+            if (c == '\n' && bWrap)
+            {
+                cursor.X = 0;
+                cursor.Y++;
+            }
+            else
+            {
+                if (bHeightlightSelection && IsIndexInSelection(textindex))
+                    DrawCharClipped(c, cursor.X, cursor.Y, attributes | BACKGROUND_INTENSITY);
+                else
+                    DrawCharClipped(c, cursor.X, cursor.Y, attributes);
+            }
+
+            cursor.X++;
+            if (cursor.X >= mWidth && !bWrap)
+                break;
+        }
+    }
+
 
     bool getANSIColorAttribute(const std::string& str, size_t offset, WORD& attribute, size_t& length)
     {
@@ -373,10 +425,10 @@ namespace CLP
                     int colorCode = std::stoi(code);
                     if (colorCode >= 30 && colorCode <= 37)
                     { // Foreground colors
-                        attribute |= FOREGROUND_INTENSITY;
+//                        attribute |= FOREGROUND_INTENSITY;
                         switch (colorCode)
                         {
-                        case 30: attribute |= FOREGROUND_BLUE; break;
+                        case 30: break; // Black
                         case 31: attribute |= FOREGROUND_RED; break;
                         case 32: attribute |= FOREGROUND_GREEN; break;
                         case 33: attribute |= FOREGROUND_RED | FOREGROUND_GREEN; break; // Yellow
@@ -492,51 +544,119 @@ namespace CLP
         return result;
     }
 
-    void ConsoleWin::PaintToWindowsConsole(HANDLE hOut)
+
+    void ConsoleWin::Paint(tConsoleBuffer& backBuf)
     {
         // Update display
         if (!mbVisible)
             return;
-/*
-        int64_t rawCommandRows = (mText.size() + mWidth - 1) / mWidth;
-        int64_t firstRenderRow = 0;
 
-        if (rawCommandRows > mHeight)
-            firstRenderRow = mHeight - rawCommandRows;    // could be negative as we're clipping into the raw command console
-
-        int64_t consoleBufIndex = firstRenderRow * mWidth;
-        for (size_t i = 0; i < mText.length(); i++)
+        for (int64_t y = 0; y < mHeight; y++)
         {
-            WORD attrib = FOREGROUND_WHITE;
-            if (IsIndexInSelection(i))
-                attrib |= BACKGROUND_INTENSITY;
-            DrawCharClipped(mText[i], consoleBufIndex, attrib);
-            consoleBufIndex++;
-        }*/
+            int64_t readOffset = (y * mWidth);
+            int64_t writeOffset = ((y + mY) * mWidth + mX);
+
+            memcpy(&backBuf[writeOffset], &mBuffer[readOffset], mWidth * sizeof(CHAR_INFO));
+        }
+    }
+
+    void RawEntryWin::Paint(tConsoleBuffer& backBuf)
+    {
+        // Update display
+        if (!mbVisible)
+            return;
+
+        COORD cursor((SHORT)0, (SHORT)0);
+
+        std::vector<WORD> attribs;
+        attribs.resize(mText.size());
+
+
+        for (size_t textindex = 0; textindex < mText.length(); textindex++)
+        {
+            attribs[textindex] = FOREGROUND_WHITE;
+        }
+
+        for (size_t textindex = 0; textindex < mText.length(); textindex++)
+        {
+            // find error params
+            size_t startIndex = string::npos;
+            size_t endIndex = string::npos;
+            string sParamUnderCursor;
+            if (GetParameterUnderIndex(textindex, startIndex, endIndex, sParamUnderCursor))
+            {
+                for (auto& param : mEnteredParams)
+                {
+                    if (param.sParamText == sParamUnderCursor)
+                    {
+                        for (size_t colorindex = startIndex; colorindex < endIndex; colorindex++)
+                            attribs[colorindex] = param.drawAttributes;
+
+                        textindex = endIndex;   // skip to end of param
+                        break;
+                    }
+                }
+            }
+        }
+
+
+        for (size_t textindex = 0; textindex < mText.length(); textindex++)
+        {
+            if (IsIndexInSelection(textindex))
+                attribs[textindex] |= BACKGROUND_INTENSITY;
+        }
+
+
+
+
+        for (size_t textindex = 0; textindex < mText.size(); textindex++)
+        {
+            char c = mText[textindex];
+            if (c == '\n')
+            {
+                cursor.X = 0;
+                cursor.Y++;
+            }
+            else
+            {
+                DrawCharClipped(c, cursor.X, cursor.Y, attribs[textindex]);
+            }
+
+            cursor.X++;
+        }
+
+
+
+        ConsoleWin::Paint(backBuf);
+    }
+
+    void AnsiColorWin::Paint(tConsoleBuffer& backBuf)
+    {
+        // Update display
+        if (!mbVisible)
+            return;
+
+        DrawClippedAnsiText(0, 0, mText);
+        ConsoleWin::Paint(backBuf);
+    }
+
+
+/*    void ConsoleWin::PaintToWindowsConsole(HANDLE hOut)
+    {
+        // Update display
+        if (!mbVisible)
+            return;
 
         DrawClippedAnsiText(0, 0, mText);
 
-
-
-
-
-        COORD origin(0, 0);
+        COORD origin((SHORT)mX, (SHORT)mY);
         SMALL_RECT writeRegion((SHORT)mX, (SHORT)mY, (SHORT)(mX + mWidth), (SHORT)(mY + mHeight));
         COORD bufsize((SHORT)mWidth, (SHORT)mHeight);
         WriteConsoleOutput(hOut, &mBuffer[0], bufsize, origin, &writeRegion);
-    }
+    }*/
 
-    void ConsoleWin::OnKey(int keycode, char c)
+    void RawEntryWin::OnKey(int keycode, char c)
     {
-        static int count = 0;
-
-        char buf[64];
-        sprintf(buf, "count:%d key:%c\n", count++, c);
-        OutputDebugString(buf);
-
-
-
-
         bool bCTRLHeld = GetKeyState(VK_CONTROL) & 0x800;
         bool bSHIFTHeld = GetKeyState(VK_SHIFT) & 0x800;
 
@@ -584,7 +704,7 @@ namespace CLP
             }
 
             UpdateSelection();
-        }     
+        }
         return;
         case VK_DOWN:
         {
@@ -671,7 +791,7 @@ namespace CLP
             UpdateSelection();
         }
         return;
-        case 0x41:  
+        case 0x41:
         {
             if (bCTRLHeld)  // CTRL-A
             {
@@ -705,10 +825,8 @@ namespace CLP
             UpdateCursorPos(TextIndexToCursor(index + 1));
             UpdateSelection();
         }
+
     }
-
-
-
 
     void CommandLineEditor::UpdateDisplay()
     {
@@ -722,6 +840,8 @@ namespace CLP
         // Clear the raw command buffer and param buffers
         rawCommandBuf.Clear();
         paramListBuf.Clear(BACKGROUND_BLUE);
+        usageBuf.Clear(BACKGROUND_GREEN | BACKGROUND_RED);
+        topInfoBuf.Clear(BACKGROUND_GREEN | BACKGROUND_RED);
         ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
         // if the command line is bigger than the screen, show the last n rows that fit
@@ -737,8 +857,8 @@ namespace CLP
 
             vector<size_t> colWidths;
             colWidths.resize(3);
-            colWidths[kColName] = 12;
-            colWidths[kColEntry] = 12;
+            colWidths[kColName] = 16;
+            colWidths[kColEntry] = 16;
             colWidths[kColUsage] = mScreenInfo.dwSize.X - (colWidths[kColName] + colWidths[kColEntry]);
             for (int paramindex = 1; paramindex < mParams.size(); paramindex++)
             {
@@ -778,13 +898,13 @@ namespace CLP
 
                 if (mpCLP)
                 {
-                    mpCLP->GetCommandLineExample(strings[kColUsage]);
+                    mpCLP->GetCommandLineExample(msMode, strings[kColUsage]);
                 }
             }
             else
             {
-                attribs[kColEntry] = FOREGROUND_RED;
-                strings[kColUsage] = "Unknown Command";
+                attribs[kColName] = FOREGROUND_RED;
+                strings[kColName] = "UNKNOWN COMMAND";
             }
 
             paramListBuf.DrawFixedColumnStrings(0, row, strings, colWidths, attribs);
@@ -794,7 +914,8 @@ namespace CLP
 
             // next list positional params
             row+=2;
-            paramListBuf.DrawClippedText(0, row++, "*Positional Parameters*");
+            string sSection = "-positional params-" + string(mScreenInfo.dwSize.X, '-');
+            paramListBuf.DrawClippedText(0, row++, sSection, BACKGROUND_INTENSITY, false);
 
 
             tEnteredParams posParams = GetPositionalEntries();
@@ -806,7 +927,17 @@ namespace CLP
                 if (param.pRelatedDesc)
                 {
                     strings[kColName] += " " + param.pRelatedDesc->msName;
-                    strings[kColUsage] = param.pRelatedDesc->msUsage;
+
+                    if (param.pRelatedDesc->DoesValueSatifsy(param.sParamText))
+                    {
+                        strings[kColUsage] = param.pRelatedDesc->msUsage;
+                        attribs[kColUsage] = FOREGROUND_WHITE;
+                    }
+                    else
+                    {
+                        strings[kColUsage] = "Parameter out of range";
+                        attribs[kColEntry] = FOREGROUND_RED;
+                    }
                 }
                 else
                 {
@@ -821,7 +952,8 @@ namespace CLP
 
 
             row++;
-            paramListBuf.DrawClippedText(0, row++, "*Named Parameters*");
+            sSection = "-named params-" + string(mScreenInfo.dwSize.X, '-');
+            paramListBuf.DrawClippedText(0, row++, sSection, BACKGROUND_INTENSITY, false);
 
             tEnteredParams namedParams = GetNamedEntries();
 
@@ -830,13 +962,30 @@ namespace CLP
                 strings[kColName] = "-";
                 if (param.pRelatedDesc)
                 {
-                    strings[kColName] += param.pRelatedDesc->msName;
-                    attribs[kColName] = FOREGROUND_WHITE;
+                    string sName;
+                    string sValue;
+                    ParseParam(param.sParamText, sName, sValue);
 
-                    attribs[kColEntry] = FOREGROUND_GREEN;
+                    if (param.pRelatedDesc->DoesValueSatifsy(sValue))
+                    {
+                        strings[kColName] += param.pRelatedDesc->msName;
+                        attribs[kColName] = FOREGROUND_WHITE;
 
-                    strings[kColUsage] = param.pRelatedDesc->msUsage;
-                    attribs[kColUsage] = FOREGROUND_WHITE;
+                        attribs[kColEntry] = FOREGROUND_GREEN;
+
+                        strings[kColUsage] = param.pRelatedDesc->msUsage;
+                        attribs[kColUsage] = FOREGROUND_WHITE;
+                    }
+                    else
+                    {
+                        strings[kColName] += param.pRelatedDesc->msName;
+                        attribs[kColName] = FOREGROUND_WHITE;
+
+                        attribs[kColEntry] = FOREGROUND_RED;
+
+                        strings[kColUsage] = "Parameter out of range";
+                        attribs[kColUsage] = FOREGROUND_RED;
+                    }
                 }
                 else
                 {
@@ -936,12 +1085,12 @@ namespace CLP
         return true;
     }
 
-    bool CommandLineEditor::HandleParamContext()
+    bool RawEntryWin::HandleParamContext()
     {
         size_t start = string::npos;
         size_t end = string::npos;
         string sText;
-        if (!GetParameterUnderCursor(start, end, sText))
+        if (!GetParameterUnderIndex(CursorToTextIndex(mCursorPos), start, end, sText))
             return false;
 
         // Find set of auto complete for param
@@ -955,24 +1104,42 @@ namespace CLP
         SHORT paramListRows = (SHORT)mParams.size();
 
 
-        tConsoleBuffer blank;
-        blank.resize(mScreenInfo.dwSize.X * mScreenInfo.dwSize.Y);
-
-/*        COORD origin(0, 0);
-        SHORT paramListTop = (SHORT)rawCommandBufTopRow - paramListRows - 1;
-        SMALL_RECT clearRegion = { 0, 0, screenBufferInfo.dwSize.X - 1, paramListTop-1};
-        WriteConsoleOutput(mhOutput, &blank[0], screenBufferInfo.dwSize, origin, &clearRegion);*/
+        // clear back buffer
+        memset(&backBuffer[0], 0, backBuffer.size() * sizeof(CHAR_INFO));
 
         if (helpBuf.mbVisible)
         {
-            helpBuf.PaintToWindowsConsole(mhOutput);
+            //helpBuf.PaintToWindowsConsole(mhOutput);
+            helpBuf.Paint(backBuffer);
         }
         else
         {
-            paramListBuf.PaintToWindowsConsole(mhOutput);
-            rawCommandBuf.PaintToWindowsConsole(mhOutput);
-            popupBuf.PaintToWindowsConsole(mhOutput);
+//            paramListBuf.PaintToWindowsConsole(mhOutput);
+//            rawCommandBuf.PaintToWindowsConsole(mhOutput);
+//            popupBuf.PaintToWindowsConsole(mhOutput);
+            paramListBuf.Paint(backBuffer);
+            rawCommandBuf.Paint(backBuffer);
+            popupBuf.Paint(backBuffer);
+            usageBuf.Paint(backBuffer);
+            topInfoBuf.Paint(backBuffer);
+
+            if (mpCLP)
+            {
+//                if (mpCLP->IsRegisteredMode(msMode))
+                {
+                    string sExample;
+                    mpCLP->GetCommandLineExample(msMode, sExample);
+                    usageBuf.SetText(string(COL_BLACK) + "usage: " + sExample);
+                }
+            }
+
+            topInfoBuf.SetText(string(COL_BLACK) + "[F1 - HELP] - [ESC - CANCEL]");
         }
+
+        // Finally draw to screen
+        COORD origin(0, 0);
+        SMALL_RECT region = { 0, 0, mScreenInfo.dwSize.X - 1, mScreenInfo.dwSize.Y - 1 };
+        WriteConsoleOutput(mhOutput, &backBuffer[0], mScreenInfo.dwSize, origin, &region);
     }
 
     void CommandLineEditor::SaveConsoleState()
@@ -990,34 +1157,39 @@ namespace CLP
     }
 
 
-    int64_t ConsoleWin::CursorToTextIndex(COORD coord)
+    int64_t RawEntryWin::CursorToTextIndex(COORD coord)
     {
         int64_t i = (coord.Y-mY) * mWidth + coord.X;
         return std::min<size_t>(i, mText.size());
     }
 
-    COORD ConsoleWin::TextIndexToCursor(int64_t i)
+    COORD RawEntryWin::TextIndexToCursor(int64_t i)
     {
         if (i > (int64_t)mText.size())
             i = (int64_t)mText.size();
 
-        int64_t rawCommandRows = ((int64_t)mText.size() + mWidth - 1) / mWidth;
-        int64_t firstVisibleRow = 0;
+        if (mWidth > 0)
+        {
+            int64_t rawCommandRows = ((int64_t)mText.size() + mWidth - 1) / mWidth;
+            int64_t firstVisibleRow = 0;
 
-        if (rawCommandRows > mHeight)
-            firstVisibleRow = rawCommandRows - mHeight;    // could be negative as we're clipping into the raw command console
+            if (rawCommandRows > mHeight)
+                firstVisibleRow = rawCommandRows - mHeight;    // could be negative as we're clipping into the raw command console
 
-        int64_t hiddenChars = firstVisibleRow * mWidth;
+            int64_t hiddenChars = firstVisibleRow * mWidth;
 
-        i -= (size_t)hiddenChars;
+            i -= (size_t)hiddenChars;
 
-        COORD c;
-        c.X = (SHORT)(i) % mWidth;
-        c.Y = ((SHORT)mY + (SHORT)(i / mWidth));
-        return c;
+            COORD c;
+            c.X = (SHORT)(i) % mWidth;
+            c.Y = ((SHORT)mY + (SHORT)(i / mWidth));
+            return c;
+        }
+
+        return COORD(0, 0);
     }
 
-    void ConsoleWin::HandlePaste(string text)
+    void RawEntryWin::HandlePaste(string text)
     {
         DeleteSelection();  // delete any selection if needed
         int64_t curindex = CursorToTextIndex(mCursorPos);
@@ -1031,7 +1203,7 @@ namespace CLP
         OutputDebugString(buf);
     }
 
-    void ConsoleWin::DeleteSelection()
+    void RawEntryWin::DeleteSelection()
     {
         if (!IsTextSelected())
             return;
@@ -1056,13 +1228,13 @@ namespace CLP
         ClearSelection();
     }
 
-    void ConsoleWin::ClearSelection()
+    void RawEntryWin::ClearSelection()
     {
         selectionstart = -1;
         selectionend = -1;
     }
 
-    void ConsoleWin::UpdateSelection()
+    void RawEntryWin::UpdateSelection()
     {
         if (!(GetKeyState(VK_SHIFT) & 0x800))
         {
@@ -1114,9 +1286,9 @@ namespace CLP
         return sText;
     }
 
-    CommandLineEditor::tEnteredParams CommandLineEditor::ParamsFromText(const std::string& sText)
+    tEnteredParams CommandLineEditor::ParamsFromText(const std::string& sText)
     {
-        CommandLineEditor::tEnteredParams params;
+        tEnteredParams params;
 
         int positionalindex = -1;
         size_t length = sText.length();
@@ -1146,24 +1318,35 @@ namespace CLP
 
             if (positionalindex == -1)   // mode position
             {
+                tStringList modes = GetCLPModes();
+                bool bModePermitted = modes.empty() || std::find(modes.begin(), modes.end(), param.sParamText) != modes.end(); // if no modes registered or (if there are) if the first param matches one
+                if (bModePermitted)
+                {
+                    param.drawAttributes = FOREGROUND_GREEN;
+                }
+                else
+                {
+                    param.drawAttributes = FOREGROUND_RED;
+                }
                 positionalindex++;
             }
             else if (ParseParam(param.sParamText, sParamName, sParamValue)) // is it a named parameter
             {
                 param.pRelatedDesc = GetParamDesc(sParamName);
+                if (!param.pRelatedDesc)
+                    param.drawAttributes = FOREGROUND_RED;      // unknown named parameter
+                else if (!param.pRelatedDesc->DoesValueSatifsy(sParamValue))
+                    param.drawAttributes = FOREGROUND_RED;      // known named parameter but not in required range
             }
             else
             {
                 param.positionalindex = positionalindex;
                 param.pRelatedDesc = GetParamDesc(positionalindex);
 
-                if (param.pRelatedDesc)
-                {
-                    if (!param.pRelatedDesc->Satisfied())
-                    {
-                        param.drawAttributes = FOREGROUND_RED;
-                    }
-                }
+                if (!param.pRelatedDesc)       // unsatisfied positional parameter
+                    param.drawAttributes = FOREGROUND_RED;
+                else if (!param.pRelatedDesc->DoesValueSatifsy(param.sParamText))     // positional param has descriptor but not in required range
+                    param.drawAttributes = FOREGROUND_RED;
 
                 positionalindex++;
             }
@@ -1185,6 +1368,7 @@ namespace CLP
         mLastParsedText = sText;
 
         mParams = ParamsFromText(mLastParsedText);
+        rawCommandBuf.mEnteredParams = mParams;
     }
 
     std::string CommandLineEditor::Edit(int argc, char* argv[])
@@ -1212,27 +1396,31 @@ namespace CLP
         if (memcmp(&screenInfo, &mScreenInfo, sizeof(screenInfo) != 0))
         {
             mScreenInfo = screenInfo;
-            rawCommandBuf.SetArea(0, mScreenInfo.dwSize.Y - 4, mScreenInfo.dwSize.X, mScreenInfo.dwSize.Y);
-            paramListBuf.SetArea(0, 0, mScreenInfo.dwSize.X, mScreenInfo.dwSize.Y - 4);
-            helpBuf.SetArea(0, 0, mScreenInfo.dwSize.X, mScreenInfo.dwSize.Y);
+
+            SHORT w = mScreenInfo.dwSize.X;
+            SHORT h = mScreenInfo.dwSize.Y;
+
+
+            backBuffer.resize(w*h);
+            rawCommandBuf.SetArea(0, h - 4, w, h);
+            paramListBuf.SetArea(0, 1, w, h - 6);
+            topInfoBuf.SetArea(0, 0, w, 1);
+            usageBuf.SetArea(0, h - 5, w, h - 4);
+            helpBuf.SetArea(0, 0, w, h);
+
+            UpdateDisplay();
         }
-
-
-
     }
 
     void CommandLineEditor::ShowHelp()
     {
         if (mpCLP)
         {
-            string help;
+            helpBuf.Init(0, 0, mScreenInfo.dwSize.X, mScreenInfo.dwSize.Y);
             if (mpCLP->IsRegisteredMode(msMode))
-                help = mpCLP->GetHelpString(msMode, true);
+                helpBuf.SetText(mpCLP->GetHelpString(msMode, false));
             else
-                help = mpCLP->GetModesString();
-
-//            std::string help = "\x1B[32;41mHello\x1B[0m";
-            helpBuf.Init(0, 0, mScreenInfo.dwSize.X, mScreenInfo.dwSize.Y, help);
+                helpBuf.SetText(mpCLP->GetModesString());
         }
     }
 
@@ -1262,10 +1450,30 @@ namespace CLP
             return sCommandLine;
         }
 
-        rawCommandBuf.Init(0, mScreenInfo.dwSize.Y - 4, mScreenInfo.dwSize.X, mScreenInfo.dwSize.Y, sCommandLine);
-        paramListBuf.Init(0, 0, mScreenInfo.dwSize.X, mScreenInfo.dwSize.Y - 4, "");
+        SHORT w = mScreenInfo.dwSize.X;
+        SHORT h = mScreenInfo.dwSize.Y;
+
+
+        backBuffer.resize(w*h);
+        rawCommandBuf.Init(0, h - 4, w, h);
+        rawCommandBuf.SetText(sCommandLine);
+
+        paramListBuf.Init(0, 1, w, h - 6);
+        rawCommandBuf.UpdateCursorPos(COORD((SHORT)sCommandLine.length(), 0));
+
+        usageBuf.Init(0, h - 6, w, h - 5);
+        topInfoBuf.Init(0, 0, w, 1);
+
 
         SaveConsoleState();
+        std::vector<CHAR_INFO> blank(w*h);
+        for (int i = 0; i < blank.size(); i++)
+        {
+            blank[i].Char.AsciiChar = ' ';
+            blank[i].Attributes = 0;
+        }
+        SMALL_RECT smallrect(0, 0, w, h);
+        WriteConsoleOutput(mhOutput, &blank[0], mScreenInfo.dwSize, { 0, 0 }, &smallrect);
 
 
         // Set console mode to allow reading mouse and key events
@@ -1285,7 +1493,7 @@ namespace CLP
         }
 
         // Main loop to read input events
-        INPUT_RECORD inputRecord;
+        INPUT_RECORD inputRecord[128];
         DWORD numEventsRead;
 
         while (!rawCommandBuf.mbDone)
@@ -1308,39 +1516,58 @@ namespace CLP
                 }
             }
 
-            if (PeekConsoleInput(mhInput, &inputRecord, 1, &numEventsRead) && numEventsRead > 0)
+            if (PeekConsoleInput(mhInput, inputRecord, 128, &numEventsRead) && numEventsRead > 0)
             {
                 UpdateDisplay();
 
-                if (!ReadConsoleInput(mhInput, &inputRecord, 1, &numEventsRead))
+                for (DWORD i = 0; i < numEventsRead; i++)
                 {
-                    cerr << "Failed to read console input." << endl;
-                    return "";
-                }
-
-                if (inputRecord.EventType == KEY_EVENT && inputRecord.Event.KeyEvent.bKeyDown)
-                {
-                    int keycode = inputRecord.Event.KeyEvent.wVirtualKeyCode;
-                    char c = inputRecord.Event.KeyEvent.uChar.AsciiChar;
-
-                    if (popupBuf.mbVisible)
+                    if (!ReadConsoleInput(mhInput, inputRecord, 1, &numEventsRead))
                     {
-                        popupBuf.OnKey(keycode, c);
+                        cerr << "Failed to read console input." << endl;
+                        return "";
                     }
-                    else if (helpBuf.mbVisible)
+
+                    if (inputRecord[i].EventType == MOUSE_EVENT)
                     {
-                        helpBuf.OnKey(keycode, c);
+                        MOUSE_EVENT_RECORD mer = inputRecord[i].Event.MouseEvent;
+                        if (mer.dwEventFlags == 0 && mer.dwButtonState == FROM_LEFT_1ST_BUTTON_PRESSED)
+                        {
+                            int64_t l;
+                            int64_t t;
+                            int64_t r;
+                            int64_t b;
+                            rawCommandBuf.GetArea(l, t, r, b);
+
+                            COORD coord(mer.dwMousePosition);
+                            coord.Y -= (SHORT)t;       // to raw buffer coordinates
+                            rawCommandBuf.UpdateCursorPos(coord);
+                        }
                     }
-                    else
+                    else if (inputRecord[i].EventType == KEY_EVENT && inputRecord[i].Event.KeyEvent.bKeyDown)
                     {
-                        if (keycode == VK_F1)
-                            ShowHelp();
+                        int keycode = inputRecord[i].Event.KeyEvent.wVirtualKeyCode;
+                        char c = inputRecord[i].Event.KeyEvent.uChar.AsciiChar;
+
+                        if (popupBuf.mbVisible)
+                        {
+                            popupBuf.OnKey(keycode, c);
+                        }
+                        else if (helpBuf.mbVisible)
+                        {
+                            helpBuf.OnKey(keycode, c);
+                        }
                         else
-                            rawCommandBuf.OnKey(keycode, c);
+                        {
+                            if (keycode == VK_F1)
+                                ShowHelp();
+                            else
+                                rawCommandBuf.OnKey(keycode, c);
+                        }
                     }
-                }
 
-                UpdateDisplay();
+                    UpdateDisplay();
+                }
             }
         }
 
@@ -1351,7 +1578,7 @@ namespace CLP
         return rawCommandBuf.GetText();
     }
 
-    void InfoWin::PaintToWindowsConsole(HANDLE hOut)
+    void InfoWin::Paint(tConsoleBuffer& backBuf)
     {
         if (!mbVisible)
             return;
@@ -1359,10 +1586,13 @@ namespace CLP
         Clear(BACKGROUND_INTENSITY);
         DrawClippedAnsiText(0, -firstVisibleRow, mText);
 
-        COORD origin(0, 0);
-        SMALL_RECT writeRegion((SHORT)mX, (SHORT)mY, (SHORT)(mX + mWidth), (SHORT)(mY + mHeight));
-        COORD bufsize((SHORT)mWidth, (SHORT)mHeight);
-        WriteConsoleOutput(hOut, &mBuffer[0], bufsize, origin, &writeRegion);
+        for (int64_t y = 0; y < mHeight; y++)
+        {
+            int64_t readOffset = (y * mWidth);
+            int64_t writeOffset = ((y + mY) * mWidth + mX);
+
+            memcpy(&backBuf[writeOffset], &mBuffer[readOffset], mWidth * sizeof(CHAR_INFO));
+        }
     }
 
     void InfoWin::OnKey(int keycode, char c)

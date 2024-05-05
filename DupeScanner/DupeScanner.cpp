@@ -47,7 +47,7 @@ int main(int argc, char* argv[])
 
     if (sSourcePath.empty())
     {
-        parser.ListModes();
+        cout << parser.GetModesString();
         return -1;
     }
 
