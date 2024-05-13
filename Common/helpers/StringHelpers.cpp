@@ -404,6 +404,26 @@ void SH::ToMap(const string& sEncoded, map<string, string>& outStringMap, const 
     }
 }
 
+bool SH::ContainsWhitespace(const std::string& s, bool bSkipQuotes)
+{
+    if (bSkipQuotes)
+    {
+        for (size_t i = 0; i < s.length(); i++)
+        {
+            char c = s[i];
+            if (std::isspace(c))
+                return true;
+            if (c == '\'' || c == '\"')
+                i = FindMatching(s, i);     // skip quote
+        }
+
+        return false;
+    }
+
+    return std::any_of(s.begin(), s.end(), [](char c) { return std::isspace(static_cast<unsigned char>(c)); });
+}
+
+
 size_t SH::FindMatching(const std::string& s, size_t i)
 {
     // any enclosing pairs should be accounted for......
@@ -431,6 +451,12 @@ size_t SH::FindMatching(const std::string& s, size_t i)
     case '<':           // <>
         end = '>';
         break;
+    case '(':           // ()
+        end = ')';
+        break;
+    case '`':
+        end = '`';      // ``
+        break;
     default:
         return string::npos;
     }
@@ -442,14 +468,14 @@ size_t SH::FindMatching(const std::string& s, size_t i)
         if (i < s.length() && s[i] == end)
             return i;
 
-        if (s[i] == '\"' || s[i] == '\'' || s[i] == '{' || s[i] == '[' || s[i] == '[' || s[i] == '<')   // another enclosure?
+        if (s[i] == '\"' || s[i] == '\'' || s[i] == '{' || s[i] == '[' || s[i] == '[' || s[i] == '<' || s[i] == '(' || s[i] == '`')   // another enclosure?
         {
             i = FindMatching(s, i); // find that enclosure
             if (i == string::npos)
             {
                 // couldn't find enclosing message
-                assert(false);
-                return string::npos;
+//                assert(false);
+//                return string::npos;
             }
         }
     } while (i < s.length());
