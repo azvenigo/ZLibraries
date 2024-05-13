@@ -13,11 +13,18 @@ project(ZPackager)
 
 set(ZPACKAGER_SOURCES main.cpp ZZipAPI.h ZZipAPI.cpp ZipJob.h ZipJob.cpp ZipHeaders.h ZipHeaders.cpp ZZipTrackers.h zlibAPI.h zlibAPI.cpp)
 set(COMMON_FILES 
-../Common/helpers/CommandLineParser.cpp ../Common/helpers/CommandLineParser.h 
-../Common/helpers/Crc32Fast.h ../Common/helpers/Crc32Fast.cpp
-../Common/helpers/ZZFileAPI.h ../Common/helpers/ZZFileAPI.cpp 
-../Common/helpers/FileHelpers.h ../Common/helpers/FileHelpers.cpp
-../Common/helpers/Registry.h ../Common/helpers/Registry.cpp
+../Common/helpers/CommandLineParser.cpp 
+../Common/helpers/CommandLineParser.h 
+../Common/helpers/CommandLineEditor.cpp 
+../Common/helpers/CommandLineEditor.h 
+../Common/helpers/Crc32Fast.h 
+../Common/helpers/Crc32Fast.cpp
+../Common/helpers/ZZFileAPI.h 
+../Common/helpers/ZZFileAPI.cpp 
+../Common/helpers/FileHelpers.h 
+../Common/helpers/FileHelpers.cpp
+../Common/helpers/Registry.h 
+../Common/helpers/Registry.cpp
 
 )
 

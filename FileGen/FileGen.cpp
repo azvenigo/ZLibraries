@@ -4,7 +4,6 @@
 #include "helpers/InlineFormatter.h"
 #include "helpers/RandHelpers.h"
 #include "helpers/StringHelpers.h"
-#include "helpers/CommandLineEditor.h"
 #include <filesystem>
 
 InlineFormatter gFormatter;
@@ -235,6 +234,7 @@ int main(int argc, char* argv[])
     bool bCompressFactorFill = false;
     int64_t nCompressFactor = 10;
 
+    CLP::DisableCols();
 
     CommandLineParser parser;
     parser.RegisterAppDescription("Creates one or more files in one or more folders.");
@@ -255,10 +255,10 @@ int main(int argc, char* argv[])
 
 
 
-    parser.RegisterParam(ParamDesc("FILENAME",      &sFilename,         CLP::kPositional| CLP::kRequired, "Name of file to create. Multiple files in a folder will have numbers included."));
+    parser.RegisterParam(ParamDesc("FILENAME",      &sFilename,         CLP::kPositional| CLP::kRequired|CLP::kPath, "Name of file to create. Multiple files in a folder will have numbers included."));
     parser.RegisterParam(ParamDesc("SIZE",          &nFileSize,         CLP::kPositional | CLP::kRequired | CLP::kRangeRestricted,  "Size of file(s) to create.", 100, 500));
 
-    parser.RegisterParam(ParamDesc("dest",         &sDestPath,          CLP::kNamed,       "base path to where to create data files. defaults to working directory"));
+    parser.RegisterParam(ParamDesc("dest",         &sDestPath,          CLP::kNamed | CLP::kPath,       "base path to where to create data files. defaults to working directory"));
     parser.RegisterParam(ParamDesc("folders",      &nFolders,           CLP::kNamed,       "number of folders to generate. default is 0"));
     parser.RegisterParam(ParamDesc("files",        &nFilesPerFolder,    CLP::kNamed,       "number of files in each folder. default is 1"));
 
@@ -267,16 +267,6 @@ int main(int argc, char* argv[])
 
 
     bool bParseSuccess = parser.Parse(argc, argv);
-
-    CLP::CommandLineEditor editor;
-    editor.SetConfiguredCLP(&parser);
-    string result = editor.Edit(argc, argv);
-    cout << "Result is:\"" << result << "\"\n";
-
-    return 0;
-
-
-
     if (!bParseSuccess)
     {
         cerr << "Aborting.\n";
@@ -295,18 +285,17 @@ int main(int argc, char* argv[])
         sFilename = sFilename.substr(0, nLastDot);    // everything before the .
     }
 
-
-    if (!sDestPath.empty())
+    if (nFilesPerFolder > 1 || nFolders > 1)
     {
-        char lastChar = sDestPath[sDestPath.length()-1];
-        if (lastChar != '/' && lastChar != '\\')
-            sDestPath += "/";
-
-        cout << "Creating package path.\n";
-        filesystem::create_directories(sDestPath);
+        if (!sDestPath.empty())
+        {
+            char lastChar = sDestPath[sDestPath.length() - 1];
+            if (lastChar != '/' && lastChar != '\\')
+                sDestPath += "/";
+        }
+        else
+            sDestPath = "./";
     }
-    else
-        sDestPath="./";
 
     for (int64_t i = 0; i < nFolders; i++)
     {

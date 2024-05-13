@@ -23,6 +23,9 @@ namespace CLP
 
         WORD drawAttributes = FOREGROUND_WHITE;
         std::string sStatusMessage;
+
+        int64_t rawCommandLineStartIndex = -1;
+
     };
 
 
@@ -57,6 +60,7 @@ namespace CLP
         void ClearScreenBuffer();
 
         bool mbDone = false;
+        bool mbCanceled = false;
         bool mbVisible = false;
         tConsoleBuffer  mBuffer;
 
@@ -105,7 +109,10 @@ namespace CLP
         std::string GetSelectedText();
 
         tEnteredParams mEnteredParams;
+        tStringList mAvailableModes;
+        tStringList mAvailableNamedParams;
     protected:
+
         int64_t CursorToTextIndex(COORD coord);
         COORD TextIndexToCursor(int64_t i);
 
@@ -144,6 +151,36 @@ namespace CLP
     };
 
 
+    class ListboxWin : public ConsoleWin
+    {
+    public:
+
+        virtual std::string GetSelection();
+
+        virtual void SetEntries(tStringList entries, std::string selectionSearch = "", int64_t origin_l = -1, int64_t origin_b = -1);
+        virtual void Paint(tConsoleBuffer& backBuf);
+        virtual void OnKey(int keycode, char c);
+
+    protected:
+        tStringList   mEntries;
+        int64_t       mSelection;
+    };
+
+    class FolderList : public ListboxWin
+    {
+    public:
+        bool            Scan(std::string sPath, int64_t origin_l, int64_t origin_b);  // bottom left corner to auto size from
+        virtual void    Paint(tConsoleBuffer& backBuf);
+        virtual void    OnKey(int keycode, char c);
+
+        tStringList     mEntries;
+    protected:
+        std::string     mPath;
+        int64_t         mSelection;
+    };
+
+
+
     class CommandLineEditor
     {
     public:
@@ -176,21 +213,8 @@ namespace CLP
 
         HANDLE mhInput;
         HANDLE mhOutput;
-        CONSOLE_SCREEN_BUFFER_INFO mScreenInfo;
         tConsoleBuffer originalConsoleBuf;
         tConsoleBuffer backBuffer;      // for double buffering
-
-
-        RawEntryWin     rawCommandBuf;  // raw editing buffer 
-        AnsiColorWin    paramListBuf;   // parsed parameter list with additional info
-
-        AnsiColorWin    topInfoBuf;
-        AnsiColorWin    usageBuf;       // simple one line drawing of usage
-
-
-        InfoWin         helpBuf;        // popup help window
-        InfoWin         popupBuf;       // tbd
-
 
         tEnteredParams    mParams;
         std::string EnteredParamsToText();
@@ -203,8 +227,9 @@ namespace CLP
         // Processing of registered CLP
         CommandLineParser* mpCLP;
         tStringList GetCLPModes();
-        CLP::ParamDesc* GetParamDesc(std::string& paramName);
-        CLP::ParamDesc* GetParamDesc(int64_t position);
+        tStringList GetCLPNamedParamsForMode(const std::string& sMode);
+        CLP::ParamDesc* GetParamDesc(const std::string& sMode, std::string& paramName);
+        CLP::ParamDesc* GetParamDesc(const std::string& sMode, int64_t position);
     };
 
 

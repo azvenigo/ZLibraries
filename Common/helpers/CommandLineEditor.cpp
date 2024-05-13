@@ -4,16 +4,29 @@
 #include <iostream>
 #include <assert.h>
 #include <format>
+#include <filesystem>
 
 #include <stdio.h>
 
 using namespace std;
+namespace fs = std::filesystem;
 
 namespace CLP
 {
+    string          appEXE;         // first argument
+    RawEntryWin     rawCommandBuf;  // raw editing buffer 
+    AnsiColorWin    paramListBuf;   // parsed parameter list with additional info
+    AnsiColorWin    topInfoBuf;
+    AnsiColorWin    usageBuf;       // simple one line drawing of usage
+    InfoWin         helpBuf;        // popup help window
+    ListboxWin      popupListWin;
+    FolderList      popupFolderListWin;
+
+    CONSOLE_SCREEN_BUFFER_INFO screenInfo;
+
 
     bool CopyTextToClipboard(const std::string& text);
-
+    
     CommandLineEditor::CommandLineEditor()
     {
         mpCLP = nullptr;
@@ -138,15 +151,43 @@ namespace CLP
         return modes;
     }
 
-    CLP::ParamDesc* CommandLineEditor::GetParamDesc(int64_t position)
+    tStringList CommandLineEditor::GetCLPNamedParamsForMode(const std::string& sMode)
+    {
+        tStringList params;
+        if (mpCLP)
+        {
+            // go over all general params
+            for (auto& pd : mpCLP->mGeneralCommandLineParser.mParameterDescriptors)
+            {
+                if (pd.IsNamed())
+                    params.push_back("-" + pd.msName + ":");
+            }
+
+            // now add any mode specific
+            if (mpCLP->IsRegisteredMode(sMode))
+            {
+                for (auto& pd : mpCLP->mModeToCommandLineParser[sMode].mParameterDescriptors)
+                {
+                    if (pd.IsNamed())
+                        params.push_back("-" + pd.msName + ":");
+                }
+            }
+
+        }
+
+        return params;
+    }
+
+
+    CLP::ParamDesc* CommandLineEditor::GetParamDesc(const std::string& sMode, int64_t position)
     {
         if (mpCLP)
         {
             ParamDesc* pDesc = nullptr;
             // if CLP is configured with a specific mode go through parameters for that mode
-            if (!mpCLP->msMode.empty())
+            if (!sMode.empty() && mpCLP->IsRegisteredMode(sMode))
             {
-                CLP::CLModeParser& parser = mpCLP->mModeToCommandLineParser[mpCLP->msMode];
+                CLP::CLModeParser& parser = mpCLP->mModeToCommandLineParser[sMode];
 
                 if (parser.GetDescriptor(position, &pDesc))
                     return pDesc;
@@ -160,13 +201,13 @@ namespace CLP
         return nullptr;
     }
 
-    CLP::ParamDesc* CommandLineEditor::GetParamDesc(std::string& paramName)
+    CLP::ParamDesc* CommandLineEditor::GetParamDesc(const std::string& sMode, std::string& paramName)
     {
         if (mpCLP)
         {
             ParamDesc* pDesc = nullptr;
             // if CLP is configured with a specific mode go through parameters for that mode
-            if (!mpCLP->msMode.empty())
+            if (!sMode.empty() && mpCLP->IsRegisteredMode(sMode))
             {
                 CLP::CLModeParser& parser = mpCLP->mModeToCommandLineParser[mpCLP->msMode];
 
@@ -199,23 +240,41 @@ namespace CLP
         return mText.substr(normalizedStart, normalizedEnd - normalizedStart);
     }
 
-    bool RawEntryWin::GetParameterUnderIndex(int64_t index, size_t& outStart, size_t& outEnd, string& outParam)
+/*    bool RawEntryWin::GetParameterUnderIndex(int64_t index, size_t& outStart, size_t& outEnd, string& outParam)
     {
         if (index == string::npos || index >= (int64_t)mText.size())
             return false;
 
-        if (isblank((int)mText[index])) 
-            return false;
+
+
+
+        while (index > 0 && !isblank((int)mText[index-1])) 
+            index--;
 
         outStart = index;
         outEnd = index;
-        while (outStart > 1 && !isblank((int)mText[outStart-1]))
-            outStart--;
+
         while (outEnd < mText.size() && !isblank((int)mText[outEnd]))
             outEnd++;
 
         outParam = mText.substr(outStart, outEnd - outStart);
         return true;
+    }*/
+
+    bool RawEntryWin::GetParameterUnderIndex(int64_t index, size_t& outStart, size_t& outEnd, string& outParam)
+    {
+        for (auto& entry : mEnteredParams)
+        {
+            if (index >= entry.rawCommandLineStartIndex && index <= entry.rawCommandLineStartIndex + (int64_t)entry.sParamText.length())
+            {
+                outParam = entry.sParamText;
+                outStart = (size_t)entry.rawCommandLineStartIndex;
+                outEnd = outStart + outParam.length();
+                return true;
+            }
+        }
+
+        return false;
     }
 
 
@@ -225,6 +284,7 @@ namespace CLP
         SetArea(l, t, r, b);
         mbVisible = true;
         mbDone = false;
+        mbCanceled = false;
         return true;
     }
 
@@ -236,6 +296,7 @@ namespace CLP
 
     void ConsoleWin::SetArea(int64_t l, int64_t t, int64_t r, int64_t b)
     {
+        assert(r > l && b > t);
         mX = l;
         mY = t;
 
@@ -248,7 +309,7 @@ namespace CLP
                 mBuffer.resize(newW * newH);
                 mWidth = newW;
                 mHeight = newH;
-                Clear();
+                Clear(mClearAttrib);
             }
 
         }
@@ -267,6 +328,235 @@ namespace CLP
         r = l + mWidth;
         b = t + mHeight;
     }
+
+void ListboxWin::Paint(tConsoleBuffer& backBuf)
+{
+    if (!mbVisible)
+        return;
+
+    int64_t topVisibleRow = -1;
+    int64_t visibleRows = mHeight - 2;
+    if (mSelection > visibleRows)
+        topVisibleRow -= (visibleRows- mSelection-1);
+
+
+    int64_t drawrow = -topVisibleRow;
+    int64_t selection = 0;
+    for (auto& entry : mEntries)
+    {
+        if (drawrow > 0 && drawrow < mHeight-1)
+        {
+            string s = entry;
+            if (selection == mSelection)
+                s = COL_BG_GREEN + s;
+            DrawClippedAnsiText(1, drawrow, s, false);
+        }
+
+        drawrow++;
+        selection++;
+    }
+
+    ConsoleWin::Paint(backBuf);
+}
+
+string ListboxWin::GetSelection()
+{
+    if (mSelection < 0 || mSelection >= (int64_t)mEntries.size())
+        return "";
+
+    tStringList::iterator it = mEntries.begin();
+    for (int i = 0; i < mSelection; i++)
+        it++;
+
+    return *it;
+}
+
+
+void ListboxWin::OnKey(int keycode, char c)
+{
+    bool bCTRLHeld = GetKeyState(VK_CONTROL) & 0x800;
+    bool bSHIFTHeld = GetKeyState(VK_SHIFT) & 0x800;
+
+    switch (keycode)
+    {
+    case VK_TAB:
+        if (bSHIFTHeld)
+        {
+            mSelection--;
+            if (mSelection < 0)
+                mSelection = (int64_t)mEntries.size() - 1;
+        }
+        else
+        {
+            mSelection++;
+            if (mSelection >= (int64_t)mEntries.size())
+                mSelection = 0;
+        }
+        break;
+    case VK_UP:
+        {
+            mSelection--;
+            if (mSelection < 0)
+                mSelection = (int64_t)mEntries.size() - 1;
+        }
+        break;
+    case VK_DOWN:
+    {
+        mSelection++;
+        if (mSelection >= (int64_t)mEntries.size())
+            mSelection = 0;
+    }
+    break;
+    case VK_HOME:
+        mSelection = 0;
+        break;
+    case VK_END:
+        mSelection = (int64_t)mEntries.size() - 1;
+        break;
+    case VK_RETURN:
+        {
+        rawCommandBuf.HandlePaste(GetSelection());
+        mEntries.clear();
+        mbVisible = false;
+        }
+        break;
+    case VK_ESCAPE:
+        mEntries.clear();
+        mbVisible = false;
+        rawCommandBuf.ClearSelection();
+        break;
+    }
+    Clear(mClearAttrib);
+}
+
+void ListboxWin::SetEntries(tStringList entries, string selectionSearch, int64_t origin_l, int64_t origin_b)
+{ 
+    mEntries = entries; 
+
+        
+    // find nearest selection from the entries
+
+    size_t longestMatch = selectionSearch.length();
+    mSelection = 0;
+    bool bFound = false;
+    while (selectionSearch.length() && !bFound)
+    {
+        size_t i = 0;
+        for (auto& entry : mEntries)
+        {
+            size_t cmpLength = std::min<size_t>(entry.length(), selectionSearch.length());
+            string sEntrySub(entry.substr(0, cmpLength));
+            string sSearchSub(selectionSearch.substr(0, cmpLength));
+            if (SH::Compare(sEntrySub, sSearchSub, false))   // exact match
+            {
+                cout << "nearest match:" << entry << "\n";
+                mSelection = i;
+                bFound = true;
+                break;      // found match
+            }
+            i++;
+        }
+
+        // didn't find exact..... look for one shorter
+        selectionSearch = selectionSearch.substr(0, selectionSearch.length() - 1);
+    }
+
+    // find widest entry
+    int64_t width = 0;
+    int64_t height = mEntries.size();
+    for (auto& entry : mEntries)
+    {
+        if (width < (int64_t)  entry.length())
+            width = entry.length();
+    }
+    width += 2;
+    height += 2;
+
+
+    int64_t l = origin_l;
+    int64_t t = origin_b - height;
+    int64_t r = l + width;
+    int64_t b = t + height;
+
+    if (height > screenInfo.dwSize.Y)  // more than can fit on screen
+    {
+        t = 0;
+        b = screenInfo.dwSize.Y;
+    }
+
+
+    // move window to fit on screen
+    if (l < 0)
+    {
+        int64_t shiftright = -l;
+        l += shiftright;
+        r += shiftright;
+    }
+    if (r > screenInfo.dwSize.X)
+    {
+        int64_t shiftleft = r - screenInfo.dwSize.X;
+        l -= shiftleft;
+        r -= shiftleft;
+    }
+    if (b > screenInfo.dwSize.Y)
+    {
+        int64_t shiftdown = b - screenInfo.dwSize.Y;
+        t += shiftdown;
+        b += shiftdown;
+    }
+    if (t < 0)
+    {
+        int64_t shiftup = -t;
+        t -= shiftup;
+        b -= shiftup;
+    }
+
+    SetArea(l, t, r, b);
+}
+
+
+
+void FolderList::Paint(tConsoleBuffer& backBuf)
+{
+    return ListboxWin::Paint(backBuf);
+}
+
+void FolderList::OnKey(int keycode, char c)
+{
+    bool bCTRLHeld = GetKeyState(VK_CONTROL) & 0x800;
+    bool bSHIFTHeld = GetKeyState(VK_SHIFT) & 0x800;
+
+    switch (keycode)
+    {
+        case VK_BACK:
+        {
+            fs::path navigate(mPath);
+            if (navigate.has_parent_path())
+                Scan(navigate.parent_path().string(), mX, mY + mHeight);
+            return;
+        }
+        case VK_TAB:
+        {
+            string selection(GetSelection());
+            if (fs::is_directory(selection))
+                Scan(selection, mX, mY + mHeight);
+            return;
+        }
+        case VK_RETURN:
+        {
+            string selection(GetSelection());
+            if (SH::ContainsWhitespace(selection))
+                selection = "\"" + selection + "\"";
+            rawCommandBuf.HandlePaste(selection);
+            mEntries.clear();
+            mbVisible = false;
+            return;
+        }
+    }
+
+    return ListboxWin::OnKey(keycode, c);
+}
+
 
 
 
@@ -315,7 +605,7 @@ namespace CLP
         for (int i = 0; i < strings.size(); i++)
         {
             string sDraw(strings[i].substr(0, colWidths[i]));
-            DrawClippedText(x, y, sDraw, attribs[i]);
+            DrawClippedText(x, y, sDraw, attribs[i], false);
             x += colWidths[i];
         }
     }
@@ -551,12 +841,26 @@ namespace CLP
         if (!mbVisible)
             return;
 
-        for (int64_t y = 0; y < mHeight; y++)
-        {
-            int64_t readOffset = (y * mWidth);
-            int64_t writeOffset = ((y + mY) * mWidth + mX);
+        int64_t dr = screenInfo.dwSize.X;
+        int64_t db = screenInfo.dwSize.Y;
 
-            memcpy(&backBuf[writeOffset], &mBuffer[readOffset], mWidth * sizeof(CHAR_INFO));
+        for (int64_t sy = 0; sy < mHeight; sy++)
+        {
+            int64_t dy = sy + mY;
+            if (dy >= 0 && dy < db) // clip top and bottom
+            {
+                for (int64_t sx = 0; sx < mWidth; sx++)
+                {
+                    int64_t dx = sx + mX;
+                    if (dx >= 0 && dx < dr)
+                    {
+                        int64_t sindex = (sy * mWidth) + sx;
+                        int64_t dindex = (dy * dr) + dx;
+                        backBuf[dindex] = mBuffer[sindex];
+                    }
+                }
+            }
+
         }
     }
 
@@ -585,12 +889,21 @@ namespace CLP
             string sParamUnderCursor;
             if (GetParameterUnderIndex(textindex, startIndex, endIndex, sParamUnderCursor))
             {
+#ifdef _DEBUG
+                if (startIndex < 0 || endIndex > mText.length())
+                {
+                    int stophere = 5;
+                }
+#endif
+
                 for (auto& param : mEnteredParams)
                 {
                     if (param.sParamText == sParamUnderCursor)
                     {
                         for (size_t colorindex = startIndex; colorindex < endIndex; colorindex++)
+                        {
                             attribs[colorindex] = param.drawAttributes;
+                        }
 
                         textindex = endIndex;   // skip to end of param
                         break;
@@ -662,6 +975,9 @@ namespace CLP
 
         switch (keycode)
         {
+        case VK_TAB:
+            HandleParamContext();
+            break;
         case VK_RETURN:
             mbDone = true;
             return;
@@ -673,8 +989,7 @@ namespace CLP
             }
             else
             {
-                mText = "";
-                mbDone = true;
+                mbCanceled = true;;
             }
         }
         return;
@@ -833,15 +1148,19 @@ namespace CLP
 
         string sRaw(rawCommandBuf.GetText());
        
-        size_t rows = std::max<size_t>(1, (sRaw.size() + mScreenInfo.dwSize.X - 1) / mScreenInfo.dwSize.X);
+        size_t rows = std::max<size_t>(1, (sRaw.size() + screenInfo.dwSize.X - 1) / screenInfo.dwSize.X);
 //        rawCommandBufTopRow = screenBufferInfo.dwSize.Y - rows;
 
         ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
         // Clear the raw command buffer and param buffers
         rawCommandBuf.Clear();
+        popupListWin.Clear(BACKGROUND_INTENSITY);
+        popupFolderListWin.Clear(BACKGROUND_INTENSITY);
         paramListBuf.Clear(BACKGROUND_BLUE);
         usageBuf.Clear(BACKGROUND_GREEN | BACKGROUND_RED);
         topInfoBuf.Clear(BACKGROUND_GREEN | BACKGROUND_RED);
+
+
         ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
         // if the command line is bigger than the screen, show the last n rows that fit
@@ -857,19 +1176,19 @@ namespace CLP
 
             vector<size_t> colWidths;
             colWidths.resize(3);
-            colWidths[kColName] = 16;
-            colWidths[kColEntry] = 16;
-            colWidths[kColUsage] = mScreenInfo.dwSize.X - (colWidths[kColName] + colWidths[kColEntry]);
+            colWidths[kColName] = 12;
+            colWidths[kColEntry] = 12;
+            colWidths[kColUsage] = screenInfo.dwSize.X - (colWidths[kColName] + colWidths[kColEntry]);
             for (int paramindex = 1; paramindex < mParams.size(); paramindex++)
             {
                 string sText(mParams[paramindex].sParamText);
-                colWidths[kColEntry] = std::max<size_t>(sText.length(), colWidths[0]);
+                colWidths[kColEntry] = std::max<size_t>(sText.length(), colWidths[kColEntry]);
 
                 ParamDesc* pPD = mParams[paramindex].pRelatedDesc;
                 if (pPD)
                 {
-                    colWidths[kColName] = std::max<size_t>(pPD->msName.length(), colWidths[1]);
-                    colWidths[kColUsage] = std::max<size_t>(pPD->msUsage.length(), colWidths[2]);
+                    colWidths[kColName] = std::max<size_t>(pPD->msName.length(), colWidths[kColName]);
+                    colWidths[kColUsage] = std::max<size_t>(pPD->msUsage.length(), colWidths[kColUsage]);
                 }
             }
 
@@ -914,7 +1233,7 @@ namespace CLP
 
             // next list positional params
             row+=2;
-            string sSection = "-positional params-" + string(mScreenInfo.dwSize.X, '-');
+            string sSection = "-positional params-" + string(screenInfo.dwSize.X, '-');
             paramListBuf.DrawClippedText(0, row++, sSection, BACKGROUND_INTENSITY, false);
 
 
@@ -952,7 +1271,7 @@ namespace CLP
 
 
             row++;
-            sSection = "-named params-" + string(mScreenInfo.dwSize.X, '-');
+            sSection = "-named params-" + string(screenInfo.dwSize.X, '-');
             paramListBuf.DrawClippedText(0, row++, sSection, BACKGROUND_INTENSITY, false);
 
             tEnteredParams namedParams = GetNamedEntries();
@@ -1085,16 +1404,119 @@ namespace CLP
         return true;
     }
 
+
+
+    bool FolderList::Scan(std::string sPath, int64_t origin_l, int64_t origin_b)
+    {
+        string sCurSelection = GetSelection();
+        mEntries.clear();
+        if (sPath.length() >= 2)
+        {
+            if (sPath[0] == '\"' && sPath[sPath.length() - 1] == '\"')      // strip enclosures
+                sPath = sPath.substr(1, sPath.length() - 2);
+
+            if (sPath[0] == '\'' && sPath[sPath.length() - 1] == '\'')      // strip enclosures
+                sPath = sPath.substr(1, sPath.length() - 2);
+        }
+
+        mPath = sPath;
+
+        fs::path enteredPath(sPath);
+
+        while (!enteredPath.empty())
+        {
+            try
+            {
+                fs::path searchPath(enteredPath.parent_path());
+                if (fs::exists(searchPath))
+                {
+                    for (const auto& entry : fs::directory_iterator(searchPath))
+                    {
+                        string sEntry(entry.path().string());
+
+                        if (entry.is_directory())
+                            sEntry += "\\";
+
+                        mEntries.push_back(sEntry);
+                    }
+
+                    break;
+                }
+            }
+            catch (const std::filesystem::filesystem_error& e)
+            {
+                std::cerr << "Filesystem error: " << e.what() << std::endl;
+                return false;
+            }
+            catch (const std::exception& e)
+            {
+                std::cerr << "Error: " << e.what() << std::endl;
+                return false;
+            }
+
+            enteredPath = enteredPath.parent_path();        // move up a folder and search
+        }
+
+        if (!mEntries.empty())
+        {
+            SetEntries(mEntries, sCurSelection, origin_l, origin_b);
+            mbVisible = true;
+        }
+        else
+            mbVisible = false;
+
+        return true;
+    }
+
     bool RawEntryWin::HandleParamContext()
     {
         size_t start = string::npos;
         size_t end = string::npos;
         string sText;
-        if (!GetParameterUnderIndex(CursorToTextIndex(mCursorPos), start, end, sText))
+
+        int64_t cursorIndex = CursorToTextIndex(mCursorPos);
+        if (!GetParameterUnderIndex(cursorIndex, start, end, sText))
             return false;
+
+        selectionstart = start;
+        selectionend = end;
 
         // Find set of auto complete for param
 
+
+        // If mode..... popup modes list
+        if (sText == mEnteredParams[0].sParamText)
+        {
+            popupListWin.mbVisible = true;
+//            popupListWin.SetArea(selectionstart, mCursorPos.Y - mAvailableModes.size()-2, selectionstart +1, mCursorPos.Y- mAvailableModes.size()-1);
+            popupListWin.SetEntries(mAvailableModes, sText, selectionstart, mCursorPos.Y);
+        }
+        else if (sText[0] == '-')
+        {
+            popupListWin.mbVisible = true;
+//            popupListWin.SetArea(selectionstart, mCursorPos.Y - mAvailableNamedParams.size() - 2, selectionstart+1, mCursorPos.Y - mAvailableNamedParams.size() - 1);
+            popupListWin.SetEntries(mAvailableNamedParams, sText, selectionstart, mCursorPos.Y);
+        }
+        else
+        {
+            // find param desc
+            for (int i = 0; i < mEnteredParams.size(); i++)
+            {
+                if (sText == mEnteredParams[i].sParamText)
+                {
+                    if (mEnteredParams[i].pRelatedDesc && mEnteredParams[i].pRelatedDesc->IsAPath())
+                    {
+                        popupFolderListWin.Scan(sText, selectionstart, mCursorPos.Y);
+
+                        if (popupFolderListWin.mEntries.size() == 1)
+                        {
+                            HandlePaste(*popupFolderListWin.mEntries.begin());    // only one option, fill it in
+                            popupFolderListWin.mbVisible = false;
+                        }
+                    }
+                }
+            }
+        }
 
         return true;
     }
@@ -1107,6 +1529,7 @@ namespace CLP
         // clear back buffer
         memset(&backBuffer[0], 0, backBuffer.size() * sizeof(CHAR_INFO));
 
+        int64_t stride = screenInfo.dwSize.X;
         if (helpBuf.mbVisible)
         {
             //helpBuf.PaintToWindowsConsole(mhOutput);
@@ -1119,9 +1542,10 @@ namespace CLP
 //            popupBuf.PaintToWindowsConsole(mhOutput);
             paramListBuf.Paint(backBuffer);
             rawCommandBuf.Paint(backBuffer);
-            popupBuf.Paint(backBuffer);
             usageBuf.Paint(backBuffer);
             topInfoBuf.Paint(backBuffer);
+            popupListWin.Paint(backBuffer);
+            popupFolderListWin.Paint(backBuffer);
 
             if (mpCLP)
             {
@@ -1138,22 +1562,22 @@ namespace CLP
 
         // Finally draw to screen
         COORD origin(0, 0);
-        SMALL_RECT region = { 0, 0, mScreenInfo.dwSize.X - 1, mScreenInfo.dwSize.Y - 1 };
-        WriteConsoleOutput(mhOutput, &backBuffer[0], mScreenInfo.dwSize, origin, &region);
+        SMALL_RECT region = { 0, 0, screenInfo.dwSize.X - 1, screenInfo.dwSize.Y - 1 };
+        WriteConsoleOutput(mhOutput, &backBuffer[0], screenInfo.dwSize, origin, &region);
     }
 
     void CommandLineEditor::SaveConsoleState()
     {
-        originalConsoleBuf.resize(mScreenInfo.dwSize.X * mScreenInfo.dwSize.Y);
-        SMALL_RECT readRegion = { 0, 0, mScreenInfo.dwSize.X - 1, mScreenInfo.dwSize.Y - 1 };
-        ReadConsoleOutput(mhOutput, &originalConsoleBuf[0], mScreenInfo.dwSize, { 0, 0 }, &readRegion);
+        originalConsoleBuf.resize(screenInfo.dwSize.X * screenInfo.dwSize.Y);
+        SMALL_RECT readRegion = { 0, 0, screenInfo.dwSize.X - 1, screenInfo.dwSize.Y - 1 };
+        ReadConsoleOutput(mhOutput, &originalConsoleBuf[0], screenInfo.dwSize, { 0, 0 }, &readRegion);
     }
 
     void CommandLineEditor::RestoreConsoleState()
     {
-        SMALL_RECT writeRegion = { 0, 0, mScreenInfo.dwSize.X - 1, mScreenInfo.dwSize.Y - 1 };
-        WriteConsoleOutput(mhOutput, &originalConsoleBuf[0], mScreenInfo.dwSize, { 0, 0 }, &writeRegion);
-        SetConsoleCursorPosition(mhOutput, mScreenInfo.dwCursorPosition);
+        SMALL_RECT writeRegion = { 0, 0, screenInfo.dwSize.X - 1, screenInfo.dwSize.Y - 1 };
+        WriteConsoleOutput(mhOutput, &originalConsoleBuf[0], screenInfo.dwSize, { 0, 0 }, &writeRegion);
+        SetConsoleCursorPosition(mhOutput, screenInfo.dwCursorPosition);
     }
 
 
@@ -1289,6 +1713,7 @@ namespace CLP
     tEnteredParams CommandLineEditor::ParamsFromText(const std::string& sText)
     {
         tEnteredParams params;
+        string sModeWhileParsing;
 
         int positionalindex = -1;
         size_t length = sText.length();
@@ -1312,6 +1737,7 @@ namespace CLP
 
             EnteredParams param;
             param.sParamText = sText.substr(i, endofparam - i);
+            param.rawCommandLineStartIndex = i;
 
             string sParamName;
             string sParamValue;
@@ -1319,7 +1745,8 @@ namespace CLP
             if (positionalindex == -1)   // mode position
             {
                 tStringList modes = GetCLPModes();
-                bool bModePermitted = modes.empty() || std::find(modes.begin(), modes.end(), param.sParamText) != modes.end(); // if no modes registered or (if there are) if the first param matches one
+                sModeWhileParsing = param.sParamText;
+                bool bModePermitted = modes.empty() || std::find(modes.begin(), modes.end(), sModeWhileParsing) != modes.end(); // if no modes registered or (if there are) if the first param matches one
                 if (bModePermitted)
                 {
                     param.drawAttributes = FOREGROUND_GREEN;
@@ -1332,7 +1759,7 @@ namespace CLP
             }
             else if (ParseParam(param.sParamText, sParamName, sParamValue)) // is it a named parameter
             {
-                param.pRelatedDesc = GetParamDesc(sParamName);
+                param.pRelatedDesc = GetParamDesc(sModeWhileParsing, sParamName);
                 if (!param.pRelatedDesc)
                     param.drawAttributes = FOREGROUND_RED;      // unknown named parameter
                 else if (!param.pRelatedDesc->DoesValueSatifsy(sParamValue))
@@ -1341,7 +1768,7 @@ namespace CLP
             else
             {
                 param.positionalindex = positionalindex;
-                param.pRelatedDesc = GetParamDesc(positionalindex);
+                param.pRelatedDesc = GetParamDesc(sModeWhileParsing, positionalindex);
 
                 if (!param.pRelatedDesc)       // unsatisfied positional parameter
                     param.drawAttributes = FOREGROUND_RED;
@@ -1369,36 +1796,32 @@ namespace CLP
 
         mParams = ParamsFromText(mLastParsedText);
         rawCommandBuf.mEnteredParams = mParams;
+        rawCommandBuf.mAvailableModes = GetCLPModes();
+        rawCommandBuf.mAvailableNamedParams = GetCLPNamedParamsForMode(msMode);
     }
 
     std::string CommandLineEditor::Edit(int argc, char* argv[])
     {
-        string sCommandLine;
-        for (int i = 1; i < argc; i++)  // skip app in argv[0]
-        {
-            sCommandLine += string(argv[i]) + " ";
-        }
-        if (!sCommandLine.empty())
-            sCommandLine = sCommandLine.substr(0, sCommandLine.length() - 1);   // strip last ' '
-
-        return Edit(sCommandLine);
+        appEXE = argv[0];
+        tStringArray params(CommandLineParser::ToArray(argc-1, argv));    // first convert to param array then to a string which will enclose parameters with whitespaces
+        return Edit(CommandLineParser::ToString(params));
     }
 
     void CommandLineEditor::UpdateFromConsoleSize()
     {
-        CONSOLE_SCREEN_BUFFER_INFO screenInfo;
-        if (!GetConsoleScreenBufferInfo(mhOutput, &screenInfo))
+        CONSOLE_SCREEN_BUFFER_INFO newScreenInfo;
+        if (!GetConsoleScreenBufferInfo(mhOutput, &newScreenInfo))
         {
             cerr << "Failed to get console info." << endl;
             return;
         }
 
-        if (memcmp(&screenInfo, &mScreenInfo, sizeof(screenInfo) != 0))
+        if (memcmp(&newScreenInfo, &screenInfo, sizeof(screenInfo) != 0))
         {
-            mScreenInfo = screenInfo;
+            screenInfo = newScreenInfo;
 
-            SHORT w = mScreenInfo.dwSize.X;
-            SHORT h = mScreenInfo.dwSize.Y;
+            SHORT w = screenInfo.dwSize.X;
+            SHORT h = screenInfo.dwSize.Y;
 
 
             backBuffer.resize(w*h);
@@ -1407,6 +1830,8 @@ namespace CLP
             topInfoBuf.SetArea(0, 0, w, 1);
             usageBuf.SetArea(0, h - 5, w, h - 4);
             helpBuf.SetArea(0, 0, w, h);
+//            popupListWin.SetArea(w / 4, h / 4, w * 3 / 4, h * 3 / 4);
+//            popupFolderListWin.SetArea(w / 4, h / 4, w * 3 / 4, h * 3 / 4);
 
             UpdateDisplay();
         }
@@ -1416,7 +1841,7 @@ namespace CLP
     {
         if (mpCLP)
         {
-            helpBuf.Init(0, 0, mScreenInfo.dwSize.X, mScreenInfo.dwSize.Y);
+            helpBuf.Init(0, 0, screenInfo.dwSize.X, screenInfo.dwSize.Y);
             if (mpCLP->IsRegisteredMode(msMode))
                 helpBuf.SetText(mpCLP->GetHelpString(msMode, false));
             else
@@ -1444,14 +1869,22 @@ namespace CLP
             return "";
         }
 
-        if (!GetConsoleScreenBufferInfo(mhOutput, &mScreenInfo))
+        if (!GetConsoleScreenBufferInfo(mhOutput, &screenInfo))
         {
             cerr << "Failed to get console info." << endl;
             return sCommandLine;
         }
 
-        SHORT w = mScreenInfo.dwSize.X;
-        SHORT h = mScreenInfo.dwSize.Y;
+        SHORT w = screenInfo.dwSize.X;
+        SHORT h = screenInfo.dwSize.Y;
+
+
+        popupListWin.Init(w / 4, h / 4, w * 3 / 4, h * 3 / 4);
+        popupListWin.mbVisible = false;
+
+        popupFolderListWin.Init(w / 4, h / 4, w * 3 / 4, h * 3 / 4);
+        popupFolderListWin.mbVisible = false;
+
 
 
         backBuffer.resize(w*h);
@@ -1473,7 +1906,7 @@ namespace CLP
             blank[i].Attributes = 0;
         }
         SMALL_RECT smallrect(0, 0, w, h);
-        WriteConsoleOutput(mhOutput, &blank[0], mScreenInfo.dwSize, { 0, 0 }, &smallrect);
+        WriteConsoleOutput(mhOutput, &blank[0], screenInfo.dwSize, { 0, 0 }, &smallrect);
 
 
         // Set console mode to allow reading mouse and key events
@@ -1496,10 +1929,10 @@ namespace CLP
         INPUT_RECORD inputRecord[128];
         DWORD numEventsRead;
 
-        while (!rawCommandBuf.mbDone)
+        while (!rawCommandBuf.mbDone && !rawCommandBuf.mbCanceled)
         {
             UpdateFromConsoleSize();
-            UpdateParams();
+//            UpdateParams();
 
             // Check for hotkey events
             MSG msg;
@@ -1518,7 +1951,7 @@ namespace CLP
 
             if (PeekConsoleInput(mhInput, inputRecord, 128, &numEventsRead) && numEventsRead > 0)
             {
-                UpdateDisplay();
+//                UpdateDisplay();
 
                 for (DWORD i = 0; i < numEventsRead; i++)
                 {
@@ -1549,9 +1982,13 @@ namespace CLP
                         int keycode = inputRecord[i].Event.KeyEvent.wVirtualKeyCode;
                         char c = inputRecord[i].Event.KeyEvent.uChar.AsciiChar;
 
-                        if (popupBuf.mbVisible)
+                        if (popupListWin.mbVisible)
                         {
-                            popupBuf.OnKey(keycode, c);
+                            popupListWin.OnKey(keycode, c);
+                        }
+                        else if (popupFolderListWin.mbVisible)
+                        {
+                            popupFolderListWin.OnKey(keycode, c);
                         }
                         else if (helpBuf.mbVisible)
                         {
@@ -1566,6 +2003,7 @@ namespace CLP
                         }
                     }
 
+                    UpdateParams();
                     UpdateDisplay();
                 }
             }
@@ -1573,9 +2011,17 @@ namespace CLP
 
 
         RestoreConsoleState();
-        cout << "restoring\n";
+        if (rawCommandBuf.mbCanceled)
+        {
+            cout << "Canceled editing. Last State:\n";
+            cout << string(screenInfo.dwSize.X, '*');
+            cout << COL_YELLOW << appEXE << " " << rawCommandBuf.GetText() << COL_RESET << "\n";
+            cout << string(screenInfo.dwSize.X, '*');
+            cout << "\n\n";
+            return "";
+        }
 
-        return rawCommandBuf.GetText();
+        return appEXE + " " + rawCommandBuf.GetText();
     }
 
     void InfoWin::Paint(tConsoleBuffer& backBuf)

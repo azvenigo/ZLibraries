@@ -22,9 +22,12 @@
 #include <map>
 #include <set>
 
+typedef std::set<std::string>   tStringSet;
+typedef std::list<std::string>  tStringList;
+typedef std::vector<std::string> tStringArray;
+
 namespace SH
 {
-
     const char kCharSplitToken = -77; // extended ascii character |
     const char kCharEqualityToken = -9; // extended ascii character
 
@@ -92,7 +95,6 @@ namespace SH
 
 
     static const int sizeEntryTableSize = sizeof(sizeEntryTable) / sizeof(sSizeEntry);
-    typedef std::set<std::string>                       tStringSet;
 
     bool            ToBool(std::string sVal);
     double          ToDouble(std::string sVal);
@@ -127,7 +129,7 @@ namespace SH
     std::string     replaceTokens(std::string input, const std::string& token, const std::string& value);
 
     size_t          FindMatching(const std::string& s, size_t i);   // given a character in s at i, find the accomanying closure. for example '"' -> '"' or '{' -> '}'  Different pairs (excluding the closure token for current) inside the enclosure are skipped
-
+    bool            ContainsWhitespace(const std::string& s, bool bSkipQuotes = false);   // if bSkipQuotes, it ignores whitespaces in enslosures
 
     //////////////////////////////////////////////////////////////////////////////////////////////
     // Output format helpers
@@ -219,13 +221,13 @@ namespace SH
 	{
 
 		int32_t numArgs = sizeof...(arg);
-        std::list<std::string> stringList = { arg... };
+        tStringList stringList = { arg... };
 
         std::string sReturn(StartDelimiter(format));
 
 		if (numArgs > 0)
 		{
-            std::list<std::string>::iterator it = stringList.begin();
+            tStringList::iterator it = stringList.begin();
 			for (int32_t i = 0; i < numArgs - 1; i++) // add all but the last one with the separator trailing
 				sReturn += (*it++) + Separator(format);
 

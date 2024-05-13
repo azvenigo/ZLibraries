@@ -123,6 +123,10 @@ namespace CLP
     const static uint32_t kCaseInsensitive      = 0;    // default
     const static uint32_t kCaseSensitive        = 8;    // if set the named key must match case 
 
+    const static uint32_t kPath                 = 16;   // value should be a path
+    const static uint32_t kExistingPath         = 32;   // if set, must be able to find an existing file/folder
+    const static uint32_t kNoExistingPath       = 64;   // if set, must not have existing file/folder at this location
+
 
     // decorations
     const static uint32_t kRESET            = 0;
@@ -157,35 +161,40 @@ namespace CLP
     public:
         friend class CLModeParser;
         friend class CommandLineParser;
+#ifdef _WIN64
         friend class CommandLineEditor;
+#endif
 
         // named string
-        ParamDesc(const std::string& sName, std::string* pString, eBehavior behavior, const std::string& sUsage = "", const SH::tStringSet& allowedStrings = {});
+        ParamDesc(const std::string& sName, std::string* pString, eBehavior behavior, const std::string& sUsage = "", const tStringSet& allowedStrings = {});
         ParamDesc(const std::string& sName, bool* pBool, eBehavior behavior, const std::string& sUsage = "");
         ParamDesc(const std::string& sName, int64_t* pInt, eBehavior behavior, const std::string& sUsage = "", std::optional<int64_t> nRangeMin = std::nullopt, std::optional<int64_t> nRangeMax = std::nullopt);
         ParamDesc(const std::string& sName, float* pFloat, eBehavior behavior, const std::string& sUsage = "", std::optional<float> fRangeMin = std::nullopt, std::optional<float> fRangeMax = std::nullopt);
+
+        // Behavior Accessors
+        bool        IsNamed()                       const { return mBehaviorFlags & kNamed; }
+        bool        IsPositional()                  const { return !IsNamed(); }
+
+        bool        IsRequired()                    const { return mBehaviorFlags & kRequired; }
+        bool        IsOptional()                    const { return !IsRequired(); }
+
+        bool        IsRangeRestricted()             const { return mBehaviorFlags & kRangeRestricted; }
+        bool        IsRangeUnrestricted()           const { return !IsRangeRestricted(); }
+
+        bool        IsCaseSensitive()               const { return mBehaviorFlags & kCaseSensitive; }
+        bool        IsCaseInsensitive()             const { return !IsCaseSensitive(); }
+
+        bool        IsAPath()                       const { return mBehaviorFlags & kPath; }
+        bool        MustHaveAnExistingPath()        const { return mBehaviorFlags & kExistingPath; }
+        bool        MustNotHaveAnExistingPath()     const { return mBehaviorFlags & kNoExistingPath; }
+
+        bool        Satisfied();                                                                    // If value is required and set and (if appropriate) within required range
+        bool        DoesValueSatifsy(const std::string& sValue, bool bOutputError = false);        // converts string form of value into eParamValueType and returns whether it satisfies conditions
 
     private:
 
         void        GetExample(std::string& sParameter, std::string& sType, std::string& sDefault, std::string& sUsage);
         std::string ValueToString();
-
-        bool        Satisfied();                    // If value is required and set and (if appropriate) within required range
-        bool        DoesValueSatifsy(const std::string& sValue);        // converts string form of value into eParamValueType and returns whether it satisfies conditions
-
-
-        // Behavior Accessors
-        bool        IsNamed()               const { return mBehaviorFlags & kNamed; }
-        bool        IsPositional()          const { return !IsNamed(); }
-
-        bool        IsRequired()            const { return mBehaviorFlags & kRequired; }
-        bool        IsOptional()            const { return !IsRequired(); }
-
-        bool        IsRangeRestricted()     const { return mBehaviorFlags & kRangeRestricted; }
-        bool        IsRangeUnrestricted()   const { return !IsRangeRestricted(); }
-
-        bool        IsCaseSensitive()       const { return mBehaviorFlags & kCaseSensitive; }
-        bool        IsCaseInsensitive()     const { return !IsCaseSensitive(); }
 
         enum eParamValueType
         {
@@ -210,7 +219,7 @@ namespace CLP
         std::optional<float>        mfMinFloat;
         std::optional<float>        mfMaxFloat;
 
-        SH::tStringSet              mAllowedStrings;
+        tStringSet                  mAllowedStrings;
 
         // Parameter usage for help text
         std::string                 msUsage;
@@ -226,7 +235,9 @@ namespace CLP
     class CLModeParser
     {
         friend class CommandLineParser;
+#ifdef _WIN64
         friend class CommandLineEditor;
+#endif
 
     public:
         // Registration Functions
@@ -277,13 +288,15 @@ namespace CLP
     class CommandLineParser
     {
     public:
+#ifdef _WIN64
         friend class CommandLineEditor;
+#endif
 
         CommandLineParser(bool bEnableVerbosity = true, bool bEnableColoredOutput = true);
 
         // Registration Functions
         void            RegisterAppDescription(const std::string& sDescription);
-        bool            Parse(int argc, char* argv[]);
+        bool            Parse(int argc, char* argv[], bool bEditOnParseFail = true);
         std::string     GetModesString();
         std::string     GetHelpString(const std::string& sMode = "", bool bDetailed = false);
         void            GetCommandLineExample(const std::string& sMode, std::string& sCommandLineExample);
@@ -316,9 +329,28 @@ namespace CLP
         // Additional info
         bool            AddInfo(std::string sMode, const std::string& sInfo);
 
+        // utility functions
+        static tStringArray     ToArray(int argc, char* argv[]);
+        static tStringArray     ToArray(const std::string& sCommandLine);
+        static std::string      ToString(const tStringArray& stringList);
+
     protected:
-        bool            ContainsArgument(std::string sArgument, int argc, char* argv[], bool bCaseSensitive = false);    // true if included argument is anywhere on the command line
-        std::string     GetFirstPositionalArgument(int argc, char* argv[]);                                                 // first argument that's not a named. (named starts with '-')
+
+        enum eResponse : uint32_t
+        {
+            kSuccess            = 0,
+            kCanceled           = 1,
+            kShowAvailableModes = 2,
+            kShowHelp           = 3,
+            kErrorShowEdit      = 4,
+            kErrorAbort         = 5
+        };
+
+
+        eResponse       TryParse(const tStringArray& params);    // params not including app exe in element 0
+
+        bool            ContainsArgument(std::string sArgument, const tStringArray& params, bool bCaseSensitive = false);    // true if included argument is anywhere on the command line
+        std::string     GetFirstPositionalArgument(const tStringArray& params);                                                 // first argument that's not a named. (named starts with '-')
 
         std::string     msMode;
         std::string     msAppPath;                      // full path to the app.exe
