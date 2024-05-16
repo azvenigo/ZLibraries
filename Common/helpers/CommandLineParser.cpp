@@ -24,7 +24,6 @@
 #ifdef _DEBUG
 #define PAUSE_FOR_KEY { std::cout << "hit any key..."; _getch(); }
 #else
-#define
 #define PAUSE_FOR_KEY 
 #endif
 
