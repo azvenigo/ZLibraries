@@ -108,6 +108,9 @@
 
 namespace CLP
 {
+    extern std::string appPath;
+    extern std::string appName;
+
     // behavior flags
     #define eBehavior uint32_t
 
@@ -298,13 +301,15 @@ namespace CLP
         void            RegisterAppDescription(const std::string& sDescription);
         bool            Parse(int argc, char* argv[], bool bEditOnParseFail = true);
         std::string     GetModesString();
+        TableOutput     GetCLPHelp(bool bDetailed = false);
+        TableOutput     GetKeyTable();
         std::string     GetHelpString(const std::string& sMode = "", bool bDetailed = false);
         void            GetCommandLineExample(const std::string& sMode, std::string& sCommandLineExample);
 
         // Accessors
         std::string     GetAppMode() { return msMode; }         // empty string if default mode
-        std::string     GetAppPath() { return msAppPath; }
-        std::string     GetAppName() { return msAppName; }
+//        std::string     GetAppPath() { return msAppPath; }
+//        std::string     GetAppName() { return msAppName; }
         bool            IsCurrentMode(std::string sMode);           // true if current mode matches (case insensitive)
         bool            IsMultiMode() const { return !mModeToCommandLineParser.empty(); }
         bool            IsRegisteredMode(std::string sMode);        // true if this mode has been registered
@@ -353,8 +358,8 @@ namespace CLP
         std::string     GetFirstPositionalArgument(const tStringArray& params);                                                 // first argument that's not a named. (named starts with '-')
 
         std::string     msMode;
-        std::string     msAppPath;                      // full path to the app.exe
-        std::string     msAppName;                      // just the app.exe
+//        std::string     msAppPath;                      // full path to the app.exe
+//        std::string     msAppName;                      // just the app.exe
         std::string     msAppDescription;
 
         CLModeParser    mGeneralCommandLineParser;      // if no registered modes, defaults to this one

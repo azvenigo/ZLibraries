@@ -281,7 +281,7 @@ string SH::ToUserReadable(int64_t nValue)
     return string(buf);
 }
 
-string SH::FromVector(vector<string>& stringVector, const char token)
+string SH::FromVector(tStringArray& stringVector, const char token)
 {
     string sValue;
     for (uint32_t i = 0; i < stringVector.size(); i++)
@@ -300,7 +300,7 @@ string SH::FromVector(vector<string>& stringVector, const char token)
     return sValue;
 }
 
-void SH::ToVector(const string& sEncoded, vector<string>& outStringVector, const char token)
+void SH::ToVector(const string& sEncoded, tStringArray& outStringVector, const char token)
 {
     std::size_t current, previous = 0;
 
@@ -313,6 +313,40 @@ void SH::ToVector(const string& sEncoded, vector<string>& outStringVector, const
     }
     outStringVector.push_back(sEncoded.substr(previous, current - previous));
 }
+
+string SH::FromList(tStringList& stringList, const char token)
+{
+    string sValue;
+    for (auto& s : stringList)
+    {
+        assert(s.find(token) == string::npos);   // cannot encode extended ascii character token
+
+        if (!s.empty())
+        {
+            sValue += s + token;
+        }
+    }
+
+    if (!sValue.empty())
+        sValue = sValue.substr(0, sValue.length() - 1);	// remove the trailing token
+
+    return sValue;
+}
+
+void SH::ToList(const string& sEncoded, tStringList& stringList, const char token)
+{
+    std::size_t current, previous = 0;
+
+    current = sEncoded.find(token);
+    while (current != std::string::npos)
+    {
+        stringList.push_back(sEncoded.substr(previous, current - previous));
+        previous = current + 1;
+        current = sEncoded.find(token, previous);
+    }
+    stringList.push_back(sEncoded.substr(previous, current - previous));
+}
+
 
 string SH::FromSet(tStringSet& stringSet, const char token)
 {

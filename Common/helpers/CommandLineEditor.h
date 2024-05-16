@@ -38,6 +38,7 @@ namespace CLP
         bool Init(int64_t l, int64_t t, int64_t r, int64_t b);
 
         void Clear(WORD attrib = 0);
+        void Fill(int64_t l, int64_t t, int64_t r, int64_t b, WORD attrib);
 
         void DrawCharClipped(char c, int64_t x, int64_t y, WORD attrib = FOREGROUND_WHITE);
         void DrawCharClipped(char c, int64_t offset, WORD attrib = FOREGROUND_WHITE);
@@ -157,13 +158,22 @@ namespace CLP
 
         virtual std::string GetSelection();
 
-        virtual void SetEntries(tStringList entries, std::string selectionSearch = "", int64_t origin_l = -1, int64_t origin_b = -1);
+        virtual void SetEntries(tStringList entries, std::string selectionSearch = "", int64_t anchor_l = -1, int64_t anchor_b = -1);
         virtual void Paint(tConsoleBuffer& backBuf);
         virtual void OnKey(int keycode, char c);
 
+        std::string mCaption;
     protected:
-        tStringList   mEntries;
-        int64_t       mSelection;
+        tStringList mEntries;
+        int64_t     mSelection;
+        int64_t     mAnchorL;
+        int64_t     mAnchorB;
+    };
+
+    class HistoryWin : public ListboxWin
+    {
+    public:
+        virtual void OnKey(int keycode, char c);
     };
 
     class FolderList : public ListboxWin
@@ -198,6 +208,11 @@ namespace CLP
         tEnteredParams GetNamedEntries();
 
 
+        std::string HistoryPath();
+        bool LoadHistory();
+        bool SaveHistory();
+        bool AddToHistory(const std::string& sCommandLine);     // removes if previously seen and appends to end
+
         void UpdateFromConsoleSize();
         void UpdateDisplay();
         void DrawToScreen();
@@ -214,6 +229,9 @@ namespace CLP
         HANDLE mhInput;
         HANDLE mhOutput;
         tConsoleBuffer originalConsoleBuf;
+        CONSOLE_SCREEN_BUFFER_INFO originalScreenInfo;
+
+
         tConsoleBuffer backBuffer;      // for double buffering
 
         tEnteredParams    mParams;

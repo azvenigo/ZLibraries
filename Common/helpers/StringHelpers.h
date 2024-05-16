@@ -114,8 +114,12 @@ namespace SH
     std::string     ToUserReadable(int64_t nValue);
     int64_t         ToInt(std::string sReadable);
 
-    std::string     FromVector(std::vector<std::string>& stringVector, const char token = kCharSplitToken);
-    void            ToVector(const std::string& sEncoded, std::vector<std::string>& outStringVector, const char token = kCharSplitToken);
+    std::string     FromVector(tStringArray& stringVector, const char token = kCharSplitToken);
+    void            ToVector(const std::string& sEncoded, tStringArray& outStringVector, const char token = kCharSplitToken);
+
+    std::string     FromList(tStringList& stringList, const char token = kCharSplitToken);
+    void            ToList(const std::string& sEncoded, tStringList& outStringList, const char token = kCharSplitToken);
+
 
     std::string     FromMap(const std::map<std::string, std::string>& stringMap, const char token = kCharSplitToken);
     void            ToMap(const std::string& sEncoded, std::map<std::string, std::string>& outStringMap, const char token = kCharSplitToken);

@@ -10,14 +10,24 @@
 #include <filesystem>
 #include <algorithm>
 
-
 #ifdef _WIN64
 #define NOMINMAX
 #include <Windows.h> // For enabling ANSI color output
-
 #include "CommandLineEditor.h"
 
+    #ifdef _DEBUG
+    #include <conio.h> 
+    #endif
+
 #endif
+
+#ifdef _DEBUG
+#define PAUSE_FOR_KEY { std::cout << "hit any key..."; _getch(); }
+#else
+#define
+#define PAUSE_FOR_KEY 
+#endif
+
 
 
 using namespace std;
@@ -28,6 +38,9 @@ int64_t LOG::gnVerbosityLevel = LVL_DEFAULT;
 
 namespace CLP
 {
+    string appPath;
+    string appName;
+
     ParamDesc::ParamDesc(const string& sName, string* pString, eBehavior behavior, const string& sUsage, const tStringSet& allowedStrings)
     {
         mValueType = kString;
@@ -147,18 +160,32 @@ namespace CLP
     bool ParamDesc::DoesValueSatifsy(const std::string& sValue, bool bOutputError)
     {
         // Check path requirements
-        if (MustHaveAnExistingPath() && !fs::exists(sValue))
+        if (MustHaveAnExistingPath())
         {
-            if (bOutputError)
-                cerr << cols[kERROR] << "Error: No path found at:" << sValue << cols[kRESET] << "\n";
-            return false;
+            string sPath(sValue);
+            if (sPath.length() >= 2 && sPath[0] == '\"' && sPath[sPath.length() - 1] == '\"')
+                sPath = sPath.substr(1, sPath.length() - 2);
+
+            if (!fs::exists(sPath))
+            {
+                if (bOutputError)
+                    cerr << cols[kERROR] << "Error: No path found at:" << sPath << cols[kRESET] << "\n";
+                return false;
+            }
         }
 
-        if (MustNotHaveAnExistingPath() && fs::exists(sValue))
+        if (MustNotHaveAnExistingPath())
         {
-            if (bOutputError)
-                cerr << cols[kERROR] << "Error: " << sValue << cols[kRESET] << " path exists but must not.\n";
-            return false;
+            string sPath(sValue);
+            if (sPath.length() >= 2 && sPath[0] == '\"' && sPath[sPath.length() - 1] == '\"')
+                sPath = sPath.substr(1, sPath.length() - 2);
+
+            if (fs::exists(sPath))
+            {
+                if (bOutputError)
+                    cerr << cols[kERROR] << "Error: " << sPath << cols[kRESET] << " path exists but must not.\n";
+                return false;
+            }
         }
 
         // basic case of optional unrestricted
@@ -568,7 +595,7 @@ namespace CLP
 
     void CommandLineParser::GetCommandLineExample(const std::string& sMode, string& sCommandLineExample)
     {
-        sCommandLineExample = msAppName;
+        sCommandLineExample = appName;
 
         string sGeneralCommands;
         for (auto& desc : mGeneralCommandLineParser.mParameterDescriptors)
@@ -786,7 +813,7 @@ namespace CLP
         bool bShowEdit = ContainsArgument("!", params);
         if (bShowEdit)
             return kErrorShowEdit;
-
+        
         bool bMultiMode = !mModeToCommandLineParser.empty();
 
         if (params.empty())
@@ -930,7 +957,10 @@ namespace CLP
                 // if this is an enclosing
                 size_t match = SH::FindMatching(sCommandLine, endofparam);
                 if (match != string::npos) // if enclosure, skip to endYour location
-                    endofparam = match;
+                {
+                    endofparam = match + 1;
+                    break;
+                }
                 else
                     endofparam++;
             }
@@ -964,54 +994,53 @@ namespace CLP
         return s.substr(0, s.length() - 1); // strip last ' '
     }
 
-
-
     bool CommandLineParser::Parse(int argc, char* argv[], bool bEditOnParseFail)
     {
         CLP::CommandLineEditor editor;
 
-        msAppName = argv[0];
+        appPath = argv[0];
 #ifdef _WIN64
-        // Ensure the msAppPath extension includes ".exe" since it can be launched without
-        if (msAppPath.length() > 4)
+        // Ensure the appPath extension includes ".exe" since it can be launched without
+        if (appPath.length() > 4)
         {
-            // Ensure the msAppPath extension includes ".exe" since it can be launched without
-            string sExtension(msAppPath.substr(msAppPath.length() - 4));
+            // Ensure the appPath extension includes ".exe" since it can be launched without
+            string sExtension(appPath.substr(appPath.length() - 4));
             std::transform(sExtension.begin(), sExtension.end(), sExtension.begin(), [](unsigned char c) { return (unsigned char)std::tolower(c); });
             if (sExtension != ".exe")
-                msAppPath += ".exe";
+                appPath += ".exe";
         }
 #endif
         // Extract  application name
-        int32_t nLastSlash = (int32_t)msAppPath.find_last_of('/');
-        int32_t nLastBackSlash = (int32_t)msAppPath.find_last_of('\\');
+        int32_t nLastSlash = (int32_t)appPath.find_last_of('/');
+        int32_t nLastBackSlash = (int32_t)appPath.find_last_of('\\');
         nLastSlash = (nLastSlash > nLastBackSlash) ? nLastSlash : nLastBackSlash;
 
         if (nLastSlash != string::npos)
         {
-            msAppName = msAppPath.substr(nLastSlash + 1);
-            msAppPath = msAppPath.substr(0, nLastBackSlash);
+            appName = appPath.substr(nLastSlash + 1);
+            appPath = appPath.substr(0, nLastBackSlash);
         }
         else
-            msAppName = msAppPath;
+            appName = appPath;
 
 
 
         tStringArray argArray(ToArray(argc-1, argv+1));
-
-        bool bTryParsing = true;
-        while (bTryParsing)
+        bool bSuccess = false;
+        while (1)
         {
             CommandLineParser::eResponse response = TryParse(argArray);
 
             if (response == kSuccess)
             {
-                return true;
+                bSuccess = true;
+                break;
             }
             else if (response == kCanceled)
             {
                 cout << "Canceled\n";
-                return false;
+                bSuccess = false;
+                break;
             }
             else if (response == kErrorAbort)
             {
@@ -1026,19 +1055,40 @@ namespace CLP
                 cout << usageTable;
 
 
-                cout << "\n\"" << cols[kAPP] << msAppName << " " << cols[kPARAM] << msMode << " ?" << cols[kRESET] << "\" - to see usage.\n";
-                return false;
+                cout << "\n\"" << cols[kAPP] << appName << " " << cols[kPARAM] << msMode << " ?" << cols[kRESET] << "\" - to see usage.\n";
+                bSuccess = false;
+                break;
             }
             else if (response == kShowAvailableModes)
             {
-                cout << GetModesString();
-                return false;
+                bool bHelp = ContainsArgument("?", argArray);
+                bool bDetailedHelp = ContainsArgument("??", argArray);
+//                cout << GetHelpString(GetFirstPositionalArgument(argArray), bDetailedHelp);
+                if (bHelp|bDetailedHelp)
+                {
+                    TableOutput clpHelp = GetCLPHelp(bDetailedHelp);
+                    TableOutput keyTable = GetKeyTable();
+                    if (bDetailedHelp)
+                    {
+                        clpHelp.AlignWidth(80, clpHelp, keyTable);
+                        cout << clpHelp << keyTable;
+                    }
+                    else
+                        cout << clpHelp;
+                }
+                else
+                {
+                    cout << GetModesString();
+                }
+                bSuccess = false;
+                break;
             }
             else if (response == kShowHelp)
             {
                 bool bDetailedHelp = ContainsArgument("??", argArray);
                 cout << GetHelpString(GetFirstPositionalArgument(argArray), bDetailedHelp);
-                return false;
+                bSuccess = false;
+                break;
             }
             else if (response == kErrorShowEdit)
             {
@@ -1052,19 +1102,20 @@ namespace CLP
                         break;
                     }
                 }
-
+                
 
                 string result = editor.Edit(ToString(argArray));
                 if (result.empty())
-                    return false;
+                {
+                    bSuccess = false;
+                    break;
+                }
                 argArray = ToArray(result);
             }
         }
 
-        assert(false);
-        cerr << "Unexpected parse flow.\n";
-
-        return false;
+//        PAUSE_FOR_KEY
+        return bSuccess;
     }
 
     bool CommandLineParser::ContainsArgument(std::string sArgument, const tStringArray& params, bool bCaseSensitive)
@@ -1189,38 +1240,33 @@ namespace CLP
         usageTable.SetBorders('-', '*', '*', '*');
 
 
-        TableOutput keyTable;
-        if (bDetailed)
-        {
-            keyTable.SetSeparator(' ', 1);
-            keyTable.SetBorders('-', 0, '*', '*');
-
-            keyTable.AddRow(cols[kSECTION] + "--------Keys---------" + cols[kRESET]);
-            keyTable.AddRow(cols[kSECTION] + "         [] ", "Optional" + cols[kRESET]);
-            keyTable.AddRow(cols[kSECTION] + "          - ", "Named '-key:value' pair. (examples: -size:1KB  -verbose:3)" + cols[kRESET]);
-            keyTable.AddRow(cols[kSECTION] + "            ", "Can be anywhere on command line, in any order." + cols[kRESET]);
-            keyTable.AddRow(cols[kSECTION] + "          # ", "NUMBER" + cols[kRESET]);
-            keyTable.AddRow(cols[kSECTION] + "            ", "Can be hex (0x05) or decimal or floating point." + cols[kRESET]);
-            keyTable.AddRow(cols[kSECTION] + "            ", "Can include commas (1,000)" + cols[kRESET]);
-            keyTable.AddRow(cols[kSECTION] + "            ", "Can include scale labels (10k, 64KiB, etc.)" + cols[kRESET]);
-            keyTable.AddRow(cols[kSECTION] + "        BOOL", "Boolean value can be 1/0, t/f, y/n, yes/no. Presence of the flag means true." + cols[kRESET]);
-        }
+        TableOutput GeneralHelpTable = GetCLPHelp(bDetailed);
 
 
-        size_t nMinTableWidth = std::max({ (size_t) 80, 
+        size_t nMinWidth = 80;
+#ifdef _WIN64
+        CONSOLE_SCREEN_BUFFER_INFO screenInfo;
+        if (GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &screenInfo))
+            nMinWidth = screenInfo.dwSize.X;
+#endif
+
+
+/*        size_t nMinTableWidth = std::max({ (size_t)nMinWidth,
                                             descriptionTable.GetTableWidth(), 
                                             requiredParamTable.GetTableWidth(), 
                                             optionalParamTable.GetTableWidth(), 
                                             usageTable.GetTableWidth(), 
-                                            keyTable.GetTableWidth(),
+                                            GeneralHelpTable.GetTableWidth(),
                                             additionalInfoTable.GetTableWidth()});
 
-        keyTable.SetMinimumOutputWidth(nMinTableWidth);
+        GeneralHelpTable.SetMinimumOutputWidth(nMinTableWidth);
         requiredParamTable.SetMinimumOutputWidth(nMinTableWidth);
         optionalParamTable.SetMinimumOutputWidth(nMinTableWidth);
         descriptionTable.SetMinimumOutputWidth(nMinTableWidth);
         additionalInfoTable.SetMinimumOutputWidth(nMinTableWidth);
-        usageTable.SetMinimumOutputWidth(nMinTableWidth);
+        usageTable.SetMinimumOutputWidth(nMinTableWidth);*/
+
+        GeneralHelpTable.AlignWidth(nMinWidth, GeneralHelpTable, requiredParamTable, optionalParamTable, descriptionTable, additionalInfoTable, usageTable);
 
 
         // Now default/global
@@ -1234,10 +1280,48 @@ namespace CLP
         if (bHasOptionalParameters)   // 1 because "Optional:" added above
             ss << optionalParamTable;
         if (bDetailed)
-            ss << keyTable;
+            ss << GeneralHelpTable;
         ss << usageTable;
 
         return ss.str();
+    }
+
+    TableOutput CommandLineParser::GetCLPHelp(bool bDetailed)
+    {
+        TableOutput descriptionTable;
+        descriptionTable.SetSeparator(' ', 1);
+        descriptionTable.SetBorders('*', '*', '*', '*');
+
+        descriptionTable.AddRow(cols[kSECTION] + CLP::appName + cols[kRESET]);
+        descriptionTable.AddRow(" ");
+
+        descriptionTable.AddRow(cols[kSECTION] + "----GENERAL HELP----" + cols[kRESET]);
+        descriptionTable.AddRow("Generally the application is given a COMMAND followed by parameters.");
+        descriptionTable.AddRow("Run the application with no parameters to get a list of available commands.");
+        descriptionTable.AddRow("Parameters can be positional (1st, 2nd, 3rd, etc.) or named key:value pairs.");
+        descriptionTable.AddRow("Parameters can be required or optional");
+        descriptionTable.AddRow("You can get general help by adding '?' or '??' anywhere on the command line.");
+
+        return descriptionTable;
+    }
+
+    TableOutput CommandLineParser::GetKeyTable()
+    {
+        TableOutput table;
+        table.SetSeparator(' ', 1);
+        table.SetBorders('*', '*', '*', '*');
+
+        table.AddRow(cols[kSECTION] + "--------KEYS---------" + cols[kRESET]);
+        table.AddRow(cols[kPARAM] + "         [] " + cols[kRESET], "Optional" );
+        table.AddRow(cols[kPARAM] + "          - " + cols[kRESET], "Named '-key:value' pair. (examples: -size:1KB  -verbose:3)");
+        table.AddRow(cols[kPARAM] + "            " + cols[kRESET], "Can be anywhere on command line, in any order.");
+        table.AddRow(cols[kPARAM] + "          # " + cols[kRESET], "NUMBER");
+        table.AddRow(cols[kPARAM] + "            " + cols[kRESET], "Can be hex (0x05) or decimal or floating point.");
+        table.AddRow(cols[kPARAM] + "            " + cols[kRESET], "Can include commas (1,000)");
+        table.AddRow(cols[kPARAM] + "            " + cols[kRESET], "Can include scale labels (10k, 64KiB, etc.)");
+        table.AddRow(cols[kPARAM] + "        BOOL" + cols[kRESET], "Boolean value can be 1/0, t/f, y/n, yes/no. Presence of the flag means true.");
+
+        return table;
     }
 
     string CommandLineParser::GetModesString()
@@ -1245,29 +1329,40 @@ namespace CLP
         // First output Application name
 
         TableOutput descriptionTable;
-        descriptionTable.SetBorders('*', '*', '*', '*');
+        descriptionTable.SetBorders('*', 0, '*', '*');
         descriptionTable.SetSeparator(' ', 1);
 
-        std::string sModes( cols[kAPP] + msAppName + cols[kRESET] + " {");
-        for (tModeToParser::iterator it = mModeToCommandLineParser.begin(); it != mModeToCommandLineParser.end(); it++)
-        {
-            sModes += cols[kPARAM] + (*it).first + cols[kRESET] + "|";
-        }
-        sModes[sModes.length() - 1] = '}';  // change last | into }
-
-        descriptionTable.AddRow(sModes);
+        descriptionTable.AddRow("Application: " + cols[kAPP] + appName + cols[kRESET]);
 
         descriptionTable.AddRow(" ");
-        descriptionTable.AddRow(cols[kSECTION] + "-----Application Description-----" + cols[kRESET]);
+        descriptionTable.AddRow(cols[kSECTION] + "--App Description--" + cols[kRESET]);
         descriptionTable.AddMultilineRow(msAppDescription);
         descriptionTable.AddRow(" ");
 
 
+
+/*        std::string sModes(cols[kAPP] + appName + cols[kRESET] + " {");
+        for (tModeToParser::iterator it = mModeToCommandLineParser.begin(); it != mModeToCommandLineParser.end(); it++)
+        {
+            sModes += cols[kPARAM] + (*it).first + cols[kRESET] + "|";
+        }
+        sModes[sModes.length() - 1] = '}';  // change last | into }*/
+
+        string sModes(cols[kAPP] + appName + cols[kPARAM] + " COMMAND PARAMS" + cols[kRESET]);
+
+        descriptionTable.AddRow(cols[kSECTION] + "------Usage-------" + cols[kRESET]);
+
+        descriptionTable.AddRow(sModes);
+        descriptionTable.AddRow(' ');
+
+
+
+
         TableOutput commandsTable;
-        commandsTable.SetBorders(0, '*', '*', '*');
+        commandsTable.SetBorders(0, 0, '*', '*');
         commandsTable.SetSeparator(' ', 1);
 
-        commandsTable.AddRow(cols[kSECTION] + "-------Available Commands--------" + cols[kRESET]);
+        commandsTable.AddRow(cols[kSECTION] +    "-----Commands-----" + cols[kRESET]);
         for (tModeToParser::iterator it = mModeToCommandLineParser.begin(); it != mModeToCommandLineParser.end(); it++)
         {
             string sCommand = (*it).first;
@@ -1275,16 +1370,37 @@ namespace CLP
             if (!sCommand.empty())
                 commandsTable.AddRow(cols[kPARAM] + sCommand + cols[kRESET], sModeDescription);
         }
+        commandsTable.AddRow(" ");
 
-        size_t nMinTableWidth = std::max({ (size_t) 80, commandsTable.GetTableWidth(), descriptionTable.GetTableWidth() });
+        TableOutput helpTable;
+        helpTable.SetBorders(0, '*', '*', '*');
+        helpTable.SetSeparator(' ', 1);
+        helpTable.AddRow(cols[kSECTION] + "-------Help-------" + cols[kRESET]);
+        helpTable.AddRow("Add '?' or '??' anywhere on command line for command help.");
 
-        descriptionTable.SetMinimumOutputWidth(nMinTableWidth);
-        commandsTable.SetMinimumOutputWidth(nMinTableWidth);
+        string sExampleCommand = "command";
+        if (!mModeToCommandLineParser.empty())
+            sExampleCommand = (*mModeToCommandLineParser.begin()).first;
+        helpTable.AddRow("For example: " + cols[kAPP] + appName + " " + cols[kPARAM] + sExampleCommand + " ?" + cols[kRESET]);
+        helpTable.AddRow(" ");
+        helpTable.AddRow("Add '!' anywhere on command line for interactive command line editing.");
+
+
+
+        size_t nMinWidth = 80;
+#ifdef _WIN64
+        CONSOLE_SCREEN_BUFFER_INFO screenInfo;
+        if (GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &screenInfo))
+            nMinWidth = screenInfo.dwSize.X;
+#endif
+
+        descriptionTable.AlignWidth(nMinWidth, descriptionTable, commandsTable, helpTable);
 
         stringstream ss;
 
         ss << descriptionTable;
         ss << commandsTable;
+        ss << helpTable;
 
         return ss.str();
     }

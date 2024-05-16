@@ -4,6 +4,7 @@
 #include <iostream>
 #include <assert.h>
 #include <format>
+#include <fstream>
 #include <filesystem>
 
 #include <stdio.h>
@@ -13,14 +14,18 @@ namespace fs = std::filesystem;
 
 namespace CLP
 {
-    string          appEXE;         // first argument
+//    string          appEXE;         // first argument
     RawEntryWin     rawCommandBuf;  // raw editing buffer 
     AnsiColorWin    paramListBuf;   // parsed parameter list with additional info
     AnsiColorWin    topInfoBuf;
     AnsiColorWin    usageBuf;       // simple one line drawing of usage
     InfoWin         helpBuf;        // popup help window
     ListboxWin      popupListWin;
+    HistoryWin      historyWin;
     FolderList      popupFolderListWin;
+
+    const size_t    kCommandHistoryLimit = 10; // 10 for now while developing
+    tStringList     commandHistory;
 
     CONSOLE_SCREEN_BUFFER_INFO screenInfo;
 
@@ -339,6 +344,13 @@ void ListboxWin::Paint(tConsoleBuffer& backBuf)
     if (mSelection > visibleRows)
         topVisibleRow -= (visibleRows- mSelection-1);
 
+    if (!mCaption.empty())
+    {
+        string sCaption(mCaption + " [" + SH::FromInt(mSelection + 1) + "/" + SH::FromInt(mEntries.size()) + "]");
+        Fill(0, 0, mWidth, 1, 0);
+        DrawClippedAnsiText(1, 0, sCaption, false);
+    }
+
 
     int64_t drawrow = -topVisibleRow;
     int64_t selection = 0;
@@ -429,9 +441,43 @@ void ListboxWin::OnKey(int keycode, char c)
     Clear(mClearAttrib);
 }
 
-void ListboxWin::SetEntries(tStringList entries, string selectionSearch, int64_t origin_l, int64_t origin_b)
+void HistoryWin::OnKey(int keycode, char c)
+{
+    bool bCTRLHeld = GetKeyState(VK_CONTROL) & 0x800;
+    bool bSHIFTHeld = GetKeyState(VK_SHIFT) & 0x800;
+
+    switch (keycode)
+    {
+        case VK_DELETE:
+        {
+            if (mSelection < (int64_t)commandHistory.size())
+            {
+                tStringList::iterator it = commandHistory.begin();
+                for (int64_t count = 0; count < mSelection; count++)
+                    it++;
+                commandHistory.erase(it);
+                if (mSelection >= (int64_t)commandHistory.size())
+                    mSelection = (int64_t)commandHistory.size()-1;
+                mEntries = commandHistory;
+                if (mEntries.empty())
+                {
+                    mbVisible = false;
+                    rawCommandBuf.ClearSelection();
+                }
+            }
+            return;
+        }
+    }
+
+    ListboxWin::OnKey(keycode, c);
+}
+
+
+void ListboxWin::SetEntries(tStringList entries, string selectionSearch, int64_t anchor_l, int64_t anchor_b)
 { 
     mEntries = entries; 
+    mAnchorL = anchor_l;
+    mAnchorB = anchor_b;
 
         
     // find nearest selection from the entries
@@ -473,8 +519,8 @@ void ListboxWin::SetEntries(tStringList entries, string selectionSearch, int64_t
     height += 2;
 
 
-    int64_t l = origin_l;
-    int64_t t = origin_b - height;
+    int64_t l = mAnchorL;
+    int64_t t = mAnchorB - height;
     int64_t r = l + width;
     int64_t b = t + height;
 
@@ -484,19 +530,25 @@ void ListboxWin::SetEntries(tStringList entries, string selectionSearch, int64_t
         b = screenInfo.dwSize.Y;
     }
 
+    if (width > screenInfo.dwSize.X)
+    {
+        l = 0;
+        r = screenInfo.dwSize.X;
+    }
+
 
     // move window to fit on screen
-    if (l < 0)
-    {
-        int64_t shiftright = -l;
-        l += shiftright;
-        r += shiftright;
-    }
     if (r > screenInfo.dwSize.X)
     {
         int64_t shiftleft = r - screenInfo.dwSize.X;
         l -= shiftleft;
         r -= shiftleft;
+    }
+    if (l < 0)
+    {
+        int64_t shiftright = -l;
+        l += shiftright;
+        r += shiftright;
     }
     if (b > screenInfo.dwSize.Y)
     {
@@ -568,8 +620,20 @@ void FolderList::OnKey(int keycode, char c)
             mBuffer[i].Char.AsciiChar = 0;
             mBuffer[i].Attributes = mClearAttrib;
         }
-
     }
+
+    void ConsoleWin::Fill(int64_t l, int64_t t, int64_t r, int64_t b, WORD attrib)
+    {
+        for (int64_t y = t; y < b; y++)
+        {
+            for (int64_t x = l; x < r; x++)
+            {
+                size_t offset = y * mWidth + x;
+                mBuffer[offset].Attributes = attrib;
+            }
+        }
+    }
+
 
     void ConsoleWin::DrawCharClipped(char c, int64_t x, int64_t y, WORD attrib)
     {
@@ -1009,16 +1073,31 @@ void FolderList::OnKey(int keycode, char c)
         return;
         case VK_UP:
         {
-            UpdateSelection();
-            COORD newPos = mCursorPos;
-
-            if (newPos.Y > mY)
+            if (mCursorPos.Y == mY && !commandHistory.empty())
             {
-                newPos.Y--;
-                UpdateCursorPos(newPos);
-            }
+                // select everything
+                selectionstart = 0;
+                selectionend = mText.size();
 
-            UpdateSelection();
+                // show history window
+                historyWin.mbVisible = true;
+                historyWin.mCaption = "History [DEL - Delete Entry]";
+                //            popupListWin.SetArea(selectionstart, mCursorPos.Y - mAvailableModes.size()-2, selectionstart +1, mCursorPos.Y- mAvailableModes.size()-1);
+                historyWin.SetEntries(commandHistory, mText, selectionstart, mCursorPos.Y);
+            }
+            else
+            {
+                UpdateSelection();
+                COORD newPos = mCursorPos;
+
+                if (newPos.Y > mY)
+                {
+                    newPos.Y--;
+                    UpdateCursorPos(newPos);
+                }
+
+                UpdateSelection();
+            }
         }
         return;
         case VK_DOWN:
@@ -1155,6 +1234,7 @@ void FolderList::OnKey(int keycode, char c)
         // Clear the raw command buffer and param buffers
         rawCommandBuf.Clear();
         popupListWin.Clear(BACKGROUND_INTENSITY);
+        historyWin.Clear(BACKGROUND_INTENSITY);
         popupFolderListWin.Clear(BACKGROUND_INTENSITY);
         paramListBuf.Clear(BACKGROUND_BLUE);
         usageBuf.Clear(BACKGROUND_GREEN | BACKGROUND_RED);
@@ -1176,7 +1256,7 @@ void FolderList::OnKey(int keycode, char c)
 
             vector<size_t> colWidths;
             colWidths.resize(3);
-            colWidths[kColName] = 12;
+            colWidths[kColName] = 16;
             colWidths[kColEntry] = 12;
             colWidths[kColUsage] = screenInfo.dwSize.X - (colWidths[kColName] + colWidths[kColEntry]);
             for (int paramindex = 1; paramindex < mParams.size(); paramindex++)
@@ -1223,7 +1303,7 @@ void FolderList::OnKey(int keycode, char c)
             else
             {
                 attribs[kColName] = FOREGROUND_RED;
-                strings[kColName] = "UNKNOWN COMMAND";
+                strings[kColName] = "UNKNOWN COMMAND ";
             }
 
             paramListBuf.DrawFixedColumnStrings(0, row, strings, colWidths, attribs);
@@ -1406,7 +1486,7 @@ void FolderList::OnKey(int keycode, char c)
 
 
 
-    bool FolderList::Scan(std::string sPath, int64_t origin_l, int64_t origin_b)
+    bool FolderList::Scan(std::string sPath, int64_t anchor_l, int64_t anchor_b)
     {
         string sCurSelection = GetSelection();
         mEntries.clear();
@@ -1419,7 +1499,12 @@ void FolderList::OnKey(int keycode, char c)
                 sPath = sPath.substr(1, sPath.length() - 2);
         }
 
-        mPath = sPath;
+
+        if (fs::is_directory(sPath))
+            mPath = sPath;
+        else
+            mPath = fs::path(sPath).parent_path().string();
+        mCaption = sPath;
 
         fs::path enteredPath(sPath);
 
@@ -1459,7 +1544,7 @@ void FolderList::OnKey(int keycode, char c)
 
         if (!mEntries.empty())
         {
-            SetEntries(mEntries, sCurSelection, origin_l, origin_b);
+            SetEntries(mEntries, sCurSelection, anchor_l, anchor_b);
             mbVisible = true;
         }
         else
@@ -1504,7 +1589,7 @@ void FolderList::OnKey(int keycode, char c)
             {
                 if (sText == mEnteredParams[i].sParamText)
                 {
-                    if (mEnteredParams[i].pRelatedDesc && mEnteredParams[i].pRelatedDesc->IsAPath())
+                    if (mEnteredParams[i].pRelatedDesc && (mEnteredParams[i].pRelatedDesc->IsAPath()|| mEnteredParams[i].pRelatedDesc->MustHaveAnExistingPath()))
                     {
                         popupFolderListWin.Scan(sText, selectionstart, mCursorPos.Y);
 
@@ -1545,6 +1630,7 @@ void FolderList::OnKey(int keycode, char c)
             usageBuf.Paint(backBuffer);
             topInfoBuf.Paint(backBuffer);
             popupListWin.Paint(backBuffer);
+            historyWin.Paint(backBuffer);
             popupFolderListWin.Paint(backBuffer);
 
             if (mpCLP)
@@ -1557,7 +1643,7 @@ void FolderList::OnKey(int keycode, char c)
                 }
             }
 
-            topInfoBuf.SetText(string(COL_BLACK) + "[F1 - HELP] - [ESC - CANCEL]");
+            topInfoBuf.SetText(string(COL_BLACK) + "[F1 - HELP] - [ESC - CANCEL] - [TAB - Auto-Complete]");
         }
 
         // Finally draw to screen
@@ -1568,6 +1654,7 @@ void FolderList::OnKey(int keycode, char c)
 
     void CommandLineEditor::SaveConsoleState()
     {
+        originalScreenInfo = screenInfo;
         originalConsoleBuf.resize(screenInfo.dwSize.X * screenInfo.dwSize.Y);
         SMALL_RECT readRegion = { 0, 0, screenInfo.dwSize.X - 1, screenInfo.dwSize.Y - 1 };
         ReadConsoleOutput(mhOutput, &originalConsoleBuf[0], screenInfo.dwSize, { 0, 0 }, &readRegion);
@@ -1575,9 +1662,9 @@ void FolderList::OnKey(int keycode, char c)
 
     void CommandLineEditor::RestoreConsoleState()
     {
-        SMALL_RECT writeRegion = { 0, 0, screenInfo.dwSize.X - 1, screenInfo.dwSize.Y - 1 };
-        WriteConsoleOutput(mhOutput, &originalConsoleBuf[0], screenInfo.dwSize, { 0, 0 }, &writeRegion);
-        SetConsoleCursorPosition(mhOutput, screenInfo.dwCursorPosition);
+        SMALL_RECT writeRegion = { 0, 0, originalScreenInfo.dwSize.X - 1, originalScreenInfo.dwSize.Y - 1 };
+        WriteConsoleOutput(mhOutput, &originalConsoleBuf[0], originalScreenInfo.dwSize, { 0, 0 }, &writeRegion);
+        SetConsoleCursorPosition(mhOutput, originalScreenInfo.dwCursorPosition);
     }
 
 
@@ -1730,7 +1817,10 @@ void FolderList::OnKey(int keycode, char c)
                 // if this is an enclosing
                 size_t match = SH::FindMatching(sText, endofparam);
                 if (match != string::npos) // if enclosure, skip to endYour location
-                    endofparam = match;
+                {
+                    endofparam = match+1;
+                    break;
+                }
                 else
                     endofparam++;
             }
@@ -1802,7 +1892,7 @@ void FolderList::OnKey(int keycode, char c)
 
     std::string CommandLineEditor::Edit(int argc, char* argv[])
     {
-        appEXE = argv[0];
+//        appEXE = argv[0];
         tStringArray params(CommandLineParser::ToArray(argc-1, argv));    // first convert to param array then to a string which will enclose parameters with whitespaces
         return Edit(CommandLineParser::ToString(params));
     }
@@ -1882,6 +1972,10 @@ void FolderList::OnKey(int keycode, char c)
         popupListWin.Init(w / 4, h / 4, w * 3 / 4, h * 3 / 4);
         popupListWin.mbVisible = false;
 
+        historyWin.Init(w / 4, h / 4, w * 3 / 4, h * 3 / 4);
+        historyWin.mbVisible = false;
+
+
         popupFolderListWin.Init(w / 4, h / 4, w * 3 / 4, h * 3 / 4);
         popupFolderListWin.mbVisible = false;
 
@@ -1929,10 +2023,13 @@ void FolderList::OnKey(int keycode, char c)
         INPUT_RECORD inputRecord[128];
         DWORD numEventsRead;
 
+        LoadHistory();
+
         while (!rawCommandBuf.mbDone && !rawCommandBuf.mbCanceled)
         {
             UpdateFromConsoleSize();
-//            UpdateParams();
+            UpdateParams();
+            UpdateDisplay();
 
             // Check for hotkey events
             MSG msg;
@@ -1986,6 +2083,10 @@ void FolderList::OnKey(int keycode, char c)
                         {
                             popupListWin.OnKey(keycode, c);
                         }
+                        else if (historyWin.mbVisible)
+                        {
+                            historyWin.OnKey(keycode, c);
+                        }
                         else if (popupFolderListWin.mbVisible)
                         {
                             popupFolderListWin.OnKey(keycode, c);
@@ -2002,9 +2103,6 @@ void FolderList::OnKey(int keycode, char c)
                                 rawCommandBuf.OnKey(keycode, c);
                         }
                     }
-
-                    UpdateParams();
-                    UpdateDisplay();
                 }
             }
         }
@@ -2013,15 +2111,21 @@ void FolderList::OnKey(int keycode, char c)
         RestoreConsoleState();
         if (rawCommandBuf.mbCanceled)
         {
-            cout << "Canceled editing. Last State:\n";
-            cout << string(screenInfo.dwSize.X, '*');
-            cout << COL_YELLOW << appEXE << " " << rawCommandBuf.GetText() << COL_RESET << "\n";
-            cout << string(screenInfo.dwSize.X, '*');
-            cout << "\n\n";
+            cout << "Canceled editing.\n";
+            if (!rawCommandBuf.GetText().empty())
+            {
+                cout << string(screenInfo.dwSize.X, '*');
+                cout << "Last Edit: \"" << COL_YELLOW << CLP::appName << " " << rawCommandBuf.GetText() << COL_RESET << "\"\n";
+                cout << string(screenInfo.dwSize.X, '*');
+                cout << "\n\n";
+            }
             return "";
         }
 
-        return appEXE + " " + rawCommandBuf.GetText();
+        AddToHistory(rawCommandBuf.GetText());
+        SaveHistory();
+
+        return rawCommandBuf.GetText();
     }
 
     void InfoWin::Paint(tConsoleBuffer& backBuf)
@@ -2065,4 +2169,70 @@ void FolderList::OnKey(int keycode, char c)
         }
     }
 
+    string CommandLineEditor::HistoryPath()
+    {
+        string sPath = getenv("LOCALAPPDATA");
+        sPath += "/" + CLP::appName + "_history";
+        return sPath;
+    }
+
+    bool CommandLineEditor::LoadHistory()
+    {
+        if (CLP::appName.empty())
+            return false;
+
+        string sPath = HistoryPath();
+        ifstream inFile(sPath);
+        if (inFile)
+        {
+            stringstream ss;
+            ss << inFile.rdbuf();
+            commandHistory.clear();
+            string sEncoded(ss.str());
+            if (!sEncoded.empty())
+            {
+                SH::ToList(sEncoded, commandHistory);
+                while (commandHistory.size() > kCommandHistoryLimit)
+                    commandHistory.pop_front();
+            }
+
+            return true;
+        }
+
+        return false;
+    }
+
+    bool CommandLineEditor::SaveHistory()
+    {
+        if (CLP::appName.empty() || commandHistory.empty())
+            return false;
+
+        while (commandHistory.size() > kCommandHistoryLimit)
+            commandHistory.pop_front();
+
+        string sPath = HistoryPath();
+        ofstream outFile(sPath, ios_base::trunc);
+        if (outFile)
+        {
+            string sEncoded = SH::FromList(commandHistory);
+            outFile << sEncoded;
+            return true;
+        }
+        return false;
+    }
+
+    bool CommandLineEditor::AddToHistory(const std::string& sCommandLine)
+    {
+        for (tStringList::iterator it = commandHistory.begin(); it != commandHistory.end(); it++)
+        {
+            if (SH::Compare(*it, sCommandLine, false))
+            {
+                commandHistory.erase(it);
+                break;
+            }
+        }
+
+        commandHistory.emplace_back(sCommandLine);
+        return true;
+    }
 };

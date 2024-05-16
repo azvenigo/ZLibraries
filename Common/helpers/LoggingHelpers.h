@@ -475,6 +475,23 @@ public:
         return transposedTable;
     }
 
+    // Variadic template function to find the maximum table width
+    template <typename... Tables>
+    size_t GetMaxTableWidth(size_t minW, const Tables&... tables) 
+    {
+        return std::max({ minW, tables.GetTableWidth()... });
+    }
+
+    template <typename... Tables>
+    void AlignWidth(size_t minW, Tables&... tables) 
+    {
+        size_t nMinTableWidth = GetMaxTableWidth(minW, tables...);
+        (tables.SetMinimumOutputWidth(nMinTableWidth), ...);
+    }
+
+
+
+
 
 protected:
 
