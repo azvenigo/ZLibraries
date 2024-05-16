@@ -633,7 +633,7 @@ namespace CLP
 
         if (!sMode.empty() && !msModeDescription.empty())
         {
-            modeDescriptionTable.AddRow(string("Help for command: " + cols[kAPP] ) + sMode.c_str() + cols[kRESET]);
+            modeDescriptionTable.AddRow(string("Help for command: ") + cols[kAPP] + sMode.c_str() + cols[kRESET]);
 
 
             modeDescriptionTable.AddRow(" ");
@@ -1246,7 +1246,7 @@ namespace CLP
 #ifdef _WIN64
         CONSOLE_SCREEN_BUFFER_INFO screenInfo;
         if (GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &screenInfo))
-            nMinWidth = screenInfo.dwSize.X;
+            nMinWidth = screenInfo.dwSize.X-1;
 #endif
 
 
@@ -1390,7 +1390,7 @@ namespace CLP
 #ifdef _WIN64
         CONSOLE_SCREEN_BUFFER_INFO screenInfo;
         if (GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &screenInfo))
-            nMinWidth = screenInfo.dwSize.X;
+            nMinWidth = screenInfo.dwSize.X-1;
 #endif
 
         descriptionTable.AlignWidth(nMinWidth, descriptionTable, commandsTable, helpTable);

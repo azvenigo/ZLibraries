@@ -1932,6 +1932,7 @@ void FolderList::OnKey(int keycode, char c)
         if (mpCLP)
         {
             helpBuf.Init(0, 0, screenInfo.dwSize.X, screenInfo.dwSize.Y);
+            helpBuf.Clear(0);
             if (mpCLP->IsRegisteredMode(msMode))
                 helpBuf.SetText(mpCLP->GetHelpString(msMode, false));
             else
@@ -2133,7 +2134,7 @@ void FolderList::OnKey(int keycode, char c)
         if (!mbVisible)
             return;
 
-        Clear(BACKGROUND_INTENSITY);
+        Clear(mClearAttrib);
         DrawClippedAnsiText(0, -firstVisibleRow, mText);
 
         for (int64_t y = 0; y < mHeight; y++)
