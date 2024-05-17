@@ -348,6 +348,9 @@ void ListboxWin::Paint(tConsoleBuffer& backBuf)
     {
         string sCaption(mCaption + " [" + SH::FromInt(mSelection + 1) + "/" + SH::FromInt(mEntries.size()) + "]");
         Fill(0, 0, mWidth, 1, 0);
+        Fill(0, 0, 1, mHeight, 0);
+        Fill(0, mHeight-1, mWidth, mHeight, 0);
+        Fill(mWidth-1, 0, mWidth, mHeight, 0);
         DrawClippedAnsiText(1, 0, sCaption, false);
     }
 
@@ -425,6 +428,16 @@ void ListboxWin::OnKey(int keycode, char c)
     case VK_END:
         mSelection = (int64_t)mEntries.size() - 1;
         break;
+    case VK_PRIOR:
+        mSelection -= mHeight;
+        if (mSelection < 0)
+            mSelection = 0;
+        break;
+    case VK_NEXT:
+        mSelection+=mHeight;
+        if (mSelection >= (int64_t)mEntries.size()-1)
+            mSelection = (int64_t)mEntries.size() - 1;
+        break;
     case VK_RETURN:
         {
         rawCommandBuf.HandlePaste(GetSelection());
@@ -495,7 +508,7 @@ void ListboxWin::SetEntries(tStringList entries, string selectionSearch, int64_t
             string sSearchSub(selectionSearch.substr(0, cmpLength));
             if (SH::Compare(sEntrySub, sSearchSub, false))   // exact match
             {
-                cout << "nearest match:" << entry << "\n";
+//                cout << "nearest match:" << entry << "\n";
                 mSelection = i;
                 bFound = true;
                 break;      // found match
@@ -510,6 +523,10 @@ void ListboxWin::SetEntries(tStringList entries, string selectionSearch, int64_t
     // find widest entry
     int64_t width = 0;
     int64_t height = mEntries.size();
+
+    if (!mCaption.empty())
+        width = mCaption.length() + 8;  // add 10 for [###/###]
+
     for (auto& entry : mEntries)
     {
         if (width < (int64_t)  entry.length())
@@ -524,10 +541,10 @@ void ListboxWin::SetEntries(tStringList entries, string selectionSearch, int64_t
     int64_t r = l + width;
     int64_t b = t + height;
 
-    if (height > screenInfo.dwSize.Y)  // more than can fit on screen
+    if (height > mAnchorB)
     {
         t = 0;
-        b = screenInfo.dwSize.Y;
+        b = mAnchorB;
     }
 
     if (width > screenInfo.dwSize.X)
@@ -1402,10 +1419,10 @@ void FolderList::OnKey(int keycode, char c)
 
         DrawToScreen();
 
-        static int count = 1;
+/*        static int count = 1;
         char buf[64];
         sprintf(buf, "draw:%d\n", count++);
-        OutputDebugString(buf);
+        OutputDebugString(buf);*/
    
     }
 
@@ -1508,7 +1525,7 @@ void FolderList::OnKey(int keycode, char c)
 
         fs::path enteredPath(sPath);
 
-        while (!enteredPath.empty())
+        while (enteredPath.string().size() > 2)
         {
             try
             {
@@ -1574,6 +1591,7 @@ void FolderList::OnKey(int keycode, char c)
         {
             popupListWin.mbVisible = true;
 //            popupListWin.SetArea(selectionstart, mCursorPos.Y - mAvailableModes.size()-2, selectionstart +1, mCursorPos.Y- mAvailableModes.size()-1);
+            popupListWin.mCaption = "Commands";
             popupListWin.SetEntries(mAvailableModes, sText, selectionstart, mCursorPos.Y);
         }
         else if (sText[0] == '-')
