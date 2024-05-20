@@ -214,7 +214,7 @@ namespace CLP
             // if CLP is configured with a specific mode go through parameters for that mode
             if (!sMode.empty() && mpCLP->IsRegisteredMode(sMode))
             {
-                CLP::CLModeParser& parser = mpCLP->mModeToCommandLineParser[mpCLP->msMode];
+                CLP::CLModeParser& parser = mpCLP->mModeToCommandLineParser[sMode];
 
                 if (parser.GetDescriptor(paramName, &pDesc))
                     return pDesc;
@@ -244,6 +244,27 @@ namespace CLP
 
         return mText.substr(normalizedStart, normalizedEnd - normalizedStart);
     }
+
+    void RawEntryWin::AddUndoEntry()
+    {
+        undoEntry entry(mText, CursorToTextIndex(mCursorPos), selectionstart, selectionend);
+        mUndoEntryList.emplace_back(std::move(entry));
+    }
+
+    void RawEntryWin::Undo()
+    {
+        if (mUndoEntryList.empty())
+            return;
+
+        undoEntry entry(*mUndoEntryList.rbegin());
+        mUndoEntryList.pop_back();
+
+        mText = entry.text;
+        selectionstart = entry.selectionstart;
+        selectionend = entry.selectionend;
+        UpdateCursorPos(TextIndexToCursor(entry.cursorindex));
+    }
+
 
 /*    bool RawEntryWin::GetParameterUnderIndex(int64_t index, size_t& outStart, size_t& outEnd, string& outParam)
     {
@@ -440,6 +461,7 @@ void ListboxWin::OnKey(int keycode, char c)
         break;
     case VK_RETURN:
         {
+        rawCommandBuf.AddUndoEntry();
         rawCommandBuf.HandlePaste(GetSelection());
         mEntries.clear();
         mbVisible = false;
@@ -616,6 +638,7 @@ void FolderList::OnKey(int keycode, char c)
             string selection(GetSelection());
             if (SH::ContainsWhitespace(selection))
                 selection = "\"" + selection + "\"";
+            rawCommandBuf.AddUndoEntry();
             rawCommandBuf.HandlePaste(selection);
             mEntries.clear();
             mbVisible = false;
@@ -1169,6 +1192,7 @@ void FolderList::OnKey(int keycode, char c)
         {
             if (IsTextSelected())
             {
+                AddUndoEntry();
                 DeleteSelection();
             }
             else
@@ -1177,10 +1201,10 @@ void FolderList::OnKey(int keycode, char c)
                 int64_t index = CursorToTextIndex(mCursorPos);
                 if (index > 0)
                 {
+                    UpdateSelection();
                     mText.erase(index - 1, 1);
                     UpdateCursorPos(TextIndexToCursor(index - 1));
                 }
-                UpdateSelection();
             }
         }
         return;
@@ -1188,6 +1212,7 @@ void FolderList::OnKey(int keycode, char c)
         {
             if (IsTextSelected())
             {
+                AddUndoEntry();
                 DeleteSelection();
             }
             else
@@ -1196,6 +1221,7 @@ void FolderList::OnKey(int keycode, char c)
                 int64_t index = CursorToTextIndex(mCursorPos);
                 if (index < (int64_t)(mText.size()))
                 {
+                    AddUndoEntry();
                     mText.erase(index, 1);
                 }
             }
@@ -1222,11 +1248,21 @@ void FolderList::OnKey(int keycode, char c)
             }
         }
         break;
+        case 0x5a:          // CTRL-Z
+        {
+            if (bCTRLHeld)
+            {
+                rawCommandBuf.Undo();
+                return;
+            }
+        }
+
         }
 
         // nothing handled above....regular text entry
         if (keycode >= 32)
         {
+            AddUndoEntry();
             if (IsTextSelected())
                 DeleteSelection();
 
@@ -1314,7 +1350,8 @@ void FolderList::OnKey(int keycode, char c)
 
                 if (mpCLP)
                 {
-                    mpCLP->GetCommandLineExample(msMode, strings[kColUsage]);
+                    strings[kColUsage] = mpCLP->GetModeDescription(msMode);
+//                    mpCLP->GetCommandLineExample(msMode, strings[kColUsage]);
                 }
             }
             else
@@ -1367,53 +1404,56 @@ void FolderList::OnKey(int keycode, char c)
             }
 
 
-            row++;
-            sSection = "-named params-" + string(screenInfo.dwSize.X, '-');
-            paramListBuf.DrawClippedText(0, row++, sSection, BACKGROUND_INTENSITY, false);
-
             tEnteredParams namedParams = GetNamedEntries();
 
-            for (auto& param : namedParams)
+            if (!namedParams.empty())
             {
-                strings[kColName] = "-";
-                if (param.pRelatedDesc)
+                row++;
+                sSection = "-named params-" + string(screenInfo.dwSize.X, '-');
+                paramListBuf.DrawClippedText(0, row++, sSection, BACKGROUND_INTENSITY, false);
+
+                for (auto& param : namedParams)
                 {
-                    string sName;
-                    string sValue;
-                    ParseParam(param.sParamText, sName, sValue);
-
-                    if (param.pRelatedDesc->DoesValueSatifsy(sValue))
+                    strings[kColName] = "-";
+                    if (param.pRelatedDesc)
                     {
-                        strings[kColName] += param.pRelatedDesc->msName;
-                        attribs[kColName] = FOREGROUND_WHITE;
+                        string sName;
+                        string sValue;
+                        ParseParam(param.sParamText, sName, sValue);
 
-                        attribs[kColEntry] = FOREGROUND_GREEN;
+                        if (param.pRelatedDesc->DoesValueSatifsy(sValue))
+                        {
+                            strings[kColName] += param.pRelatedDesc->msName;
+                            attribs[kColName] = FOREGROUND_WHITE;
 
-                        strings[kColUsage] = param.pRelatedDesc->msUsage;
-                        attribs[kColUsage] = FOREGROUND_WHITE;
+                            attribs[kColEntry] = FOREGROUND_GREEN;
+
+                            strings[kColUsage] = param.pRelatedDesc->msUsage;
+                            attribs[kColUsage] = FOREGROUND_WHITE;
+                        }
+                        else
+                        {
+                            strings[kColName] += param.pRelatedDesc->msName;
+                            attribs[kColName] = FOREGROUND_WHITE;
+
+                            attribs[kColEntry] = FOREGROUND_RED;
+
+                            strings[kColUsage] = "Parameter out of range";
+                            attribs[kColUsage] = FOREGROUND_RED;
+                        }
                     }
                     else
                     {
-                        strings[kColName] += param.pRelatedDesc->msName;
-                        attribs[kColName] = FOREGROUND_WHITE;
-
                         attribs[kColEntry] = FOREGROUND_RED;
-
-                        strings[kColUsage] = "Parameter out of range";
+                        strings[kColUsage] = "Unknown parameter";
                         attribs[kColUsage] = FOREGROUND_RED;
                     }
+
+
+                    strings[kColEntry] = param.sParamText;
+
+                    paramListBuf.DrawFixedColumnStrings(0, row++, strings, colWidths, attribs);
                 }
-                else
-                {
-                    attribs[kColEntry] = FOREGROUND_RED;
-                    strings[kColUsage] = "Unknown parameter";
-                    attribs[kColUsage] = FOREGROUND_RED;
-                }
-
-
-                strings[kColEntry] = param.sParamText;
-
-                paramListBuf.DrawFixedColumnStrings(0, row++, strings, colWidths, attribs);
             }
         }
 
@@ -1613,6 +1653,7 @@ void FolderList::OnKey(int keycode, char c)
 
                         if (popupFolderListWin.mEntries.size() == 1)
                         {
+                            AddUndoEntry();
                             HandlePaste(*popupFolderListWin.mEntries.begin());    // only one option, fill it in
                             popupFolderListWin.mbVisible = false;
                         }
@@ -1726,10 +1767,10 @@ void FolderList::OnKey(int keycode, char c)
         curindex += (int)text.length();
         UpdateCursorPos(TextIndexToCursor(curindex));
 
-        static int count = 1;
+/*        static int count = 1;
         char buf[64];
         sprintf(buf, "paste:%d\n", count++);
-        OutputDebugString(buf);
+        OutputDebugString(buf);*/
     }
 
     void RawEntryWin::DeleteSelection()
@@ -2056,6 +2097,7 @@ void FolderList::OnKey(int keycode, char c)
             {
                 if (msg.message == WM_HOTKEY && msg.wParam == MY_HOTKEY_ID)
                 {
+                    rawCommandBuf.AddUndoEntry();
                     rawCommandBuf.HandlePaste(GetTextFromClipboard());
                 }
                 else

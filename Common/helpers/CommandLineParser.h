@@ -308,8 +308,8 @@ namespace CLP
 
         // Accessors
         std::string     GetAppMode() { return msMode; }         // empty string if default mode
-//        std::string     GetAppPath() { return msAppPath; }
-//        std::string     GetAppName() { return msAppName; }
+        std::string     GetModeDescription(const std::string& sMode);
+
         bool            IsCurrentMode(std::string sMode);           // true if current mode matches (case insensitive)
         bool            IsMultiMode() const { return !mModeToCommandLineParser.empty(); }
         bool            IsRegisteredMode(std::string sMode);        // true if this mode has been registered

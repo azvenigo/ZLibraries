@@ -1323,6 +1323,18 @@ namespace CLP
         return table;
     }
 
+    string CommandLineParser::GetModeDescription(const std::string& sMode)
+    {
+        if (sMode.empty())
+            return mGeneralCommandLineParser.GetModeDescription();
+
+        if (!IsRegisteredMode(sMode))
+            return "";
+
+        return mModeToCommandLineParser[sMode].GetModeDescription();
+    }
+
+
     string CommandLineParser::GetModesString()
     {
         // First output Application name

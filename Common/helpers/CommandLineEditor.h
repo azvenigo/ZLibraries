@@ -77,8 +77,19 @@ namespace CLP
 
     class RawEntryWin : public ConsoleWin
     {
-    public:
+        struct undoEntry
+        {
+            undoEntry(const std::string& _text = "", int64_t _cursorindex = -1, int64_t _selectionstart = -1, int64_t _selectionend = -1) :
+                text(_text), cursorindex(_cursorindex), selectionstart(_selectionstart), selectionend(_selectionend) {}
 
+            std::string text;
+            int64_t     cursorindex     = -1;
+            int64_t     selectionstart  = -1;
+            int64_t     selectionend    = -1;
+        };
+        typedef std::list<undoEntry> tUndoEntryList;
+
+    public:
         void SetText(const std::string& text);
 
         void DrawClippedText(int64_t x, int64_t y, std::string text, WORD attributes = FOREGROUND_WHITE, bool bWrap = true, bool bHeightlightSelection = true);
@@ -109,9 +120,14 @@ namespace CLP
         void ClearSelection();
         std::string GetSelectedText();
 
+        void AddUndoEntry();
+        void Undo();
+
+
         tEnteredParams mEnteredParams;
         tStringList mAvailableModes;
         tStringList mAvailableNamedParams;
+        tUndoEntryList mUndoEntryList;
     protected:
 
         int64_t CursorToTextIndex(COORD coord);
