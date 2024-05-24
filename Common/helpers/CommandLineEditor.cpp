@@ -37,17 +37,43 @@ namespace CLP
         mpCLP = nullptr;
     }
 
-    void RawEntryWin::UpdateCursorPos(COORD newPos)
+    void RawEntryWin::UpdateFirstVisibleRow()
     {
         if (!mbVisible)
             return;
 
-        int index = (int)CursorToTextIndex(newPos);
+        int64_t rowCount = ((int64_t)mText.size() + mWidth - 1) / mWidth;
+
+        if (mLocalCursorPos.Y < 0)
+        {
+            firstVisibleRow = firstVisibleRow+mLocalCursorPos.Y;
+            UpdateCursorPos(COORD(mLocalCursorPos.X, 0));
+        }
+        else if (mLocalCursorPos.Y >= mHeight)
+        {
+            firstVisibleRow = firstVisibleRow + mLocalCursorPos.Y - mHeight + 1;
+            UpdateCursorPos(COORD(mLocalCursorPos.X, (SHORT)mHeight-1));
+        }
+    }
+
+
+    void RawEntryWin::UpdateCursorPos(COORD localPos)
+    {
+        if (!mbVisible)
+            return;
+
+        int index = (int)CursorToTextIndex(localPos);
         if (index > (int)mText.length())
             index = (int)mText.length();
+        mLocalCursorPos = TextIndexToCursor(index);
 
-        mCursorPos = TextIndexToCursor(index);
-        SetConsoleCursorPosition(GetStdHandle(STD_OUTPUT_HANDLE), mCursorPos);
+        SetConsoleCursorPosition(GetStdHandle(STD_OUTPUT_HANDLE), LocalCursorToGlobal(mLocalCursorPos));
+    }
+
+
+    COORD RawEntryWin::LocalCursorToGlobal(COORD cursor)
+    {
+        return COORD(cursor.X + (SHORT)mX, cursor.Y + (SHORT)mY);
     }
 
 
@@ -84,7 +110,7 @@ namespace CLP
 
     void RawEntryWin::FindNextBreak(int nDir)
     {
-        int index = (int)CursorToTextIndex(mCursorPos);
+        int index = (int)CursorToTextIndex(mLocalCursorPos);
 
         if (nDir > 0)
         {
@@ -247,7 +273,7 @@ namespace CLP
 
     void RawEntryWin::AddUndoEntry()
     {
-        undoEntry entry(mText, CursorToTextIndex(mCursorPos), selectionstart, selectionend);
+        undoEntry entry(mText, CursorToTextIndex(mLocalCursorPos), selectionstart, selectionend);
         mUndoEntryList.emplace_back(std::move(entry));
     }
 
@@ -317,7 +343,7 @@ namespace CLP
     void RawEntryWin::SetText(const std::string& text)
     {
         mText = text;
-        mCursorPos = TextIndexToCursor((int64_t)text.size());
+        mLocalCursorPos = TextIndexToCursor((int64_t)text.size());
     }
 
     void ConsoleWin::SetArea(int64_t l, int64_t t, int64_t r, int64_t b)
@@ -344,7 +370,7 @@ namespace CLP
     void RawEntryWin::SetArea(int64_t l, int64_t t, int64_t r, int64_t b)
     {
         ConsoleWin::SetArea(l, t, r, b);
-        UpdateCursorPos(mCursorPos);
+        UpdateCursorPos(mLocalCursorPos);
     }
 
     void ConsoleWin::GetArea(int64_t& l, int64_t& t, int64_t& r, int64_t& b)
@@ -974,7 +1000,7 @@ void FolderList::OnKey(int keycode, char c)
         if (!mbVisible)
             return;
 
-        COORD cursor((SHORT)0, (SHORT)0);
+        COORD cursor((SHORT)0, (SHORT)-firstVisibleRow);
 
         std::vector<WORD> attribs;
         attribs.resize(mText.size());
@@ -993,13 +1019,6 @@ void FolderList::OnKey(int keycode, char c)
             string sParamUnderCursor;
             if (GetParameterUnderIndex(textindex, startIndex, endIndex, sParamUnderCursor))
             {
-#ifdef _DEBUG
-                if (startIndex < 0 || endIndex > mText.length())
-                {
-                    int stophere = 5;
-                }
-#endif
-
                 for (auto& param : mEnteredParams)
                 {
                     if (param.sParamText == sParamUnderCursor)
@@ -1031,6 +1050,7 @@ void FolderList::OnKey(int keycode, char c)
             char c = mText[textindex];
             if (c == '\n')
             {
+
                 cursor.X = 0;
                 cursor.Y++;
             }
@@ -1077,202 +1097,215 @@ void FolderList::OnKey(int keycode, char c)
         bool bCTRLHeld = GetKeyState(VK_CONTROL) & 0x800;
         bool bSHIFTHeld = GetKeyState(VK_SHIFT) & 0x800;
 
-        switch (keycode)
-        {
-        case VK_TAB:
-            HandleParamContext();
-            break;
-        case VK_RETURN:
-            mbDone = true;
-            return;
-        case VK_ESCAPE:
-        {
-            if (IsTextSelected())
-            {
-                ClearSelection();
-            }
-            else
-            {
-                mbCanceled = true;;
-            }
-        }
-        return;
-        case VK_HOME:
-        {
-            UpdateSelection();
-            UpdateCursorPos(TextIndexToCursor(0));
-            UpdateSelection();
-        }
-        return;
-        case VK_END:
-        {
-            UpdateSelection();
-            UpdateCursorPos(TextIndexToCursor((int64_t)mText.size()));
-            UpdateSelection();
-        }
-        return;
-        case VK_UP:
-        {
-            if (mCursorPos.Y == mY && !commandHistory.empty())
-            {
-                // select everything
-                selectionstart = 0;
-                selectionend = mText.size();
+        bool bHandled = false;
 
-                // show history window
-                historyWin.mbVisible = true;
-                historyWin.mCaption = "History [DEL - Delete Entry]";
-                //            popupListWin.SetArea(selectionstart, mCursorPos.Y - mAvailableModes.size()-2, selectionstart +1, mCursorPos.Y- mAvailableModes.size()-1);
-                historyWin.SetEntries(commandHistory, mText, selectionstart, mCursorPos.Y);
-            }
-            else
-            {
-                UpdateSelection();
-                COORD newPos = mCursorPos;
+        do
+        {
 
-                if (newPos.Y > mY)
+            switch (keycode)
+            {
+            case VK_TAB:
+                HandleParamContext();
+                bHandled = true;
+                break;
+            case VK_RETURN:
+                mbDone = true;
+                bHandled = true;
+                return;
+            case VK_ESCAPE:
+            {
+                if (IsTextSelected())
                 {
-                    newPos.Y--;
-                    UpdateCursorPos(newPos);
+                    ClearSelection();
                 }
-
-                UpdateSelection();
-            }
-        }
-        return;
-        case VK_DOWN:
-        {
-            UpdateSelection();
-            int64_t newindex = CursorToTextIndex(mCursorPos) + mWidth;
-            if (newindex < (int64_t)mText.size())
-            {
-                COORD newPos = mCursorPos;
-                newPos.Y++;
-                UpdateCursorPos(newPos);
-            }
-            UpdateSelection();
-        }
-        return;
-        case VK_LEFT:
-        {
-            UpdateSelection();
-            // Move cursor left
-            int64_t index = CursorToTextIndex(mCursorPos);
-            if (index > 0)
-            {
-                if (bCTRLHeld)
-                    FindNextBreak(-1);
                 else
-                    UpdateCursorPos(TextIndexToCursor(index - 1));
-            }
-            UpdateSelection();
-        }
-        return;
-        case VK_RIGHT:
-        {
-            UpdateSelection();
-            if (bCTRLHeld)
-            {
-                FindNextBreak(1);
-            }
-            else
-            {
-                // Move cursor right
-                int64_t index = CursorToTextIndex(mCursorPos);
-                if (index < (int64_t)mText.size())
                 {
-                    UpdateCursorPos(TextIndexToCursor(index + 1));
+                    mbCanceled = true;
                 }
+                bHandled = true;
+            }
+            break;
+            case VK_HOME:
+            {
+                UpdateSelection();
+                UpdateCursorPos(TextIndexToCursor(0));
+                UpdateSelection();
+                bHandled = true;
+            }
+            break;
+            case VK_END:
+            {
+                UpdateSelection();
+                UpdateCursorPos(TextIndexToCursor((int64_t)mText.size()));
+                UpdateSelection();
+                bHandled = true;
+            }
+            break;
+            case VK_UP:
+            {
+                if (mLocalCursorPos.Y+firstVisibleRow > 0)
+                {
+                    mLocalCursorPos.Y--;
+                    UpdateFirstVisibleRow();
+                    UpdateCursorPos(mLocalCursorPos);
+                }
+                else if (mLocalCursorPos.Y + firstVisibleRow == 0 && !commandHistory.empty())
+                {
+                    // select everything
+                    selectionstart = 0;
+                    selectionend = mText.size();
 
-            }
-            UpdateSelection();
-        }
-        return;
-        case VK_BACK:
-        {
-            if (IsTextSelected())
-            {
-                AddUndoEntry();
-                DeleteSelection();
-            }
-            else
-            {
-                // Delete character before cursor
-                int64_t index = CursorToTextIndex(mCursorPos);
-                if (index > 0)
+                    // show history window
+                    historyWin.mbVisible = true;
+                    historyWin.mCaption = "History [DEL - Delete Entry]";
+                    historyWin.SetEntries(commandHistory, mText, selectionstart, mY);
+                }
+                else
                 {
                     UpdateSelection();
-                    mText.erase(index - 1, 1);
-                    UpdateCursorPos(TextIndexToCursor(index - 1));
+                    UpdateCursorPos(COORD(mLocalCursorPos.X, mLocalCursorPos.Y-1));
+                    UpdateSelection();
                 }
+                bHandled = true;
             }
-        }
-        return;
-        case VK_DELETE:
-        {
-            if (IsTextSelected())
+            break;
+            case VK_DOWN:
             {
-                AddUndoEntry();
-                DeleteSelection();
+                UpdateSelection();
+                UpdateCursorPos(COORD(mLocalCursorPos.X, mLocalCursorPos.Y + 1));
+                UpdateSelection();
+                bHandled = true;
             }
-            else
+            break;
+            case VK_LEFT:
             {
-                // Delete character at cursor
-                int64_t index = CursorToTextIndex(mCursorPos);
-                if (index < (int64_t)(mText.size()))
+                UpdateSelection();
+                // Move cursor left
+                int64_t index = CursorToTextIndex(mLocalCursorPos);
+                if (index > 0)
+                {
+                    if (bCTRLHeld)
+                        FindNextBreak(-1);
+                    else
+                        UpdateCursorPos(TextIndexToCursor(index - 1));
+                }
+                UpdateSelection();
+                bHandled = true;
+            }
+            break;
+            case VK_RIGHT:
+            {
+                UpdateSelection();
+                if (bCTRLHeld)
+                {
+                    FindNextBreak(1);
+                }
+                else
+                {
+                    // Move cursor right
+                    int64_t index = CursorToTextIndex(mLocalCursorPos);
+                    if (index < (int64_t)mText.size())
+                    {
+                        UpdateCursorPos(TextIndexToCursor(index + 1));
+                    }
+
+                }
+                UpdateSelection();
+                bHandled = true;
+            }
+            break;
+            case VK_BACK:
+            {
+                if (IsTextSelected())
                 {
                     AddUndoEntry();
-                    mText.erase(index, 1);
+                    DeleteSelection();
+                }
+                else
+                {
+                    // Delete character before cursor
+                    int64_t index = CursorToTextIndex(mLocalCursorPos);
+                    if (index > 0)
+                    {
+                        UpdateSelection();
+                        mText.erase(index - 1, 1);
+                        UpdateCursorPos(TextIndexToCursor(index - 1));
+                    }
+                }
+                bHandled = true;
+            }
+            break;
+            case VK_DELETE:
+            {
+                if (IsTextSelected())
+                {
+                    AddUndoEntry();
+                    DeleteSelection();
+                }
+                else
+                {
+                    // Delete character at cursor
+                    int64_t index = CursorToTextIndex(mLocalCursorPos);
+                    if (index < (int64_t)(mText.size()))
+                    {
+                        AddUndoEntry();
+                        mText.erase(index, 1);
+                    }
+                }
+                UpdateSelection();
+                bHandled = true;
+            }
+            break;
+            case 0x41:
+            {
+                if (bCTRLHeld)  // CTRL-A
+                {
+                    selectionstart = 0;
+                    selectionend = mText.length();
+                    bHandled = true;
+                    break;
                 }
             }
-            UpdateSelection();
-        }
-        return;
-        case 0x41:
-        {
-            if (bCTRLHeld)  // CTRL-A
+            break;
+            case 0x43:
             {
-                selectionstart = 0;
-                selectionend = mText.length();
-                return;
+                if (bCTRLHeld)  // CTRL-C
+                {
+                    // handle copy
+                    CopyTextToClipboard(GetSelectedText());
+                    bHandled = true;
+                    break;
+                }
             }
-        }
-        break;
-        case 0x43:
-        {
-            if (bCTRLHeld)  // CTRL-C
+            break;
+            case 0x5a:          // CTRL-Z
             {
-                // handle copy
-                CopyTextToClipboard(GetSelectedText());
-                return;
+                if (bCTRLHeld)
+                {
+                    rawCommandBuf.Undo();
+                    bHandled = true;
+                    break;
+                }
             }
-        }
-        break;
-        case 0x5a:          // CTRL-Z
-        {
-            if (bCTRLHeld)
-            {
-                rawCommandBuf.Undo();
-                return;
             }
-        }
-
-        }
+        } while (0); // for breaking
 
         // nothing handled above....regular text entry
-        if (keycode >= 32)
+        if (!bHandled && keycode >= 32)
         {
             AddUndoEntry();
             if (IsTextSelected())
                 DeleteSelection();
 
             // Insert character at cursor position
-            int index = (int)CursorToTextIndex(mCursorPos);
+            int index = (int)CursorToTextIndex(mLocalCursorPos);
             mText.insert(index, 1, c);
             UpdateCursorPos(TextIndexToCursor(index + 1));
             UpdateSelection();
         }
 
+
+        UpdateFirstVisibleRow();
     }
 
     void CommandLineEditor::UpdateDisplay()
@@ -1616,7 +1649,7 @@ void FolderList::OnKey(int keycode, char c)
         size_t end = string::npos;
         string sText;
 
-        int64_t cursorIndex = CursorToTextIndex(mCursorPos);
+        int64_t cursorIndex = CursorToTextIndex(mLocalCursorPos);
         if (!GetParameterUnderIndex(cursorIndex, start, end, sText))
             return false;
 
@@ -1630,15 +1663,13 @@ void FolderList::OnKey(int keycode, char c)
         if (sText == mEnteredParams[0].sParamText)
         {
             popupListWin.mbVisible = true;
-//            popupListWin.SetArea(selectionstart, mCursorPos.Y - mAvailableModes.size()-2, selectionstart +1, mCursorPos.Y- mAvailableModes.size()-1);
             popupListWin.mCaption = "Commands";
-            popupListWin.SetEntries(mAvailableModes, sText, selectionstart, mCursorPos.Y);
+            popupListWin.SetEntries(mAvailableModes, sText, selectionstart, mY);
         }
         else if (sText[0] == '-')
         {
             popupListWin.mbVisible = true;
-//            popupListWin.SetArea(selectionstart, mCursorPos.Y - mAvailableNamedParams.size() - 2, selectionstart+1, mCursorPos.Y - mAvailableNamedParams.size() - 1);
-            popupListWin.SetEntries(mAvailableNamedParams, sText, selectionstart, mCursorPos.Y);
+            popupListWin.SetEntries(mAvailableNamedParams, sText, selectionstart, mY);
         }
         else
         {
@@ -1649,7 +1680,7 @@ void FolderList::OnKey(int keycode, char c)
                 {
                     if (mEnteredParams[i].pRelatedDesc && (mEnteredParams[i].pRelatedDesc->IsAPath()|| mEnteredParams[i].pRelatedDesc->MustHaveAnExistingPath()))
                     {
-                        popupFolderListWin.Scan(sText, selectionstart, mCursorPos.Y);
+                        popupFolderListWin.Scan(sText, selectionstart, mY);
 
                         if (popupFolderListWin.mEntries.size() == 1)
                         {
@@ -1729,7 +1760,7 @@ void FolderList::OnKey(int keycode, char c)
 
     int64_t RawEntryWin::CursorToTextIndex(COORD coord)
     {
-        int64_t i = (coord.Y-mY) * mWidth + coord.X;
+        int64_t i = (coord.Y+firstVisibleRow) * mWidth + coord.X;
         return std::min<size_t>(i, mText.size());
     }
 
@@ -1740,19 +1771,9 @@ void FolderList::OnKey(int keycode, char c)
 
         if (mWidth > 0)
         {
-            int64_t rawCommandRows = ((int64_t)mText.size() + mWidth - 1) / mWidth;
-            int64_t firstVisibleRow = 0;
-
-            if (rawCommandRows > mHeight)
-                firstVisibleRow = rawCommandRows - mHeight;    // could be negative as we're clipping into the raw command console
-
-            int64_t hiddenChars = firstVisibleRow * mWidth;
-
-            i -= (size_t)hiddenChars;
-
             COORD c;
             c.X = (SHORT)(i) % mWidth;
-            c.Y = ((SHORT)mY + (SHORT)(i / mWidth));
+            c.Y = (SHORT)((i/mWidth)-firstVisibleRow);
             return c;
         }
 
@@ -1762,7 +1783,7 @@ void FolderList::OnKey(int keycode, char c)
     void RawEntryWin::HandlePaste(string text)
     {
         DeleteSelection();  // delete any selection if needed
-        int64_t curindex = CursorToTextIndex(mCursorPos);
+        int64_t curindex = CursorToTextIndex(mLocalCursorPos);
         mText.insert(curindex, text);
         curindex += (int)text.length();
         UpdateCursorPos(TextIndexToCursor(curindex));
@@ -1790,7 +1811,7 @@ void FolderList::OnKey(int keycode, char c)
 
         mText.erase(normalizedStart, selectedChars);
 
-        int curindex = (int)CursorToTextIndex(mCursorPos);
+        int curindex = (int)CursorToTextIndex(mLocalCursorPos);
         if (curindex > normalizedStart)
             curindex -= (int)(curindex- normalizedStart);
         UpdateCursorPos(TextIndexToCursor(curindex));
@@ -1814,9 +1835,9 @@ void FolderList::OnKey(int keycode, char c)
         {
             if (selectionstart == -1)
             {
-                selectionstart = CursorToTextIndex(mCursorPos);
+                selectionstart = CursorToTextIndex(mLocalCursorPos);
             }
-            selectionend = CursorToTextIndex(mCursorPos);
+            selectionend = CursorToTextIndex(mLocalCursorPos);
         }
     }
 
@@ -2046,7 +2067,7 @@ void FolderList::OnKey(int keycode, char c)
         rawCommandBuf.SetText(sCommandLine);
 
         paramListBuf.Init(0, 1, w, h - 6);
-        rawCommandBuf.UpdateCursorPos(COORD((SHORT)sCommandLine.length(), 0));
+//        rawCommandBuf.UpdateCursorPos(COORD((SHORT)sCommandLine.length(), 0));
 
         usageBuf.Init(0, h - 6, w, h - 5);
         topInfoBuf.Init(0, 0, w, 1);
@@ -2124,14 +2145,8 @@ void FolderList::OnKey(int keycode, char c)
                         MOUSE_EVENT_RECORD mer = inputRecord[i].Event.MouseEvent;
                         if (mer.dwEventFlags == 0 && mer.dwButtonState == FROM_LEFT_1ST_BUTTON_PRESSED)
                         {
-                            int64_t l;
-                            int64_t t;
-                            int64_t r;
-                            int64_t b;
-                            rawCommandBuf.GetArea(l, t, r, b);
-
                             COORD coord(mer.dwMousePosition);
-                            coord.Y -= (SHORT)t;       // to raw buffer coordinates
+                            coord.Y -= (SHORT)rawCommandBuf.mY;       // to raw buffer coordinates
                             rawCommandBuf.UpdateCursorPos(coord);
                         }
                     }

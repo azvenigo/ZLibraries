@@ -77,6 +77,7 @@ namespace CLP
 
     class RawEntryWin : public ConsoleWin
     {
+        friend class CommandLineEditor;
         struct undoEntry
         {
             undoEntry(const std::string& _text = "", int64_t _cursorindex = -1, int64_t _selectionstart = -1, int64_t _selectionend = -1) :
@@ -99,11 +100,13 @@ namespace CLP
         bool HandleParamContext();
 
         std::string GetText() { return mText; }
-        COORD GetCursorPos() { return mCursorPos; }
-        int64_t GetCursorIndex() { return CursorToTextIndex(mCursorPos); }
+//        COORD GetCursorPos() { return mCursorPos; }
+//        int64_t GetCursorIndex() { return CursorToTextIndex(mCursorPos); }
 
         void FindNextBreak(int nDir);
-        void UpdateCursorPos(COORD newPos);
+        void UpdateCursorPos(COORD localPos);
+        void UpdateFirstVisibleRow();
+
 
         bool IsIndexInSelection(int64_t i);
         bool IsTextSelected() { return selectionstart >= 0 && selectionend >= 0; }
@@ -132,12 +135,13 @@ namespace CLP
 
         int64_t CursorToTextIndex(COORD coord);
         COORD TextIndexToCursor(int64_t i);
+        COORD LocalCursorToGlobal(COORD cursor);
 
 
         std::string     mText;
 
-        COORD mCursorPos;
-
+        COORD mLocalCursorPos;
+        int64_t firstVisibleRow = 0;
         int64_t selectionstart = -1;
         int64_t selectionend = -1;
     };
