@@ -256,7 +256,7 @@ int main(int argc, char* argv[])
 
 
     parser.RegisterParam(ParamDesc("FILENAME",      &sFilename,         CLP::kPositional| CLP::kRequired|CLP::kPath, "Name of file to create. Multiple files in a folder will have numbers included."));
-    parser.RegisterParam(ParamDesc("SIZE",          &nFileSize,         CLP::kPositional | CLP::kRequired | CLP::kRangeRestricted,  "Size of file(s) to create.", 100, 500));
+    parser.RegisterParam(ParamDesc("SIZE",          &nFileSize,         CLP::kPositional | CLP::kRequired,  "Size of file(s) to create."));
 
     parser.RegisterParam(ParamDesc("dest",         &sDestPath,          CLP::kNamed | CLP::kPath,       "base path to where to create data files. defaults to working directory"));
     parser.RegisterParam(ParamDesc("folders",      &nFolders,           CLP::kNamed,       "number of folders to generate. default is 0"));

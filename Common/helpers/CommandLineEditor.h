@@ -182,7 +182,8 @@ namespace CLP
         virtual void Paint(tConsoleBuffer& backBuf);
         virtual void OnKey(int keycode, char c);
 
-        std::string mCaption;
+        std::string mTopCaption;
+        std::string mBottomCaption;
     protected:
         tStringList mEntries;
         int64_t     mSelection;
@@ -200,6 +201,7 @@ namespace CLP
     {
     public:
         bool            Scan(std::string sPath, int64_t origin_l, int64_t origin_b);  // bottom left corner to auto size from
+        std::string     FindClosestParentPath(std::string sPath);    // given some path with possibly non-existant elements, walk up the chain until finding an existing parent
         virtual void    Paint(tConsoleBuffer& backBuf);
         virtual void    OnKey(int keycode, char c);
 

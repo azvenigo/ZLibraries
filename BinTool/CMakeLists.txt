@@ -30,7 +30,9 @@ set(COMMON_FILES
 ../Common/helpers/Crc32Fast.h 
 ../Common/helpers/Crc32Fast.cpp 
 ../Common/helpers/StringHelpers.h 
-../Common/helpers/StringHelpers.cpp)
+../Common/helpers/StringHelpers.cpp
+../Common/helpers/FileHelpers.h 
+../Common/helpers/FileHelpers.cpp)
 
 
 ####################
@@ -78,6 +80,9 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${EXTRA_FLAGS} ${EXTRA_CXX_FLAGS}")
 
 ####################
 # ADDITIONAL LIBRARIES
+if(MSVC)
+	list(APPEND LINK_LIBS Version.lib)
+endif()
 
 ####################
 # PROJECT

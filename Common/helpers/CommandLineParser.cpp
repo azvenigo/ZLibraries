@@ -156,33 +156,29 @@ namespace CLP
         return true;    // not range restricted and optional
     }
 
-    bool ParamDesc::DoesValueSatifsy(const std::string& sValue, bool bOutputError)
+    bool ParamDesc::DoesValueSatisfy(const std::string& sValue, std::string& sFailMessage, bool bOutputError)
     {
         // Check path requirements
         if (MustHaveAnExistingPath())
         {
-            string sPath(sValue);
-            if (sPath.length() >= 2 && sPath[0] == '\"' && sPath[sPath.length() - 1] == '\"')
-                sPath = sPath.substr(1, sPath.length() - 2);
-
+            string sPath(CommandLineParser::StripEnclosure(sValue));
             if (!fs::exists(sPath))
             {
+                sFailMessage = "Error: path not found:" + sPath;
                 if (bOutputError)
-                    cerr << cols[kERROR] << "Error: No path found at:" << sPath << cols[kRESET] << "\n";
+                    cerr << cols[kERROR] << sFailMessage << cols[kRESET] << "\n";
                 return false;
             }
         }
 
         if (MustNotHaveAnExistingPath())
         {
-            string sPath(sValue);
-            if (sPath.length() >= 2 && sPath[0] == '\"' && sPath[sPath.length() - 1] == '\"')
-                sPath = sPath.substr(1, sPath.length() - 2);
-
+            string sPath(CommandLineParser::StripEnclosure(sValue));
             if (fs::exists(sPath))
             {
+                sFailMessage = "Error: " + sPath + " not exist";
                 if (bOutputError)
-                    cerr << cols[kERROR] << "Error: " << sPath << cols[kRESET] << " path exists but must not.\n";
+                    cerr << cols[kERROR] << sFailMessage << cols[kRESET] << "\n";
                 return false;
             }
         }
@@ -200,8 +196,9 @@ namespace CLP
                     if (mAllowedStrings.find(sValue) != mAllowedStrings.end())
                         return true;
 
+                    sFailMessage = "Error: Allowed values:{" + FromSet(mAllowedStrings)  + "}";
                     if (bOutputError)
-                        cerr << cols[kERROR] << "Error: Value for \"" << sValue << "\" NOT ALLOWED." << cols[kRESET] << " Allowed values:{" << cols[kPARAM] << FromSet(mAllowedStrings) << cols[kRESET] << "}\n";
+                        cerr << cols[kERROR] + sFailMessage + cols[kRESET] << "\n";
                     return false;
                 }
                 case ParamDesc::kInt64:
@@ -209,8 +206,9 @@ namespace CLP
                     int64_t nValue = SH::ToInt(sValue);
                     if (nValue >= mnMinInt && nValue <= mnMaxInt)
                         return true;
+                    sFailMessage =  "Error: Allowed range:(" + SH::FromInt(mnMinInt.value()) + "-" + SH::FromInt(mnMaxInt.value()) + ")";
                     if (bOutputError)
-                        cerr << cols[kERROR] << "Error: Value for \"" << sValue << "\" OUT OF RANGE." << cols[kRESET] << " Allowed range:(" << cols[kPARAM] << mnMinInt.value() << "-" << mnMaxInt.value() << cols[kRESET] << ")\n";
+                        cerr << cols[kERROR] << sFailMessage << cols[kRESET] << "\n";
                     return false;
                 }
                 case ParamDesc::kFloat:
@@ -218,8 +216,9 @@ namespace CLP
                     float fValue = (float)SH::ToDouble(sValue);
                     if (fValue >= mfMaxFloat && fValue <= mfMaxFloat)
                         return true;
+                    sFailMessage = "Error: Allowed range:(" + SH::FromDouble(mfMinFloat.value()) + "-" + SH::FromDouble(mfMaxFloat.value()) + ")";
                     if (bOutputError)
-                        cerr << cols[kERROR] << "Error: Value for \"" << sValue << "\" OUT OF RANGE." << cols[kRESET] << " Allowed range:(" << cols[kPARAM] << mfMinFloat.value() << "-" << mfMaxFloat.value() << cols[kRESET] << ")\n";
+                        cerr << cols[kERROR] << sFailMessage << cols[kRESET] << "\n";
                     return false;
                 }
                 case ParamDesc::kBool:
@@ -456,7 +455,8 @@ namespace CLP
                 return false;
             }
 
-            if (!pDesc->DoesValueSatifsy(sValue, true))
+            string sFailMessage;
+            if (!pDesc->DoesValueSatisfy(sValue, sFailMessage, true))
             {
                 return false;
             }
@@ -492,7 +492,8 @@ namespace CLP
             }
 
             // Check whether requirements are satisfied
-            if (!pPositionalDesc->DoesValueSatifsy(sArg, true))
+            string sFailMessage;
+            if (!pPositionalDesc->DoesValueSatisfy(sArg, sFailMessage, true))
             {
                 return false;
             }
@@ -596,21 +597,21 @@ namespace CLP
     {
         sCommandLineExample = appName;
 
-        string sGeneralCommands;
+        string sParamsExample;
         for (auto& desc : mGeneralCommandLineParser.mParameterDescriptors)
         {
             if (desc.IsPositional() && desc.IsRequired())
-                sGeneralCommands += " " + desc.msName;
+                sParamsExample += " " + desc.msName;
         }
         for (auto& desc : mGeneralCommandLineParser.mParameterDescriptors)
         {
             if (desc.IsNamed() && desc.IsRequired())
-                sGeneralCommands += " " + desc.msName;
+                sParamsExample += " " + desc.msName;
         }
 
         if (IsMultiMode() && IsRegisteredMode(sMode))
         {
-            sCommandLineExample += " " + sMode + sGeneralCommands;
+            sCommandLineExample += " " + sMode + sParamsExample;
             for (auto& desc : mModeToCommandLineParser[sMode].mParameterDescriptors)
             {
                 if (desc.IsPositional() && desc.IsRequired())
@@ -622,8 +623,10 @@ namespace CLP
                     sCommandLineExample += " " + desc.msName;
             }
         }
+        else if (IsMultiMode())
+            sCommandLineExample += " COMMAND" + sParamsExample;
         else
-            sCommandLineExample += " COMMAND";
+            sCommandLineExample += sParamsExample;
     }
 
 
@@ -966,15 +969,36 @@ namespace CLP
 
             // strip surrounding quotes if necessary
             string sParam(sCommandLine.substr(i, endofparam - i));
-            if (sParam.length() >= 2 && sParam[0] == '\"' && sParam[sParam.length() - 1] == '\"')
-                sParam = sParam.substr(1, sParam.length() - 2);
-
-            list.emplace_back(sParam);
+            list.emplace_back(StripEnclosure(sParam));
             i = endofparam;
         }
 
         return list;
     }
+
+    std::string CommandLineParser::EncloseWhitespaces(const std::string& value)
+    {
+        if (SH::ContainsWhitespace(value, true))
+            return "\"" + value + "\"";
+
+        return value;
+    }
+
+    std::string CommandLineParser::StripEnclosure(const std::string& value)
+    {
+        size_t len = value.length();
+        if (len >= 2)
+        {
+            if (value[0] == '\"' && value[len - 1] == '\"' ||
+                value[0] == '\'' && value[len - 1] == '\'')
+            {
+                return value.substr(1, len - 2);
+            }
+        }
+
+        return value;
+    }
+
 
     std::string CommandLineParser::ToString(const tStringArray& stringArray)
     {
@@ -984,10 +1008,7 @@ namespace CLP
         string s;
         for (const auto& entry : stringArray)
         {
-            if (SH::ContainsWhitespace(entry, true))        // if the entry has whitespaces (outside of quoted strings like "one two") surround with quotes
-                s += "\"" + entry + "\" ";
-            else
-                s += entry + " ";
+            s += EncloseWhitespaces(entry) + " ";
         }
 
         return s.substr(0, s.length() - 1); // strip last ' '
@@ -1077,7 +1098,7 @@ namespace CLP
                 }
                 else
                 {
-                    cout << GetModesString();
+                    cout << GetGeneralHelpString();
                 }
                 bSuccess = false;
                 break;
@@ -1085,7 +1106,7 @@ namespace CLP
             else if (response == kShowHelp)
             {
                 bool bDetailedHelp = ContainsArgument("??", argArray);
-                cout << GetHelpString(GetFirstPositionalArgument(argArray), bDetailedHelp);
+                cout << GetModeHelpString(GetFirstPositionalArgument(argArray), bDetailedHelp);
                 bSuccess = false;
                 break;
             }
@@ -1136,7 +1157,7 @@ namespace CLP
     }
 
 
-    string CommandLineParser::GetHelpString(const std::string& sMode, bool bDetailed)
+    string CommandLineParser::GetModeHelpString(const std::string& sMode, bool bDetailed)
     {
         TableOutput usageTable;
         TableOutput descriptionTable;
@@ -1325,7 +1346,8 @@ namespace CLP
 
     string CommandLineParser::GetModeDescription(const std::string& sMode)
     {
-        if (sMode.empty())
+        // if no mode specified or if no modes registered, default to general
+        if (sMode.empty() || mModeToCommandLineParser.empty())
             return mGeneralCommandLineParser.GetModeDescription();
 
         if (!IsRegisteredMode(sMode))
@@ -1335,7 +1357,7 @@ namespace CLP
     }
 
 
-    string CommandLineParser::GetModesString()
+    string CommandLineParser::GetGeneralHelpString()
     {
         // First output Application name
 
@@ -1350,38 +1372,37 @@ namespace CLP
         descriptionTable.AddMultilineRow(msAppDescription);
         descriptionTable.AddRow(" ");
 
-
-
-/*        std::string sModes(cols[kAPP] + appName + cols[kRESET] + " {");
-        for (tModeToParser::iterator it = mModeToCommandLineParser.begin(); it != mModeToCommandLineParser.end(); it++)
-        {
-            sModes += cols[kPARAM] + (*it).first + cols[kRESET] + "|";
-        }
-        sModes[sModes.length() - 1] = '}';  // change last | into }*/
-
-        string sModes(cols[kAPP] + appName + cols[kPARAM] + " COMMAND PARAMS" + cols[kRESET]);
+        TableOutput commandsTable;
 
         descriptionTable.AddRow(cols[kSECTION] + "------Usage-------" + cols[kRESET]);
 
-        descriptionTable.AddRow(sModes);
-        descriptionTable.AddRow(' ');
-
-
-
-
-        TableOutput commandsTable;
-        commandsTable.SetBorders(0, 0, '*', '*');
-        commandsTable.SetSeparator(' ', 1);
-
-        commandsTable.AddRow(cols[kSECTION] +    "-----Commands-----" + cols[kRESET]);
-        for (tModeToParser::iterator it = mModeToCommandLineParser.begin(); it != mModeToCommandLineParser.end(); it++)
+        if (IsMultiMode())
         {
-            string sCommand = (*it).first;
-            string sModeDescription = ((*it).second).GetModeDescription();
-            if (!sCommand.empty())
-                commandsTable.AddRow(cols[kPARAM] + sCommand + cols[kRESET], sModeDescription);
+
+            string sUsageExample(cols[kAPP] + appName + cols[kPARAM] + " COMMAND PARAMS" + cols[kRESET]);
+
+            descriptionTable.AddRow(sUsageExample);
+            descriptionTable.AddRow(' ');
+
+            commandsTable.SetBorders(0, 0, '*', '*');
+            commandsTable.SetSeparator(' ', 1);
+
+            commandsTable.AddRow(cols[kSECTION] + "-----Commands-----" + cols[kRESET]);
+            for (tModeToParser::iterator it = mModeToCommandLineParser.begin(); it != mModeToCommandLineParser.end(); it++)
+            {
+                string sCommand = (*it).first;
+                string sModeDescription = ((*it).second).GetModeDescription();
+                if (!sCommand.empty())
+                    commandsTable.AddRow(cols[kPARAM] + sCommand + cols[kRESET], sModeDescription);
+            }
+            commandsTable.AddRow(" ");
         }
-        commandsTable.AddRow(" ");
+        else
+        {
+            string sUsageExample(cols[kAPP] + appName + cols[kPARAM] + " PARAMS" + cols[kRESET]);
+            descriptionTable.AddRow(sUsageExample);
+            descriptionTable.AddRow(' ');
+        }
 
         TableOutput helpTable;
         helpTable.SetBorders(0, '*', '*', '*');
@@ -1389,8 +1410,8 @@ namespace CLP
         helpTable.AddRow(cols[kSECTION] + "-------Help-------" + cols[kRESET]);
         helpTable.AddRow("Add '?' or '??' anywhere on command line for command help.");
 
-        string sExampleCommand = "command";
-        if (!mModeToCommandLineParser.empty())
+        string sExampleCommand;
+        if (IsMultiMode())
             sExampleCommand = (*mModeToCommandLineParser.begin()).first;
         helpTable.AddRow("For example: " + cols[kAPP] + appName + " " + cols[kPARAM] + sExampleCommand + " ?" + cols[kRESET]);
         helpTable.AddRow(" ");

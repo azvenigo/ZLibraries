@@ -180,6 +180,31 @@ bool SH::Compare(const string& a, const string& b, bool bCaseSensitive)
     return ((a.size() == b.size()) && equal(a.begin(), a.end(), b.begin(), [](auto char1, auto char2) { return toupper(char1) == toupper(char2); }));
 }
 
+bool SH::StartsWith(const std::string& a, const std::string& prefix, bool bCaseSensitive)
+{
+    size_t len = prefix.length();
+    if (a.length() < len)
+        return false;
+
+    if (bCaseSensitive)
+        return prefix.compare(a.substr(0, len)) == 0;
+
+    return (equal(a.begin(), a.begin() + len, prefix.begin(), [](auto char1, auto char2) { return toupper(char1) == toupper(char2); }));
+}
+
+bool SH::EndsWith(const std::string& a, const std::string& suffix, bool bCaseSensitive)
+{
+    size_t len = suffix.size();
+    if (a.size() < len)
+        return false;
+
+    size_t offset = a.size() - len;
+    if (bCaseSensitive)
+        return suffix.compare(a.substr(offset)) == 0;
+
+    return (equal(a.begin() + offset, a.end(), suffix.begin(), [](auto char1, auto char2) { return toupper(char1) == toupper(char2); }));
+}
+
 bool SH::Contains(const string& a, const string& sub, bool bCaseSensitive)
 {
     if (bCaseSensitive)

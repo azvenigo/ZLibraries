@@ -25,14 +25,21 @@ set(COMMON_FILES
 ../Common/helpers/CommandLineParser.h 
 ../Common/helpers/CommandLineEditor.cpp 
 ../Common/helpers/CommandLineEditor.h 
-
 ../Common/helpers/Crc32Fast.h ../Common/helpers/Crc32Fast.cpp
 ../Common/helpers/ZZFileAPI.h ../Common/helpers/ZZFileAPI.cpp 
-)
-
-list(APPEND COMMON_FILES ../Common/helpers/FNMatch.h ../Common/helpers/FNMatch.cpp ../Common/helpers/HTTPCache.h ../Common/helpers/HTTPCache.cpp)
-list(APPEND COMMON_FILES ../Common/helpers/StringHelpers.h ../Common/helpers/StringHelpers.cpp ../Common/helpers/ThreadPool.h)
-list(APPEND COMMON_FILES  ../Common/zlib-1.2.11/deflate.c  ../Common/zlib-1.2.11/inflate.c ../Common/zlib-1.2.11/adler32.c ../Common/zlib-1.2.11/zutil.c ../Common/zlib-1.2.11/crc32.c ../Common/zlib-1.2.11/trees.c ../Common/zlib-1.2.11/inftrees.c ../Common/zlib-1.2.11/inffast.c)
+../Common/helpers/FNMatch.h ../Common/helpers/FNMatch.cpp 
+../Common/helpers/HTTPCache.h ../Common/helpers/HTTPCache.cpp
+../Common/helpers/StringHelpers.h ../Common/helpers/StringHelpers.cpp 
+../Common/helpers/FileHelpers.h ../Common/helpers/FileHelpers.cpp 
+../Common/helpers/ThreadPool.h
+../Common/zlib-1.2.11/deflate.c 
+../Common/zlib-1.2.11/inflate.c 
+../Common/zlib-1.2.11/adler32.c 
+../Common/zlib-1.2.11/zutil.c 
+../Common/zlib-1.2.11/crc32.c 
+../Common/zlib-1.2.11/trees.c 
+../Common/zlib-1.2.11/inftrees.c 
+../Common/zlib-1.2.11/inffast.c)
 
 
 ####################
@@ -43,7 +50,6 @@ list(APPEND LINK_DIRS ../Common/curl/lib )
 
 ####################
 # PROJECT DEPENDENCY AND INCLUDES
-list(APPEND LINK_LIBS libcurl.lib )
 
 
 ####################
@@ -80,7 +86,10 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${EXTRA_FLAGS} ${EXTRA_CXX_FLAGS}")
 
 ####################
 # ADDITIONAL LIBRARIES
-
+list(APPEND LINK_LIBS libcurl.lib)
+if(MSVC)
+	list(APPEND LINK_LIBS Version.lib)
+endif()
 ####################
 # PROJECT
 

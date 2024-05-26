@@ -95,7 +95,8 @@ namespace SH
 
 
     static const int sizeEntryTableSize = sizeof(sizeEntryTable) / sizeof(sSizeEntry);
-
+    typedef std::set<std::string>                       tStringSet;
+    	
     bool            ToBool(std::string sVal);
     double          ToDouble(std::string sVal);
 
@@ -246,7 +247,8 @@ namespace SH
 
     bool Compare(const std::string& a, const std::string& b, bool bCaseSensitive);
     bool Contains(const std::string& a, const std::string& sub, bool bCaseSensitive);
-
+    bool StartsWith(const std::string& a, const std::string& prefix, bool bCaseSensitive = true);
+    bool EndsWith(const std::string& a, const std::string& suffix, bool bCaseSensitive = true);
 
     // URL encoding
     inline bool URL_Safe(char c)

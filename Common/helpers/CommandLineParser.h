@@ -192,7 +192,7 @@ namespace CLP
         bool        MustNotHaveAnExistingPath()     const { return mBehaviorFlags & kNoExistingPath; }
 
         bool        Satisfied();                                                                    // If value is required and set and (if appropriate) within required range
-        bool        DoesValueSatifsy(const std::string& sValue, bool bOutputError = false);        // converts string form of value into eParamValueType and returns whether it satisfies conditions
+        bool        DoesValueSatisfy(const std::string& sValue, std::string& sFailMessage, bool bOutputError = false);        // converts string form of value into eParamValueType and returns whether it satisfies conditions
 
     private:
 
@@ -300,10 +300,10 @@ namespace CLP
         // Registration Functions
         void            RegisterAppDescription(const std::string& sDescription);
         bool            Parse(int argc, char* argv[], bool bEditOnParseFail = true);
-        std::string     GetModesString();
         TableOutput     GetCLPHelp(bool bDetailed = false);
         TableOutput     GetKeyTable();
-        std::string     GetHelpString(const std::string& sMode = "", bool bDetailed = false);
+        std::string     GetGeneralHelpString();
+        std::string     GetModeHelpString(const std::string& sMode = "", bool bDetailed = false);
         void            GetCommandLineExample(const std::string& sMode, std::string& sCommandLineExample);
 
         // Accessors
@@ -338,6 +338,8 @@ namespace CLP
         static tStringArray     ToArray(int argc, char* argv[]);
         static tStringArray     ToArray(const std::string& sCommandLine);
         static std::string      ToString(const tStringArray& stringList);
+        static std::string      EncloseWhitespaces(const std::string& value);     // if value contains whitespaces, surround with quotes
+        static std::string      StripEnclosure(const std::string& value);         // remove surrounding quotes
 
     protected:
 

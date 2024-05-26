@@ -1,5 +1,6 @@
 ﻿#include "CommandLineEditor.h"
 #include "LoggingHelpers.h"
+#include "FileHelpers.h"
 #include <Windows.h>
 #include <iostream>
 #include <assert.h>
@@ -26,6 +27,8 @@ namespace CLP
 
     const size_t    kCommandHistoryLimit = 10; // 10 for now while developing
     tStringList     commandHistory;
+
+    const string    kEmptyFolderCaption("[EMPTY]");
 
     CONSOLE_SCREEN_BUFFER_INFO screenInfo;
 
@@ -90,17 +93,11 @@ namespace CLP
     tEnteredParams CommandLineEditor::GetNamedEntries()
     {
         tEnteredParams namedparams;
-        bool bFirstParam = true;
         for (auto& param : mParams)
         {
-            if (param.positionalindex < 0)
+            if (param.sParamText[0] == '-')
             {
-                if (bFirstParam)
-                {
-                    bFirstParam = false;
-                }
-                else
-                    namedparams.push_back(param);
+                namedparams.push_back(param);
             }
         }
 
@@ -391,14 +388,17 @@ void ListboxWin::Paint(tConsoleBuffer& backBuf)
     if (mSelection > visibleRows)
         topVisibleRow -= (visibleRows- mSelection-1);
 
-    if (!mCaption.empty())
+    string sCaption(COL_YELLOW + mTopCaption + " [" + SH::FromInt(mSelection + 1) + "/" + SH::FromInt(mEntries.size()) + "]" + COL_RESET);
+    Fill(0, 0, mWidth, 1, 0);   // top
+    Fill(0, 0, 1, mHeight, 0);   // left
+    Fill(0, mHeight - 1, mWidth, mHeight, BACKGROUND_INTENSITY);    // bottom
+    Fill(mWidth - 1, 0, mWidth, mHeight, 0);    // right
+    DrawClippedAnsiText(1, 0, sCaption, false);
+
+    if (!mBottomCaption.empty())
     {
-        string sCaption(mCaption + " [" + SH::FromInt(mSelection + 1) + "/" + SH::FromInt(mEntries.size()) + "]");
-        Fill(0, 0, mWidth, 1, 0);
-        Fill(0, 0, 1, mHeight, 0);
-        Fill(0, mHeight-1, mWidth, mHeight, 0);
-        Fill(mWidth-1, 0, mWidth, mHeight, 0);
-        DrawClippedAnsiText(1, 0, sCaption, false);
+        string sCaption(COL_YELLOW + mBottomCaption + COL_RESET);
+        DrawClippedAnsiText(0, mHeight - 1, sCaption, false);
     }
 
 
@@ -572,8 +572,7 @@ void ListboxWin::SetEntries(tStringList entries, string selectionSearch, int64_t
     int64_t width = 0;
     int64_t height = mEntries.size();
 
-    if (!mCaption.empty())
-        width = mCaption.length() + 8;  // add 10 for [###/###]
+    width = std::max<int64_t>(mBottomCaption.length()+8, mTopCaption.length()+8);
 
     for (auto& entry : mEntries)
     {
@@ -648,24 +647,27 @@ void FolderList::OnKey(int keycode, char c)
         case VK_BACK:
         {
             fs::path navigate(mPath);
+            if (SH::EndsWith(mPath, "\\"))
+                navigate = mPath.substr(0, mPath.length() - 1); // strip last directory indicator so that parent_path works
             if (navigate.has_parent_path())
                 Scan(navigate.parent_path().string(), mX, mY + mHeight);
             return;
         }
         case VK_TAB:
         {
-            string selection(GetSelection());
+            string selection(CommandLineParser::StripEnclosure(GetSelection()));
             if (fs::is_directory(selection))
                 Scan(selection, mX, mY + mHeight);
             return;
         }
         case VK_RETURN:
         {
-            string selection(GetSelection());
-            if (SH::ContainsWhitespace(selection))
-                selection = "\"" + selection + "\"";
+            string selection(CommandLineParser::StripEnclosure(GetSelection()));
+            if (selection == kEmptyFolderCaption)
+                selection = mPath;
+
             rawCommandBuf.AddUndoEntry();
-            rawCommandBuf.HandlePaste(selection);
+            rawCommandBuf.HandlePaste(CommandLineParser::EncloseWhitespaces(selection));
             mEntries.clear();
             mbVisible = false;
             return;
@@ -1157,7 +1159,7 @@ void FolderList::OnKey(int keycode, char c)
 
                     // show history window
                     historyWin.mbVisible = true;
-                    historyWin.mCaption = "History [DEL - Delete Entry]";
+                    historyWin.mTopCaption = "History [DEL - Delete Entry]";
                     historyWin.SetEntries(commandHistory, mText, selectionstart, mY);
                 }
                 else
@@ -1345,7 +1347,7 @@ void FolderList::OnKey(int keycode, char c)
             colWidths[kColName] = 16;
             colWidths[kColEntry] = 12;
             colWidths[kColUsage] = screenInfo.dwSize.X - (colWidths[kColName] + colWidths[kColEntry]);
-            for (int paramindex = 1; paramindex < mParams.size(); paramindex++)
+            for (int paramindex = 0; paramindex < mParams.size(); paramindex++)
             {
                 string sText(mParams[paramindex].sParamText);
                 colWidths[kColEntry] = std::max<size_t>(sText.length(), colWidths[kColEntry]);
@@ -1365,36 +1367,43 @@ void FolderList::OnKey(int keycode, char c)
             tAttribArray attribs(3);
 
 
-            // first param is command
             size_t row = 0;
-            msMode = mParams[0].sParamText;
-
-            strings[kColName] = "COMMAND";
-            attribs[kColName] = FOREGROUND_WHITE;
-
-            strings[kColEntry] = msMode;
-            attribs[kColUsage] = FOREGROUND_WHITE;
 
             tStringList modes = GetCLPModes();
-            bool bModePermitted = modes.empty() || std::find(modes.begin(), modes.end(), msMode) != modes.end(); // if no modes registered or (if there are) if the first param matches one
-            if (bModePermitted)
-            {
-                attribs[kColEntry] = FOREGROUND_GREEN;
 
-                if (mpCLP)
-                {
-                    strings[kColUsage] = mpCLP->GetModeDescription(msMode);
-//                    mpCLP->GetCommandLineExample(msMode, strings[kColUsage]);
-                }
+            if (modes.empty())
+            {
             }
             else
             {
-                attribs[kColName] = FOREGROUND_RED;
-                strings[kColName] = "UNKNOWN COMMAND ";
+                // first param is command
+                msMode = mParams[0].sParamText;
+
+                strings[kColName] = "COMMAND";
+                attribs[kColName] = FOREGROUND_WHITE;
+
+                strings[kColEntry] = msMode;
+                attribs[kColUsage] = FOREGROUND_WHITE;
+
+                bool bModePermitted = modes.empty() || std::find(modes.begin(), modes.end(), msMode) != modes.end(); // if no modes registered or (if there are) if the first param matches one
+                if (bModePermitted)
+                {
+                    attribs[kColEntry] = FOREGROUND_GREEN;
+
+                    if (mpCLP)
+                    {
+                        strings[kColUsage] = mpCLP->GetModeDescription(msMode);
+                        //                    mpCLP->GetCommandLineExample(msMode, strings[kColUsage]);
+                    }
+                }
+                else
+                {
+                    attribs[kColName] = FOREGROUND_RED;
+                    strings[kColName] = "UNKNOWN COMMAND ";
+                }
+
+                paramListBuf.DrawFixedColumnStrings(0, row, strings, colWidths, attribs);
             }
-
-            paramListBuf.DrawFixedColumnStrings(0, row, strings, colWidths, attribs);
-
 
 
 
@@ -1408,25 +1417,33 @@ void FolderList::OnKey(int keycode, char c)
 
             for (auto& param : posParams)
             {
-                strings[kColName] = "[" + SH::FromInt(param.positionalindex) + "]";
+                attribs[kColName] = FOREGROUND_WHITE;
+                attribs[kColEntry] = FOREGROUND_WHITE | FOREGROUND_INTENSITY;
+                attribs[kColUsage] = FOREGROUND_WHITE;
 
+//                strings[kColName] = "[" + SH::FromInt(param.positionalindex) + "]";
+
+                string sFailMessage;
                 if (param.pRelatedDesc)
                 {
-                    strings[kColName] += " " + param.pRelatedDesc->msName;
+                    strings[kColName] = param.pRelatedDesc->msName;
 
-                    if (param.pRelatedDesc->DoesValueSatifsy(param.sParamText))
+                    if (param.pRelatedDesc->DoesValueSatisfy(param.sParamText, sFailMessage))
                     {
                         strings[kColUsage] = param.pRelatedDesc->msUsage;
-                        attribs[kColUsage] = FOREGROUND_WHITE;
+                        attribs[kColEntry] = FOREGROUND_GREEN | FOREGROUND_INTENSITY;
                     }
                     else
                     {
-                        strings[kColUsage] = "Parameter out of range";
+                        strings[kColUsage] = sFailMessage;
                         attribs[kColEntry] = FOREGROUND_RED;
+                        attribs[kColUsage] = FOREGROUND_RED;
                     }
                 }
                 else
                 {
+                    strings[kColName] = "";
+                    attribs[kColEntry] = FOREGROUND_RED | FOREGROUND_INTENSITY;
                     strings[kColUsage] = "Unexpected parameter";
                     attribs[kColUsage] = FOREGROUND_RED;
                 }
@@ -1447,31 +1464,32 @@ void FolderList::OnKey(int keycode, char c)
 
                 for (auto& param : namedParams)
                 {
+                    attribs[kColName] = FOREGROUND_WHITE;
+                    attribs[kColEntry] = FOREGROUND_WHITE | FOREGROUND_INTENSITY;
+                    attribs[kColUsage] = FOREGROUND_WHITE;
+
                     strings[kColName] = "-";
+                    string sFailMessage;
                     if (param.pRelatedDesc)
                     {
                         string sName;
                         string sValue;
                         ParseParam(param.sParamText, sName, sValue);
 
-                        if (param.pRelatedDesc->DoesValueSatifsy(sValue))
+                        if (param.pRelatedDesc->DoesValueSatisfy(sValue, sFailMessage))
                         {
                             strings[kColName] += param.pRelatedDesc->msName;
-                            attribs[kColName] = FOREGROUND_WHITE;
 
-                            attribs[kColEntry] = FOREGROUND_GREEN;
+                            attribs[kColEntry] = FOREGROUND_GREEN | FOREGROUND_INTENSITY;
 
                             strings[kColUsage] = param.pRelatedDesc->msUsage;
-                            attribs[kColUsage] = FOREGROUND_WHITE;
                         }
                         else
                         {
                             strings[kColName] += param.pRelatedDesc->msName;
-                            attribs[kColName] = FOREGROUND_WHITE;
-
                             attribs[kColEntry] = FOREGROUND_RED;
 
-                            strings[kColUsage] = "Parameter out of range";
+                            strings[kColUsage] = sFailMessage;
                             attribs[kColUsage] = FOREGROUND_RED;
                         }
                     }
@@ -1578,69 +1596,74 @@ void FolderList::OnKey(int keycode, char c)
 
     bool FolderList::Scan(std::string sPath, int64_t anchor_l, int64_t anchor_b)
     {
+        sPath = FindClosestParentPath(sPath);
+        if (!fs::exists(sPath))
+            return false;
+
         string sCurSelection = GetSelection();
-        mEntries.clear();
-        if (sPath.length() >= 2)
+        sPath = FH::Canonicalize(sPath);
+        if (!fs::is_directory(sPath))
+            sPath = fs::path(sPath).parent_path().string();
+
+        tStringList folders;
+        tStringList files;
+
+        try
         {
-            if (sPath[0] == '\"' && sPath[sPath.length() - 1] == '\"')      // strip enclosures
-                sPath = sPath.substr(1, sPath.length() - 2);
-
-            if (sPath[0] == '\'' && sPath[sPath.length() - 1] == '\'')      // strip enclosures
-                sPath = sPath.substr(1, sPath.length() - 2);
-        }
-
-
-        if (fs::is_directory(sPath))
-            mPath = sPath;
-        else
-            mPath = fs::path(sPath).parent_path().string();
-        mCaption = sPath;
-
-        fs::path enteredPath(sPath);
-
-        while (enteredPath.string().size() > 2)
-        {
-            try
+            for (const auto& entry : fs::directory_iterator(sPath))
             {
-                fs::path searchPath(enteredPath.parent_path());
-                if (fs::exists(searchPath))
+                string sEntry(FH::Canonicalize(entry.path().string()));
+                if (FH::HasPermission(sEntry))
                 {
-                    for (const auto& entry : fs::directory_iterator(searchPath))
-                    {
-                        string sEntry(entry.path().string());
-
-                        if (entry.is_directory())
-                            sEntry += "\\";
-
-                        mEntries.push_back(sEntry);
-                    }
-
-                    break;
+                    if (entry.is_directory())
+                        folders.push_back(sEntry);
+                    else
+                        files.push_back(sEntry);
                 }
             }
-            catch (const std::filesystem::filesystem_error& e)
-            {
-                std::cerr << "Filesystem error: " << e.what() << std::endl;
-                return false;
-            }
-            catch (const std::exception& e)
-            {
-                std::cerr << "Error: " << e.what() << std::endl;
-                return false;
-            }
-
-            enteredPath = enteredPath.parent_path();        // move up a folder and search
+        }
+        catch (const std::filesystem::filesystem_error& e)
+        {
+            std::cerr << "Filesystem error: " << e.what() << std::endl;
+            return false;
+        }
+        catch (const std::exception& e)
+        {
+            std::cerr << "Error: " << e.what() << std::endl;
+            return false;
         }
 
-        if (!mEntries.empty())
+        mTopCaption = "Browse [TAB - Subfolder][BACKSPACE - Parent]";
+        mBottomCaption = sPath;
+        mPath = sPath;
+
+        if (folders.empty() && files.empty())
         {
-            SetEntries(mEntries, sCurSelection, anchor_l, anchor_b);
-            mbVisible = true;
+            mEntries.clear();
+            mEntries.push_back(kEmptyFolderCaption);
         }
         else
-            mbVisible = false;
+        {
+            mEntries = folders;
+            mEntries.splice(mEntries.end(), files);
+        }
 
+        SetEntries(mEntries, sCurSelection, anchor_l, anchor_b);
         return true;
+    }
+
+    string FolderList::FindClosestParentPath(string sPath)
+    {
+        while (sPath.length() > 2) // for example C:
+        {
+            fs::path path(sPath);
+            if (fs::exists(path) && fs::is_directory(path))
+                return sPath;
+
+            sPath = path.parent_path().string();
+        }
+
+        return sPath;
     }
 
     bool RawEntryWin::HandleParamContext()
@@ -1660,10 +1683,10 @@ void FolderList::OnKey(int keycode, char c)
 
 
         // If mode..... popup modes list
-        if (sText == mEnteredParams[0].sParamText)
+        if (sText == mEnteredParams[0].sParamText && !mAvailableModes.empty())
         {
             popupListWin.mbVisible = true;
-            popupListWin.mCaption = "Commands";
+            popupListWin.mTopCaption = "Commands";
             popupListWin.SetEntries(mAvailableModes, sText, selectionstart, mY);
         }
         else if (sText[0] == '-')
@@ -1680,13 +1703,9 @@ void FolderList::OnKey(int keycode, char c)
                 {
                     if (mEnteredParams[i].pRelatedDesc && (mEnteredParams[i].pRelatedDesc->IsAPath()|| mEnteredParams[i].pRelatedDesc->MustHaveAnExistingPath()))
                     {
-                        popupFolderListWin.Scan(sText, selectionstart, mY);
-
-                        if (popupFolderListWin.mEntries.size() == 1)
+                        if (popupFolderListWin.Scan(CommandLineParser::StripEnclosure(sText), selectionstart-2, mY+1))
                         {
-                            AddUndoEntry();
-                            HandlePaste(*popupFolderListWin.mEntries.begin());    // only one option, fill it in
-                            popupFolderListWin.mbVisible = false;
+                            popupFolderListWin.mbVisible = true;
                         }
                     }
                 }
@@ -1882,7 +1901,12 @@ void FolderList::OnKey(int keycode, char c)
         tEnteredParams params;
         string sModeWhileParsing;
 
-        int positionalindex = -1;
+        const int64_t kModePosition = -1;
+        tStringList modes = GetCLPModes();
+        int positionalindex = 0;
+        if (!modes.empty())         
+            positionalindex = kModePosition;
+
         size_t length = sText.length();
         for (size_t i = 0; i < sText.length(); i++)
         {   
@@ -1911,10 +1935,10 @@ void FolderList::OnKey(int keycode, char c)
 
             string sParamName;
             string sParamValue;
+            string sFailMessage;
 
-            if (positionalindex == -1)   // mode position
+            if (positionalindex == kModePosition) 
             {
-                tStringList modes = GetCLPModes();
                 sModeWhileParsing = param.sParamText;
                 bool bModePermitted = modes.empty() || std::find(modes.begin(), modes.end(), sModeWhileParsing) != modes.end(); // if no modes registered or (if there are) if the first param matches one
                 if (bModePermitted)
@@ -1932,7 +1956,7 @@ void FolderList::OnKey(int keycode, char c)
                 param.pRelatedDesc = GetParamDesc(sModeWhileParsing, sParamName);
                 if (!param.pRelatedDesc)
                     param.drawAttributes = FOREGROUND_RED;      // unknown named parameter
-                else if (!param.pRelatedDesc->DoesValueSatifsy(sParamValue))
+                else if (!param.pRelatedDesc->DoesValueSatisfy(sParamValue, sFailMessage))
                     param.drawAttributes = FOREGROUND_RED;      // known named parameter but not in required range
             }
             else
@@ -1942,7 +1966,7 @@ void FolderList::OnKey(int keycode, char c)
 
                 if (!param.pRelatedDesc)       // unsatisfied positional parameter
                     param.drawAttributes = FOREGROUND_RED;
-                else if (!param.pRelatedDesc->DoesValueSatifsy(param.sParamText))     // positional param has descriptor but not in required range
+                else if (!param.pRelatedDesc->DoesValueSatisfy(param.sParamText, sFailMessage))     // positional param has descriptor but not in required range
                     param.drawAttributes = FOREGROUND_RED;
 
                 positionalindex++;
@@ -2014,9 +2038,9 @@ void FolderList::OnKey(int keycode, char c)
             helpBuf.Init(0, 0, screenInfo.dwSize.X, screenInfo.dwSize.Y);
             helpBuf.Clear(0);
             if (mpCLP->IsRegisteredMode(msMode))
-                helpBuf.SetText(mpCLP->GetHelpString(msMode, false));
+                helpBuf.SetText(mpCLP->GetModeHelpString(msMode, false));
             else
-                helpBuf.SetText(mpCLP->GetModesString());
+                helpBuf.SetText(mpCLP->GetGeneralHelpString());
         }
     }
 

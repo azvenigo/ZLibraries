@@ -41,11 +41,6 @@ list(APPEND LINK_DIRS ../Common/curl/lib )
 
 ####################
 # PROJECT DEPENDENCY AND INCLUDES
-list(APPEND LINK_LIBS libcurl.lib)
-#if(MSVC)
-list(APPEND LINK_LIBS  Version.lib)
-#endif()
-
 
 
 ####################
@@ -81,6 +76,10 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${EXTRA_FLAGS} ${EXTRA_CXX_FLAGS}")
 
 ####################
 # ADDITIONAL LIBRARIES
+list(APPEND LINK_LIBS libcurl.lib)
+if(MSVC)
+	list(APPEND LINK_LIBS Version.lib)
+endif()
 
 ####################
 # PROJECT

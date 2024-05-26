@@ -577,7 +577,7 @@ int RunInstall(string sOutputFolder, bool bForce = false)
         {
             // already installed to a location.... ask whether to install to same
 
-            sInstalledVersion = GetFileVersion(sLaunchEXEPath);
+            sInstalledVersion = FH::GetFileVersion(sLaunchEXEPath);
 
             char buf[2048];
 
@@ -714,7 +714,7 @@ int main(int argc, char* argv[])
     if (ContainsEmbeddedArchive(exeFilename))
     {
         parser.RegisterAppDescription("Self extracting installer");
-        parser.RegisterParam(ParamDesc("OUTPUTFOLDER", &sOutputFolder, CLP::kPositional | CLP::kOptional, "Folder into which to extract all files."));
+        parser.RegisterParam(ParamDesc("OUTPUTFOLDER", &sOutputFolder, CLP::kPositional | CLP::kPath, "Folder into which to extract all files."));
         parser.RegisterParam(ParamDesc("force", &bForce, CLP::kNamed | CLP::kOptional, "Forces overwrite even if installed version matches package."));
 
         parser.RegisterParam(ParamDesc("debug", &gDebug, CLP::kNamed | CLP::kOptional, "debug installer output"));
@@ -727,8 +727,8 @@ int main(int argc, char* argv[])
     {
         parser.RegisterAppDescription("Creates a self-installer from an application folder.");
 
-        parser.RegisterParam(ParamDesc("OUTPUTFILENAME", &sOutputFilename, CLP::kPositional | CLP::kRequired, "Path of the ZIP archive to create."));
-        parser.RegisterParam(ParamDesc("FOLDER", &sBaseFolder, CLP::kPositional | CLP::kRequired, "Base folder of files add to the archive"));
+        parser.RegisterParam(ParamDesc("OUTPUTFILENAME", &sOutputFilename, CLP::kPositional | CLP::kRequired | CLP::kPath, "Path of the ZIP archive to create."));
+        parser.RegisterParam(ParamDesc("FOLDER", &sBaseFolder, CLP::kPositional | CLP::kRequired | CLP::kExistingPath | CLP::kPath, "Base folder of files add to the archive"));
 
         if (!parser.Parse(argc, argv))
             return -1;
