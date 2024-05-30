@@ -7,6 +7,7 @@
 #include <format>
 #include <fstream>
 #include <filesystem>
+#include "MathHelpers.h"
 
 #include <stdio.h>
 
@@ -102,6 +103,13 @@ namespace CLP
         }
 
         return namedparams;
+    }
+
+    string CommandLineEditor::GetMode()
+    {
+        if (mParams.size() > 0)
+            return mParams[0].sParamText;
+        return "";
     }
 
 
@@ -340,7 +348,7 @@ namespace CLP
     void RawEntryWin::SetText(const std::string& text)
     {
         mText = text;
-        mLocalCursorPos = TextIndexToCursor((int64_t)text.size());
+        UpdateCursorPos(TextIndexToCursor((int64_t)text.size()));
     }
 
     void ConsoleWin::SetArea(int64_t l, int64_t t, int64_t r, int64_t b)
@@ -391,7 +399,7 @@ void ListboxWin::Paint(tConsoleBuffer& backBuf)
     string sCaption(COL_YELLOW + mTopCaption + " [" + SH::FromInt(mSelection + 1) + "/" + SH::FromInt(mEntries.size()) + "]" + COL_RESET);
     Fill(0, 0, mWidth, 1, 0);   // top
     Fill(0, 0, 1, mHeight, 0);   // left
-    Fill(0, mHeight - 1, mWidth, mHeight, BACKGROUND_INTENSITY);    // bottom
+    Fill(0, mHeight - 1, mWidth, mHeight, 0);    // bottom
     Fill(mWidth - 1, 0, mWidth, mHeight, 0);    // right
     DrawClippedAnsiText(1, 0, sCaption, false);
 
@@ -432,7 +440,6 @@ string ListboxWin::GetSelection()
 
     return *it;
 }
-
 
 void ListboxWin::OnKey(int keycode, char c)
 {
@@ -553,7 +560,8 @@ void ListboxWin::SetEntries(tStringList entries, string selectionSearch, int64_t
         {
             size_t cmpLength = std::min<size_t>(entry.length(), selectionSearch.length());
             string sEntrySub(entry.substr(0, cmpLength));
-            string sSearchSub(selectionSearch.substr(0, cmpLength));
+//            string sSearchSub(selectionSearch.substr(0, cmpLength));
+            string sSearchSub(selectionSearch);
             if (SH::Compare(sEntrySub, sSearchSub, false))   // exact match
             {
 //                cout << "nearest match:" << entry << "\n";
@@ -572,7 +580,11 @@ void ListboxWin::SetEntries(tStringList entries, string selectionSearch, int64_t
     int64_t width = 0;
     int64_t height = mEntries.size();
 
-    width = std::max<int64_t>(mBottomCaption.length()+8, mTopCaption.length()+8);
+
+    width = MH::Max(mBottomCaption.length() + 8, mTopCaption.length() + 8, (size_t)mMinWidth);
+
+//    width = std::max<int64_t>(mBottomCaption.length()+8, mTopCaption.length()+8);
+//    width = std::max<int64_t>(width, mMinWidth);
 
     for (auto& entry : mEntries)
     {
@@ -1159,7 +1171,8 @@ void FolderList::OnKey(int keycode, char c)
 
                     // show history window
                     historyWin.mbVisible = true;
-                    historyWin.mTopCaption = "History [DEL - Delete Entry]";
+                    historyWin.mTopCaption = "History [ESC - Cancel] [ENTER - Select] [DEL - Delete Entry]";
+                    historyWin.mMinWidth = screenInfo.dwSize.X;
                     historyWin.SetEntries(commandHistory, mText, selectionstart, mY);
                 }
                 else
@@ -1377,22 +1390,22 @@ void FolderList::OnKey(int keycode, char c)
             else
             {
                 // first param is command
-                msMode = mParams[0].sParamText;
+                string sMode = GetMode();
 
                 strings[kColName] = "COMMAND";
                 attribs[kColName] = FOREGROUND_WHITE;
 
-                strings[kColEntry] = msMode;
+                strings[kColEntry] = sMode;
                 attribs[kColUsage] = FOREGROUND_WHITE;
 
-                bool bModePermitted = modes.empty() || std::find(modes.begin(), modes.end(), msMode) != modes.end(); // if no modes registered or (if there are) if the first param matches one
+                bool bModePermitted = modes.empty() || std::find(modes.begin(), modes.end(), sMode) != modes.end(); // if no modes registered or (if there are) if the first param matches one
                 if (bModePermitted)
                 {
                     attribs[kColEntry] = FOREGROUND_GREEN;
 
                     if (mpCLP)
                     {
-                        strings[kColUsage] = mpCLP->GetModeDescription(msMode);
+                        strings[kColUsage] = mpCLP->GetModeDescription(sMode);
                         //                    mpCLP->GetCommandLineExample(msMode, strings[kColUsage]);
                     }
                 }
@@ -1507,6 +1520,14 @@ void FolderList::OnKey(int keycode, char c)
                 }
             }
         }
+        else
+        {
+            // no commands entered
+            TableOutput commandsTable = mpCLP->GetCommandsTable();
+            commandsTable.AlignWidth(screenInfo.dwSize.X);
+            string sCommands = commandsTable;
+            paramListBuf.DrawClippedAnsiText(0, 0, sCommands);
+        }
 
         DrawToScreen();
 
@@ -1594,13 +1615,12 @@ void FolderList::OnKey(int keycode, char c)
 
 
 
-    bool FolderList::Scan(std::string sPath, int64_t anchor_l, int64_t anchor_b)
+    bool FolderList::Scan(std::string sSelectedPath, int64_t anchor_l, int64_t anchor_b)
     {
-        sPath = FindClosestParentPath(sPath);
+        string sPath = FindClosestParentPath(sSelectedPath);
         if (!fs::exists(sPath))
             return false;
 
-        string sCurSelection = GetSelection();
         sPath = FH::Canonicalize(sPath);
         if (!fs::is_directory(sPath))
             sPath = fs::path(sPath).parent_path().string();
@@ -1633,10 +1653,6 @@ void FolderList::OnKey(int keycode, char c)
             return false;
         }
 
-        mTopCaption = "Browse [TAB - Subfolder][BACKSPACE - Parent]";
-        mBottomCaption = sPath;
-        mPath = sPath;
-
         if (folders.empty() && files.empty())
         {
             mEntries.clear();
@@ -1648,7 +1664,13 @@ void FolderList::OnKey(int keycode, char c)
             mEntries.splice(mEntries.end(), files);
         }
 
-        SetEntries(mEntries, sCurSelection, anchor_l, anchor_b);
+        SetEntries(mEntries, sSelectedPath, anchor_l, anchor_b);
+
+        mTopCaption = "Browse [TAB - Subfolder] [BACKSPACE - Parent]";
+        mBottomCaption = GetSelection();
+        mPath = sSelectedPath;
+
+
         return true;
     }
 
@@ -1703,7 +1725,7 @@ void FolderList::OnKey(int keycode, char c)
                 {
                     if (mEnteredParams[i].pRelatedDesc && (mEnteredParams[i].pRelatedDesc->IsAPath()|| mEnteredParams[i].pRelatedDesc->MustHaveAnExistingPath()))
                     {
-                        if (popupFolderListWin.Scan(CommandLineParser::StripEnclosure(sText), selectionstart-2, mY+1))
+                        if (popupFolderListWin.Scan(CommandLineParser::StripEnclosure(sText), selectionstart, mY+1))
                         {
                             popupFolderListWin.mbVisible = true;
                         }
@@ -1747,7 +1769,7 @@ void FolderList::OnKey(int keycode, char c)
 //                if (mpCLP->IsRegisteredMode(msMode))
                 {
                     string sExample;
-                    mpCLP->GetCommandLineExample(msMode, sExample);
+                    mpCLP->GetCommandLineExample(GetMode(), sExample);
                     usageBuf.SetText(string(COL_BLACK) + "usage: " + sExample);
                 }
             }
@@ -1842,6 +1864,7 @@ void FolderList::OnKey(int keycode, char c)
     {
         selectionstart = -1;
         selectionend = -1;
+        UpdateCursorPos(mLocalCursorPos);
     }
 
     void RawEntryWin::UpdateSelection()
@@ -1991,7 +2014,7 @@ void FolderList::OnKey(int keycode, char c)
         mParams = ParamsFromText(mLastParsedText);
         rawCommandBuf.mEnteredParams = mParams;
         rawCommandBuf.mAvailableModes = GetCLPModes();
-        rawCommandBuf.mAvailableNamedParams = GetCLPNamedParamsForMode(msMode);
+        rawCommandBuf.mAvailableNamedParams = GetCLPNamedParamsForMode(GetMode());
     }
 
     std::string CommandLineEditor::Edit(int argc, char* argv[])
@@ -2033,15 +2056,54 @@ void FolderList::OnKey(int keycode, char c)
 
     void CommandLineEditor::ShowHelp()
     {
+        string sText;
+        helpBuf.Init(0, 0, screenInfo.dwSize.X, screenInfo.dwSize.Y);
+        helpBuf.Clear(0);
+
         if (mpCLP)
         {
-            helpBuf.Init(0, 0, screenInfo.dwSize.X, screenInfo.dwSize.Y);
-            helpBuf.Clear(0);
-            if (mpCLP->IsRegisteredMode(msMode))
-                helpBuf.SetText(mpCLP->GetModeHelpString(msMode, false));
+            string sMode = GetMode();
+
+            if (mpCLP->IsRegisteredMode(sMode))
+                sText = mpCLP->GetModeHelpString(sMode, false);
             else
-                helpBuf.SetText(mpCLP->GetGeneralHelpString());
+                sText = mpCLP->GetGeneralHelpString();
         }
+
+        TableOutput additionalHelp;
+        additionalHelp.SetBorders('+', '+', '+', '+');
+        additionalHelp.SetSeparator(' ', 1);
+        additionalHelp.SetMinimumOutputWidth(screenInfo.dwSize.X-1);
+
+        additionalHelp.AddRow(cols[kSECTION] + "--Key Combo--", "--Action--");
+
+        additionalHelp.AddRow(cols[kPARAM] + "[F1]", "General help or contextual help (if first parameter is recognized command.)" + cols[kRESET]);
+
+        additionalHelp.AddRow(cols[kPARAM] + "[TAB]", "Context specific popup" + cols[kRESET]);
+
+        additionalHelp.AddRow(cols[kPARAM] + "[SHIFT - LEFT/RIGHT]", "Select characters" + cols[kRESET]);
+        additionalHelp.AddRow(cols[kPARAM] + "[SHIFT+CTRL - LEFT/RIGHT]", "Select words" + cols[kRESET]);
+
+        additionalHelp.AddRow(cols[kPARAM] + "[CTRL - A]", "Select All" + cols[kRESET]);
+        additionalHelp.AddRow(cols[kPARAM] + "[CTRL - C/V]", "Copy/Paste" + cols[kRESET]);
+        additionalHelp.AddRow(cols[kPARAM] + "[CTRL - Z]", "Undo" + cols[kRESET]);
+
+        additionalHelp.AddRow(cols[kPARAM] + "[UP]", "Command Line History (When cursor at top)" + cols[kRESET]);
+
+
+        additionalHelp.AlignWidth(screenInfo.dwSize.X);
+
+
+        sText += "\n\n------Help for Interactive Command Line Editor---------\n\n";
+        sText += "Rich editing of command line passed in with contextual auto-complete popups.\n";
+
+        sText += "Command Line example usage is visible just above the command line entry.\n";
+        sText += "Parameters (positional and named) along with desciptions are enumerated above.\n";
+
+        sText += "Path parameters bring up folder listing at that path. (TAB to go into the folder, BACKSPACE to go up a folder.)\n";
+        sText += (string)additionalHelp;
+
+        helpBuf.SetText(sText);
     }
 
 
@@ -2085,10 +2147,19 @@ void FolderList::OnKey(int keycode, char c)
         popupFolderListWin.mbVisible = false;
 
 
+        LoadHistory();
 
         backBuffer.resize(w*h);
         rawCommandBuf.Init(0, h - 4, w, h);
-        rawCommandBuf.SetText(sCommandLine);
+
+
+        if (!sCommandLine.empty())
+            rawCommandBuf.SetText(sCommandLine);
+        else if (sCommandLine.empty() && !commandHistory.empty())    // if there is history and no command line was passed in, 
+            rawCommandBuf.SetText(*(commandHistory.rbegin()));
+
+
+
 
         paramListBuf.Init(0, 1, w, h - 6);
 //        rawCommandBuf.UpdateCursorPos(COORD((SHORT)sCommandLine.length(), 0));
@@ -2127,8 +2198,6 @@ void FolderList::OnKey(int keycode, char c)
         // Main loop to read input events
         INPUT_RECORD inputRecord[128];
         DWORD numEventsRead;
-
-        LoadHistory();
 
         while (!rawCommandBuf.mbDone && !rawCommandBuf.mbCanceled)
         {
@@ -2266,6 +2335,18 @@ void FolderList::OnKey(int keycode, char c)
 
             if (firstVisibleRow < (h - mHeight))
                 firstVisibleRow++;
+        }
+        else if (keycode == VK_HOME)
+        {
+            firstVisibleRow = 0;
+        }
+        else if (keycode == VK_END)
+        {
+            int64_t w = 0;
+            int64_t h = 0;
+            GetTextOuputRect(mText, w, h);
+            if (h > mHeight)
+                firstVisibleRow = h - mHeight;
         }
     }
 

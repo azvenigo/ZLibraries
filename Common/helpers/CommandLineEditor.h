@@ -175,7 +175,7 @@ namespace CLP
     class ListboxWin : public ConsoleWin
     {
     public:
-
+        ListboxWin() : mMinWidth(0), mSelection(-1), mAnchorL(-1), mAnchorB(-1) {}
         virtual std::string GetSelection();
 
         virtual void SetEntries(tStringList entries, std::string selectionSearch = "", int64_t anchor_l = -1, int64_t anchor_b = -1);
@@ -184,6 +184,7 @@ namespace CLP
 
         std::string mTopCaption;
         std::string mBottomCaption;
+        int64_t mMinWidth;
     protected:
         tStringList mEntries;
         int64_t     mSelection;
@@ -226,9 +227,10 @@ namespace CLP
 
     private:
 
-        tEnteredParams GetPositionalEntries();
-        tEnteredParams GetNamedEntries();
+        tEnteredParams  GetPositionalEntries();
+        tEnteredParams  GetNamedEntries();
 
+        std::string     GetMode();      // first positional entry
 
         std::string HistoryPath();
         bool LoadHistory();
@@ -245,7 +247,7 @@ namespace CLP
         void UpdateParams();        // parse mText and break into parameter fields
         std::string     mLastParsedText;
 
-        std::string     msMode;       
+//        std::string     msMode;       
 
 
         HANDLE mhInput;

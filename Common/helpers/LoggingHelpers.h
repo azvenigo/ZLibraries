@@ -483,7 +483,7 @@ public:
     template <typename... Tables>
     size_t GetMaxTableWidth(size_t minW, const Tables&... tables) 
     {
-        return std::max({ minW, tables.GetTableWidth()... });
+        return std::max<size_t>({ minW, tables.GetTableWidth()... });
     }
 
     template <typename... Tables>

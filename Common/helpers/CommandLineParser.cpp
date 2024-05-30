@@ -819,7 +819,13 @@ namespace CLP
         bool bMultiMode = !mModeToCommandLineParser.empty();
 
         if (params.empty())
-            return kShowAvailableModes;
+        {
+            if (bMultiMode)
+                return kShowAvailableModes;
+
+            if (!bMultiMode && mGeneralCommandLineParser.GetRequiredParameterCount() > 0)
+                return kShowHelp;
+        }
 
         string sMode = GetFirstPositionalArgument(params); // mode
         if (bMultiMode && !IsRegisteredMode(sMode))
@@ -1325,6 +1331,24 @@ namespace CLP
         return descriptionTable;
     }
 
+    TableOutput CommandLineParser::GetCommandsTable()
+    {
+        TableOutput commandsTable;
+        commandsTable.SetBorders(0, 0, '*', '*');
+        commandsTable.SetSeparator(' ', 1);
+
+        commandsTable.AddRow(cols[kSECTION] + "-----Commands-----" + cols[kRESET]);
+        for (tModeToParser::iterator it = mModeToCommandLineParser.begin(); it != mModeToCommandLineParser.end(); it++)
+        {
+            string sCommand = (*it).first;
+            string sModeDescription = ((*it).second).GetModeDescription();
+            if (!sCommand.empty())
+                commandsTable.AddRow(cols[kPARAM] + sCommand + cols[kRESET], sModeDescription);
+        }
+        return commandsTable;
+    }
+
+
     TableOutput CommandLineParser::GetKeyTable()
     {
         TableOutput table;
@@ -1384,17 +1408,7 @@ namespace CLP
             descriptionTable.AddRow(sUsageExample);
             descriptionTable.AddRow(' ');
 
-            commandsTable.SetBorders(0, 0, '*', '*');
-            commandsTable.SetSeparator(' ', 1);
-
-            commandsTable.AddRow(cols[kSECTION] + "-----Commands-----" + cols[kRESET]);
-            for (tModeToParser::iterator it = mModeToCommandLineParser.begin(); it != mModeToCommandLineParser.end(); it++)
-            {
-                string sCommand = (*it).first;
-                string sModeDescription = ((*it).second).GetModeDescription();
-                if (!sCommand.empty())
-                    commandsTable.AddRow(cols[kPARAM] + sCommand + cols[kRESET], sModeDescription);
-            }
+            commandsTable = GetCommandsTable();
             commandsTable.AddRow(" ");
         }
         else

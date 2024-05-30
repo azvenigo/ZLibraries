@@ -31,6 +31,7 @@
 #ifdef _WIN64
 #include <Windows.h>
 #include <shlobj.h>
+#include <shellapi.h>
 #include <aclapi.h>
 #endif
 

@@ -301,6 +301,7 @@ namespace CLP
         void            RegisterAppDescription(const std::string& sDescription);
         bool            Parse(int argc, char* argv[], bool bEditOnParseFail = true);
         TableOutput     GetCLPHelp(bool bDetailed = false);
+        TableOutput     GetCommandsTable();
         TableOutput     GetKeyTable();
         std::string     GetGeneralHelpString();
         std::string     GetModeHelpString(const std::string& sMode = "", bool bDetailed = false);

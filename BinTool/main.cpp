@@ -447,34 +447,34 @@ int main(int argc, char* argv[])
 
     parser.RegisterMode("copy", "Copies bytes from a source file into the destination file");
 
-    parser.RegisterParam("copy", ParamDesc("SOURCE_FILE", &sSourcePath, CLP::kPositional | CLP::kRequired, "File to read from."));
-    parser.RegisterParam("copy", ParamDesc("DEST_FILE", &sDestPath, CLP::kPositional | CLP::kRequired, "File to write to."));
+    parser.RegisterParam("copy", ParamDesc("SOURCE_FILE", &sSourcePath, CLP::kPositional | CLP::kRequired | CLP::kPath | CLP::kExistingPath, "File to read from."));
+    parser.RegisterParam("copy", ParamDesc("DEST_FILE", &sDestPath, CLP::kPositional | CLP::kRequired | CLP::kPath, "File to write to."));
     parser.RegisterParam("copy", ParamDesc("SOURCE_OFFSET", &nSourceOffset, CLP::kPositional | CLP::kRequired, "Source offset"));
     parser.RegisterParam("copy", ParamDesc("DEST_OFFSET", &nDestOffset, CLP::kPositional | CLP::kRequired, "Destination offset"));
     parser.RegisterParam("copy", ParamDesc("BYTES", &nBytes, CLP::kPositional | CLP::kRequired, "Number of bytes to copy."));
     parser.RegisterParam("copy", ParamDesc("overwrite", &bOverwrite, CLP::kNamed , "Overwrites bytes in the destination file (rather than inserting)"));
 
     parser.RegisterMode("dump", "Dump byte range to cout");
-    parser.RegisterParam("dump", ParamDesc("FILE", &sSourcePath, CLP::kPositional | CLP::kRequired, "File to read from."));
+    parser.RegisterParam("dump", ParamDesc("FILE", &sSourcePath, CLP::kPositional | CLP::kRequired | CLP::kPath | CLP::kExistingPath, "File to read from"));
     parser.RegisterParam("dump", ParamDesc("OFFSET", &nSourceOffset, CLP::kNamed , "Starting offset"));
     parser.RegisterParam("dump", ParamDesc("BYTES", &nBytes, CLP::kNamed, "Number of bytes to dump."));
     parser.RegisterParam("dump", ParamDesc("COLUMNS", &nColumns, CLP::kNamed, "Number of columns"));
 
 
     parser.RegisterMode("extract", "Extracts bytes from a file into a new file");
-    parser.RegisterParam("extract", ParamDesc("SOURCE_FILE", &sSourcePath, CLP::kPositional | CLP::kRequired, "File to read from."));
-    parser.RegisterParam("extract", ParamDesc("DEST_FILE", &sDestPath, CLP::kPositional | CLP::kRequired, "File to create."));
+    parser.RegisterParam("extract", ParamDesc("SOURCE_FILE", &sSourcePath, CLP::kPositional | CLP::kRequired | CLP::kPath | CLP::kExistingPath, "File to read from"));
+    parser.RegisterParam("extract", ParamDesc("DEST_FILE", &sDestPath, CLP::kPositional | CLP::kRequired | CLP::kPath, "File to create"));
     parser.RegisterParam("extract", ParamDesc("SOURCE_OFFSET", &nSourceOffset, CLP::kPositional | CLP::kRequired, "Source offset"));
-    parser.RegisterParam("extract", ParamDesc("BYTES", &nBytes, CLP::kPositional | CLP::kRequired, "Number of bytes to extract."));
+    parser.RegisterParam("extract", ParamDesc("BYTES", &nBytes, CLP::kPositional | CLP::kRequired, "Number of bytes to extract"));
     parser.RegisterParam("extract", ParamDesc("dump", &bDumpAfterExtract, CLP::kNamed, "Dump extracted bytes to cout after extraction."));
 
 
     parser.RegisterMode("hash", "Compute SHA256 & CRC32 hashes of file.");
-    parser.RegisterParam("hash", ParamDesc("FILE", &sSourcePath, CLP::kPositional | CLP::kRequired, "File to use"));
+    parser.RegisterParam("hash", ParamDesc("FILE", &sSourcePath, CLP::kPositional | CLP::kRequired | CLP::kPath | CLP::kExistingPath, "File to hash"));
 
     parser.RegisterMode("diff", "Simple binary diff of two files.");
-    parser.RegisterParam("diff", ParamDesc("FILE1", &sSourcePath, CLP::kPositional | CLP::kRequired, "File 1"));
-    parser.RegisterParam("diff", ParamDesc("FILE2", &sDestPath, CLP::kPositional | CLP::kRequired, "File 1"));
+    parser.RegisterParam("diff", ParamDesc("FILE1", &sSourcePath, CLP::kPositional | CLP::kRequired | CLP::kPath | CLP::kExistingPath, "A file to compare"));
+    parser.RegisterParam("diff", ParamDesc("FILE2", &sDestPath, CLP::kPositional | CLP::kRequired | CLP::kPath | CLP::kExistingPath, "A second file to compare against"));
 
 
     parser.RegisterAppDescription("Various binary operations on files");
