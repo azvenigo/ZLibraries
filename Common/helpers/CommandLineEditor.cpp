@@ -950,11 +950,10 @@ void FolderList::OnKey(int keycode, char c)
                 else
                 {
                     DrawCharClipped(c, cursor.X, cursor.Y, attrib);
+                    cursor.X++;
+                    if (cursor.X >= mWidth && !bWrap)
+                        break;
                 }
-
-                cursor.X++;
-                if (cursor.X >= mWidth && !bWrap)
-                    break;
             }
         }
     }
@@ -1702,8 +1701,7 @@ void FolderList::OnKey(int keycode, char c)
         string sText;
 
         int64_t cursorIndex = CursorToTextIndex(mLocalCursorPos);
-        if (!GetParameterUnderIndex(cursorIndex, start, end, sText))
-            return false;
+        GetParameterUnderIndex(cursorIndex, start, end, sText);
 
         selectionstart = start;
         selectionend = end;
@@ -1712,7 +1710,13 @@ void FolderList::OnKey(int keycode, char c)
 
 
         // If mode..... popup modes list
-        if (sText == mEnteredParams[0].sParamText && !mAvailableModes.empty())
+        if (mEnteredParams.empty())
+        {
+            popupListWin.mbVisible = true;
+            popupListWin.mTopCaption = "Commands";
+            popupListWin.SetEntries(mAvailableModes, sText, selectionstart, mY);
+        }
+        else if (sText == mEnteredParams[0].sParamText && !mAvailableModes.empty())
         {
             popupListWin.mbVisible = true;
             popupListWin.mTopCaption = "Commands";
@@ -1780,7 +1784,10 @@ void FolderList::OnKey(int keycode, char c)
                 }
             }
 
-            topInfoBuf.SetText(string(COL_BLACK) + "[F1 - HELP] - [ESC - CANCEL] - [TAB - Auto-Complete]");
+            string sTop = "[F1-Help]   [ESC-Cancel]   [TAB-Contextual]";
+            if (!commandHistory.empty())
+                sTop += "  [UP-" + SH::FromInt(commandHistory.size()) + " History]";
+            topInfoBuf.SetText(string(COL_BLACK) + sTop);
         }
 
         // Finally draw to screen
@@ -2295,6 +2302,14 @@ void FolderList::OnKey(int keycode, char c)
                 cout << "\n\n";
             }
             return "";
+        }
+        else
+        {
+            if (!rawCommandBuf.GetText().empty())
+            {
+                cout << "Command Entered:\n\"" << COL_YELLOW << CLP::appName << " " << rawCommandBuf.GetText() << COL_RESET << "\"\n";
+                cout << "\n\n";
+            }
         }
 
         AddToHistory(rawCommandBuf.GetText());
