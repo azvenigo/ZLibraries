@@ -1,6 +1,10 @@
-﻿#include "CommandLineEditor.h"
+﻿#ifdef ENABLE_CLE
+
+#include "CommandLineEditor.h"
 #include "LoggingHelpers.h"
 #include "FileHelpers.h"
+
+#define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
 #include <iostream>
 #include <assert.h>
@@ -32,6 +36,9 @@ namespace CLP
     const string    kEmptyFolderCaption("[EMPTY]");
 
     CONSOLE_SCREEN_BUFFER_INFO screenInfo;
+    inline SHORT ScreenW() { return screenInfo.srWindow.Right - screenInfo.srWindow.Left+1; }
+    inline SHORT ScreenH() { return screenInfo.srWindow.Bottom - screenInfo.srWindow.Top+1; }
+
 
 
     bool CopyTextToClipboard(const std::string& text);
@@ -606,17 +613,17 @@ void ListboxWin::SetEntries(tStringList entries, string selectionSearch, int64_t
         b = mAnchorB;
     }
 
-    if (width > screenInfo.dwSize.X)
+    if (width > ScreenW())
     {
         l = 0;
-        r = screenInfo.dwSize.X;
+        r = ScreenW();
     }
 
 
     // move window to fit on screen
-    if (r > screenInfo.dwSize.X)
+    if (r > ScreenW())
     {
-        int64_t shiftleft = r - screenInfo.dwSize.X;
+        int64_t shiftleft = r - ScreenW();
         l -= shiftleft;
         r -= shiftleft;
     }
@@ -626,9 +633,9 @@ void ListboxWin::SetEntries(tStringList entries, string selectionSearch, int64_t
         l += shiftright;
         r += shiftright;
     }
-    if (b > screenInfo.dwSize.Y)
+    if (b > ScreenH())
     {
-        int64_t shiftdown = b - screenInfo.dwSize.Y;
+        int64_t shiftdown = b - ScreenH();
         t += shiftdown;
         b += shiftdown;
     }
@@ -985,8 +992,8 @@ void FolderList::OnKey(int keycode, char c)
         if (!mbVisible)
             return;
 
-        int64_t dr = screenInfo.dwSize.X;
-        int64_t db = screenInfo.dwSize.Y;
+        int64_t dr = ScreenW();
+        int64_t db = ScreenH();
 
         for (int64_t sy = 0; sy < mHeight; sy++)
         {
@@ -1172,7 +1179,7 @@ void FolderList::OnKey(int keycode, char c)
                     // show history window
                     historyWin.mbVisible = true;
                     historyWin.mTopCaption = "History [ESC - Cancel] [ENTER - Select] [DEL - Delete Entry]";
-                    historyWin.mMinWidth = screenInfo.dwSize.X;
+                    historyWin.mMinWidth = ScreenW();
                     historyWin.SetEntries(commandHistory, mText, selectionstart, mY);
                 }
                 else
@@ -1328,7 +1335,7 @@ void FolderList::OnKey(int keycode, char c)
 
         string sRaw(rawCommandBuf.GetText());
        
-        size_t rows = std::max<size_t>(1, (sRaw.size() + screenInfo.dwSize.X - 1) / screenInfo.dwSize.X);
+        size_t rows = std::max<size_t>(1, (sRaw.size() + ScreenW() - 1) / ScreenW());
 //        rawCommandBufTopRow = screenBufferInfo.dwSize.Y - rows;
 
         ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1359,7 +1366,7 @@ void FolderList::OnKey(int keycode, char c)
             colWidths.resize(3);
             colWidths[kColName] = 16;
             colWidths[kColEntry] = 12;
-            colWidths[kColUsage] = screenInfo.dwSize.X - (colWidths[kColName] + colWidths[kColEntry]);
+            colWidths[kColUsage] = ScreenW() - (colWidths[kColName] + colWidths[kColEntry]);
             for (int paramindex = 0; paramindex < mParams.size(); paramindex++)
             {
                 string sText(mParams[paramindex].sParamText);
@@ -1422,7 +1429,7 @@ void FolderList::OnKey(int keycode, char c)
 
             // next list positional params
             row+=2;
-            string sSection = "-positional params-" + string(screenInfo.dwSize.X, '-');
+            string sSection = "-positional params-" + string(ScreenW(), '-');
             paramListBuf.DrawClippedText(0, row++, sSection, BACKGROUND_INTENSITY, false);
 
 
@@ -1472,7 +1479,7 @@ void FolderList::OnKey(int keycode, char c)
             if (!namedParams.empty())
             {
                 row++;
-                sSection = "-named params-" + string(screenInfo.dwSize.X, '-');
+                sSection = "-named params-" + string(ScreenW(), '-');
                 paramListBuf.DrawClippedText(0, row++, sSection, BACKGROUND_INTENSITY, false);
 
                 for (auto& param : namedParams)
@@ -1524,7 +1531,7 @@ void FolderList::OnKey(int keycode, char c)
         {
             // no commands entered
             TableOutput commandsTable = mpCLP->GetCommandsTable();
-            commandsTable.AlignWidth(screenInfo.dwSize.X);
+            commandsTable.AlignWidth(ScreenW());
             string sCommands = commandsTable;
             paramListBuf.DrawClippedAnsiText(0, 0, sCommands);
         }
@@ -1745,7 +1752,6 @@ void FolderList::OnKey(int keycode, char c)
         // clear back buffer
         memset(&backBuffer[0], 0, backBuffer.size() * sizeof(CHAR_INFO));
 
-        int64_t stride = screenInfo.dwSize.X;
         if (helpBuf.mbVisible)
         {
             //helpBuf.PaintToWindowsConsole(mhOutput);
@@ -1779,15 +1785,15 @@ void FolderList::OnKey(int keycode, char c)
 
         // Finally draw to screen
         COORD origin(0, 0);
-        SMALL_RECT region = { 0, 0, screenInfo.dwSize.X - 1, screenInfo.dwSize.Y - 1 };
+        SMALL_RECT region = { screenInfo.srWindow.Left, screenInfo.srWindow.Top, ScreenW(), ScreenH() };
         WriteConsoleOutput(mhOutput, &backBuffer[0], screenInfo.dwSize, origin, &region);
     }
 
     void CommandLineEditor::SaveConsoleState()
     {
         originalScreenInfo = screenInfo;
-        originalConsoleBuf.resize(screenInfo.dwSize.X * screenInfo.dwSize.Y);
-        SMALL_RECT readRegion = { 0, 0, screenInfo.dwSize.X - 1, screenInfo.dwSize.Y - 1 };
+        originalConsoleBuf.resize(originalScreenInfo.dwSize.X * originalScreenInfo.dwSize.Y);
+        SMALL_RECT readRegion = { 0, 0, originalScreenInfo.dwSize.X - 1, originalScreenInfo.dwSize.Y - 1 };
         ReadConsoleOutput(mhOutput, &originalConsoleBuf[0], screenInfo.dwSize, { 0, 0 }, &readRegion);
     }
 
@@ -2037,8 +2043,8 @@ void FolderList::OnKey(int keycode, char c)
         {
             screenInfo = newScreenInfo;
 
-            SHORT w = screenInfo.dwSize.X;
-            SHORT h = screenInfo.dwSize.Y;
+            SHORT w = ScreenW();
+            SHORT h = ScreenH();
 
 
             backBuffer.resize(w*h);
@@ -2057,7 +2063,7 @@ void FolderList::OnKey(int keycode, char c)
     void CommandLineEditor::ShowHelp()
     {
         string sText;
-        helpBuf.Init(0, 0, screenInfo.dwSize.X, screenInfo.dwSize.Y);
+        helpBuf.Init(0, 0, ScreenW(), ScreenH());
         helpBuf.Clear(0);
 
         if (mpCLP)
@@ -2073,7 +2079,7 @@ void FolderList::OnKey(int keycode, char c)
         TableOutput additionalHelp;
         additionalHelp.SetBorders('+', '+', '+', '+');
         additionalHelp.SetSeparator(' ', 1);
-        additionalHelp.SetMinimumOutputWidth(screenInfo.dwSize.X-1);
+        additionalHelp.SetMinimumOutputWidth(ScreenW() -1);
 
         additionalHelp.AddRow(cols[kSECTION] + "--Key Combo--", "--Action--");
 
@@ -2091,7 +2097,7 @@ void FolderList::OnKey(int keycode, char c)
         additionalHelp.AddRow(cols[kPARAM] + "[UP]", "Command Line History (When cursor at top)" + cols[kRESET]);
 
 
-        additionalHelp.AlignWidth(screenInfo.dwSize.X);
+        additionalHelp.AlignWidth(ScreenW());
 
 
         sText += "\n\n------Help for Interactive Command Line Editor---------\n\n";
@@ -2132,8 +2138,8 @@ void FolderList::OnKey(int keycode, char c)
             return sCommandLine;
         }
 
-        SHORT w = screenInfo.dwSize.X;
-        SHORT h = screenInfo.dwSize.Y;
+        SHORT w = ScreenW();
+        SHORT h = ScreenH();
 
 
         popupListWin.Init(w / 4, h / 4, w * 3 / 4, h * 3 / 4);
@@ -2283,9 +2289,9 @@ void FolderList::OnKey(int keycode, char c)
             cout << "Canceled editing.\n";
             if (!rawCommandBuf.GetText().empty())
             {
-                cout << string(screenInfo.dwSize.X, '*');
+                cout << string(ScreenW(), '*');
                 cout << "Last Edit: \"" << COL_YELLOW << CLP::appName << " " << rawCommandBuf.GetText() << COL_RESET << "\"\n";
-                cout << string(screenInfo.dwSize.X, '*');
+                cout << string(ScreenW(), '*');
                 cout << "\n\n";
             }
             return "";
@@ -2417,3 +2423,5 @@ void FolderList::OnKey(int keycode, char c)
         return true;
     }
 };
+
+#endif // ENABLE_CLE

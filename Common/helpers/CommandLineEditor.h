@@ -1,4 +1,7 @@
 #pragma once
+
+#ifdef ENABLE_CLE
+
 #include <string>
 #include "CommandLineParser.h"
 #include "StringHelpers.h"
@@ -276,3 +279,5 @@ namespace CLP
 
 
 };  // namespace CLP
+
+#endif // ENABLE_CLE

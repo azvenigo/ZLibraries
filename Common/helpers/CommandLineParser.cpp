@@ -10,16 +10,21 @@
 #include <filesystem>
 #include <algorithm>
 
+
+
 #ifdef _WIN64
 #define NOMINMAX
 #include <Windows.h> // For enabling ANSI color output
-#include "CommandLineEditor.h"
 
+
+#ifdef ENABLE_CLE
+#include "CommandLineEditor.h"
     #ifdef _DEBUG
     #include <conio.h> 
     #endif
+#endif // ENABLE_CLE
 
-#endif
+#endif // _WIN64
 
 #ifdef _DEBUG
 #define PAUSE_FOR_KEY { std::cout << "hit any key..."; _getch(); }
@@ -33,7 +38,7 @@ using namespace std;
 using namespace SH;
 namespace fs = std::filesystem;
 
-int64_t LOG::gnVerbosityLevel = LVL_DEFAULT;
+//int64_t LOG::gnVerbosityLevel = LVL_DEFAULT;
 
 namespace CLP
 {
@@ -147,6 +152,8 @@ namespace CLP
                     {
                         return true;
                     }
+                    default:
+                        break;
                 }
             }
 
@@ -225,6 +232,8 @@ namespace CLP
                 {
                     return true;
                 }
+                default:
+                    break;
             }
 
             return false;
@@ -426,7 +435,6 @@ namespace CLP
 
     bool CLModeParser::HandleArgument(const std::string& sArg)
     {
-        bool bVerbose = LOG::gnVerbosityLevel > LVL_DEFAULT;
         // named argument
         if (sArg[0] == '-')
         {
@@ -811,11 +819,11 @@ namespace CLP
         // 3) Single Mode
         //      Show general help
 
-
+#ifdef ENABLE_CLE
         bool bShowEdit = ContainsArgument("!", params);
         if (bShowEdit)
             return kErrorShowEdit;
-        
+#endif        
         bool bMultiMode = !mModeToCommandLineParser.empty();
 
         if (params.empty())
@@ -888,6 +896,15 @@ namespace CLP
                 if (nErrors > 0)
                     return kErrorAbort;
 
+                if (nErrors > 0 || !mModeToCommandLineParser[msMode].CheckAllRequirementsMet() || !mGeneralCommandLineParser.CheckAllRequirementsMet())
+                {
+//                    mModeToCommandLineParser[msMode].ShowFoundParameters();
+//                    mGeneralCommandLineParser.ShowFoundParameters();
+
+//                    cout << "\n\"" << cols[kERROR] << "Error:" << appName << " " << cols[kPARAM] << msMode << " -?" << cols[kRESET] << "\" - to see usage.\n";
+                    return kErrorAbort;
+                }
+
                 return kSuccess;
             }
             else
@@ -909,8 +926,13 @@ namespace CLP
                     }
                 }
 
-                if (nErrors > 0)
+                if (nErrors > 0 || !mGeneralCommandLineParser.CheckAllRequirementsMet())
+                {
+//                    mGeneralCommandLineParser.ShowFoundParameters();
+
+//                    cout << "\n\"" << cols[kERROR] << "Error:" << appName << " " << cols[kPARAM] << " -?" << cols[kRESET] << "\" - to see usage.\n";
                     return kErrorAbort;
+                }
 
                 return kSuccess;
             }
@@ -995,8 +1017,8 @@ namespace CLP
         size_t len = value.length();
         if (len >= 2)
         {
-            if (value[0] == '\"' && value[len - 1] == '\"' ||
-                value[0] == '\'' && value[len - 1] == '\'')
+            if ((value[0] == '\"' && value[len - 1] == '\"') ||
+                (value[0] == '\'' && value[len - 1] == '\''))
             {
                 return value.substr(1, len - 2);
             }
@@ -1022,7 +1044,9 @@ namespace CLP
 
     bool CommandLineParser::Parse(int argc, char* argv[], bool bEditOnParseFail)
     {
+#ifdef ENABLE_CLE
         CLP::CommandLineEditor editor;
+#endif
 
         appPath = argv[0];
 #ifdef _WIN64
@@ -1081,7 +1105,7 @@ namespace CLP
                 cout << usageTable;
 
 
-                cout << "\n\"" << cols[kAPP] << appName << " " << cols[kPARAM] << msMode << " ?" << cols[kRESET] << "\" - to see usage.\n";
+//                cout << "\n\"" << cols[kAPP] << appName << " " << cols[kPARAM] << msMode << " ?" << cols[kRESET] << "\" - to see usage.\n";
                 bSuccess = false;
                 break;
             }
@@ -1116,6 +1140,7 @@ namespace CLP
                 bSuccess = false;
                 break;
             }
+#ifdef ENABLE_CLE
             else if (response == kErrorShowEdit)
             {
                 editor.SetConfiguredCLP(this);
@@ -1138,6 +1163,7 @@ namespace CLP
                 }
                 argArray = ToArray(result);
             }
+#endif
         }
 
 //        PAUSE_FOR_KEY
@@ -1428,9 +1454,10 @@ namespace CLP
         if (IsMultiMode())
             sExampleCommand = (*mModeToCommandLineParser.begin()).first;
         helpTable.AddRow("For example: " + cols[kAPP] + appName + " " + cols[kPARAM] + sExampleCommand + " ?" + cols[kRESET]);
+#ifdef ENABLE_CLE
         helpTable.AddRow(" ");
         helpTable.AddRow("Add '!' anywhere on command line for interactive command line editing.");
-
+#endif
 
 
         size_t nMinWidth = 80;

@@ -20,19 +20,12 @@ endif()
 # BinTool
 
 set(BINTOOL_SOURCES main.cpp)
-set(COMMON_FILES 
-../Common/helpers/CommandLineParser.cpp 
-../Common/helpers/CommandLineParser.h 
-../Common/helpers/CommandLineEditor.cpp 
-../Common/helpers/CommandLineEditor.h 
+list(APPEND COMMON_FILES 
 ../Common/helpers/sha256.h 
 ../Common/helpers/sha256.cpp 
 ../Common/helpers/Crc32Fast.h 
 ../Common/helpers/Crc32Fast.cpp 
-../Common/helpers/StringHelpers.h 
-../Common/helpers/StringHelpers.cpp
-../Common/helpers/FileHelpers.h 
-../Common/helpers/FileHelpers.cpp)
+)
 
 
 ####################

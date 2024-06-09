@@ -11,7 +11,9 @@
 #include <iomanip>
 #include <algorithm>
 
+#ifndef __PROSPERO__
 #define ENABLE_ANSI_OUT
+#endif
 #ifdef ENABLE_ANSI_OUT
 
 #define COL_RESET   "\033[00m"
@@ -76,7 +78,7 @@ namespace LOG
 #define OUT_DEFAULT(statement)  { if (LOG::gnVerbosityLevel >= LVL_DEFAULT) statement; }
 #define OUT_DIAG(statement)     { if (LOG::gnVerbosityLevel >= LVL_DIAG_BASIC) {statement;} }
 #define OUT_DIAG_FULL(statement){ if (LOG::gnVerbosityLevel >= LVL_DIAG_FULL) {statement;} }
-#define OUT_ERR(statement)      { statement; assert(false); }
+#define OUT_ERR(statement)      { statement; cerr << std::flush; assert(false); }
 
 
 #define OUT_HEX(statement)          std::hex << statement << std::dec 

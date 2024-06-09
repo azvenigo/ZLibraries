@@ -164,7 +164,8 @@ namespace CLP
     public:
         friend class CLModeParser;
         friend class CommandLineParser;
-#ifdef _WIN64
+
+#ifdef ENABLE_CLE
         friend class CommandLineEditor;
 #endif
 
@@ -238,7 +239,7 @@ namespace CLP
     class CLModeParser
     {
         friend class CommandLineParser;
-#ifdef _WIN64
+#ifdef ENABLE_CLE
         friend class CommandLineEditor;
 #endif
 
@@ -291,7 +292,7 @@ namespace CLP
     class CommandLineParser
     {
     public:
-#ifdef _WIN64
+#ifdef ENABLE_CLE
         friend class CommandLineEditor;
 #endif
 

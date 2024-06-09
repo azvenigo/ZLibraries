@@ -20,21 +20,7 @@ endif()
 # FileGen
 
 set(FILEGEN_SOURCES FileGen.cpp)
-set(COMMON_FILES 
-    ../Common/helpers/CommandLineEditor.cpp 
-    ../Common/helpers/CommandLineEditor.h 
-    ../Common/helpers/CommandLineParser.cpp 
-    ../Common/helpers/CommandLineParser.h 
-    ../Common/helpers/StringHelpers.h 
-    ../Common/helpers/StringHelpers.cpp
-    ../Common/helpers/FileHelpers.h 
-    ../Common/helpers/FileHelpers.cpp
-)
 
-
-####################
-# common source
-list(APPEND INCLUDE_DIRS ../Common)
 
 
 
