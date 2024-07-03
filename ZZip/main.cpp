@@ -107,7 +107,7 @@ int main(int argc, char* argv[])
         gsBaseFolder.find("*") != std::string::npos)
     {
         cout << "ERROR: Folder \"" << gsBaseFolder << "\" includes illegal wildcards.\n";
-        return false;
+        return -1;
     }
 
     if (gsOutputFormat == "html")

@@ -143,7 +143,7 @@ namespace CLP
     // array of colors
     extern std::string     cols[kMAX_CATEGORIES];
 
-    static void ResetCols()            // reset colored output
+    [[maybe_unused]] static void ResetCols()            // reset colored output
     {
         cols[kRESET]    = COL_RESET;
         cols[kAPP]      = COL_YELLOW;
@@ -152,9 +152,9 @@ namespace CLP
         cols[kERROR]    = COL_RED;
     };
 
-    static void DisableCols()          // disable colored output
+    [[maybe_unused]] static void DisableCols()          // disable colored output
     {
-        for (int i = 0; i < kMAX_CATEGORIES; i++)
+        for (uint32_t i = 0; i < kMAX_CATEGORIES; i++)
             cols[i] = "";
     };
 

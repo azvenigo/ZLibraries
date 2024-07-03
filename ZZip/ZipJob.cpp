@@ -231,7 +231,7 @@ void ZipJob::RunDiffJob(void* pContext)
     // Step 1) See what files in the zip archive do not exist locally
     for (auto cdHeader : zipCD.mCDFileHeaderList)
     {
-        diffResults.emplace_back(pool.enqueue([=, &zipCD]
+        diffResults.emplace_back(pool.enqueue([=]
         {
             if (cdHeader.mFileName.length() == 0)
                 return DiffTaskResult(DiffTaskResult::kError, 0, "empty filename.");
@@ -516,7 +516,7 @@ void ZipJob::RunDecompressionJob(void* pContext)
 
     for (auto cdHeader : filesToDecompress)
     {
-        decompResults.emplace_back(pool.enqueue([=, &zipCD, &zipAPI, &nTotalTimeOnFileVerification, &nTotalBytesVerified]
+        decompResults.emplace_back(pool.enqueue([=, &zipAPI, &nTotalTimeOnFileVerification, &nTotalBytesVerified]
         {
             if (cdHeader.mFileName.length() == 0)
                 return DecompressTaskResult(DecompressTaskResult::kAlreadyUpToDate, 0, 0, 0, 0, "", "empty filename.");
