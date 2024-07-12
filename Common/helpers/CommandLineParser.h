@@ -167,6 +167,7 @@ namespace CLP
 
 #ifdef ENABLE_CLE
         friend class CommandLineEditor;
+        friend class ParamListWin;
 #endif
 
         // named string

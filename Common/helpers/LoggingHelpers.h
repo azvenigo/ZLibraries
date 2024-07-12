@@ -17,24 +17,24 @@
 #ifdef ENABLE_ANSI_OUT
 
 #define COL_RESET   "\033[00m"
-#define COL_BLACK   "\033[30m"   
-#define COL_RED     "\033[31m"      
-#define COL_GREEN   "\033[32m"    
+#define COL_BLACK   "\033[30m"
+#define COL_RED     "\033[31m"
+#define COL_GREEN   "\033[32m"
 #define COL_BLUE    "\033[34m"
-#define COL_YELLOW  "\033[33m"   
-#define COL_PURPLE  "\033[35m"   
-#define COL_CYAN    "\033[36m"     
-#define COL_WHITE   "\033[37m"      
+#define COL_YELLOW  "\033[33m"
+#define COL_PURPLE  "\033[35m"
+#define COL_CYAN    "\033[36m"
+#define COL_WHITE   "\033[37m"
 
 
-#define COL_BG_BLACK   "\033[40m"   
+#define COL_BG_BLACK   "\033[40m"
 #define COL_BG_RED     "\033[41m"
-#define COL_BG_GREEN   "\033[42m"    
+#define COL_BG_GREEN   "\033[42m"
 #define COL_BG_BLUE    "\033[44m"
-#define COL_BG_YELLOW  "\033[43m"   
-#define COL_BG_PURPLE  "\033[45m"   
-#define COL_BG_CYAN    "\033[46m"     
-#define COL_BG_WHITE   "\033[47m"      
+#define COL_BG_YELLOW  "\033[43m"
+#define COL_BG_PURPLE  "\033[45m"
+#define COL_BG_CYAN    "\033[46m"
+#define COL_BG_WHITE   "\033[47m"
 
 #else
 

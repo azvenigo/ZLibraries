@@ -18,11 +18,35 @@
 using namespace std;
 namespace fs = std::filesystem;
 
+// Styles
+const ZAttrib kAttribCaption(BLACK | MAKE_BG(GOLD));
+const ZAttrib kAttribSection(CYAN);
+
+const ZAttrib kAttribFolderListBG(MAKE_BG(0xff000044));
+
+const ZAttrib kAttribListBoxBG(MAKE_BG(ORANGE));
+const ZAttrib kAttribListBoxEntry(WHITE);
+const ZAttrib kAttribListBoxSelectedEntry(BLACK | MAKE_BG(YELLOW));
+
+const ZAttrib kAttribParamListBG(MAKE_BG(0xff4444aa));
+const ZAttrib kAttribTopInfoBG(BLACK|MAKE_BG(0xFF333399));
+
+
+const ZAttrib kRawText(WHITE);
+const ZAttrib kSelectedText(WHITE | MAKE_BG(0xFF999999));
+const ZAttrib kGoodParam(GREEN);
+const ZAttrib kBadParam(RED);
+const ZAttrib kUnknownParam(YELLOW);
+
+
+
 namespace CLP
 {
-//    string          appEXE;         // first argument
+    CommandLineParser* pCLP = nullptr;
+    CommandLineEditor* pCLE = nullptr;
+
     RawEntryWin     rawCommandBuf;  // raw editing buffer 
-    AnsiColorWin    paramListBuf;   // parsed parameter list with additional info
+    ParamListWin    paramListBuf;   // parsed parameter list with additional info
     AnsiColorWin    topInfoBuf;
     AnsiColorWin    usageBuf;       // simple one line drawing of usage
     InfoWin         helpBuf;        // popup help window
@@ -33,11 +57,48 @@ namespace CLP
     const size_t    kCommandHistoryLimit = 10; // 10 for now while developing
     tStringList     commandHistory;
 
+    tEnteredParams  enteredParams;
+    tStringList     availableModes;
+    tStringList     availableNamedParams;
+
     const string    kEmptyFolderCaption("[EMPTY]");
 
     CONSOLE_SCREEN_BUFFER_INFO screenInfo;
     inline SHORT ScreenW() { return screenInfo.srWindow.Right - screenInfo.srWindow.Left+1; }
     inline SHORT ScreenH() { return screenInfo.srWindow.Bottom - screenInfo.srWindow.Top+1; }
+    bool bScreenChanged = false;
+
+
+    string GetMode()
+    {
+        if (enteredParams.size() > 0)
+            return enteredParams[0].sParamText;
+        return "";
+    }
+
+    tEnteredParams GetPositionalEntries()
+    {
+        tEnteredParams posparams;
+        for (auto& param : enteredParams)
+            if (param.positionalindex >= 0)
+                posparams.push_back(param);
+
+        return posparams;
+    }
+
+    tEnteredParams GetNamedEntries()
+    {
+        tEnteredParams namedparams;
+        for (auto& param : enteredParams)
+        {
+            if (param.sParamText[0] == '-')
+            {
+                namedparams.push_back(param);
+            }
+        }
+
+        return namedparams;
+    }
 
 
 
@@ -45,7 +106,8 @@ namespace CLP
     
     CommandLineEditor::CommandLineEditor()
     {
-        mpCLP = nullptr;
+        pCLP = nullptr;
+        pCLE = this;
     }
 
     void RawEntryWin::UpdateFirstVisibleRow()
@@ -78,7 +140,10 @@ namespace CLP
             index = (int)mText.length();
         mLocalCursorPos = TextIndexToCursor(index);
 
-        SetConsoleCursorPosition(GetStdHandle(STD_OUTPUT_HANDLE), LocalCursorToGlobal(mLocalCursorPos));
+//        SetConsoleCursorPosition(GetStdHandle(STD_OUTPUT_HANDLE), LocalCursorToGlobal(mLocalCursorPos));
+
+        COORD global = LocalCursorToGlobal(mLocalCursorPos);
+        cout << "\033[" << global.X+1 << "G\033[" << global.Y << "d" << std::flush;
     }
 
 
@@ -87,37 +152,6 @@ namespace CLP
         return COORD(cursor.X + (SHORT)mX, cursor.Y + (SHORT)mY);
     }
 
-
-    tEnteredParams CommandLineEditor::GetPositionalEntries()
-    {
-        tEnteredParams posparams;
-        for (auto& param : mParams)
-            if (param.positionalindex >= 0)
-                posparams.push_back(param);
-
-        return posparams;
-    }
-
-    tEnteredParams CommandLineEditor::GetNamedEntries()
-    {
-        tEnteredParams namedparams;
-        for (auto& param : mParams)
-        {
-            if (param.sParamText[0] == '-')
-            {
-                namedparams.push_back(param);
-            }
-        }
-
-        return namedparams;
-    }
-
-    string CommandLineEditor::GetMode()
-    {
-        if (mParams.size() > 0)
-            return mParams[0].sParamText;
-        return "";
-    }
 
 
     void RawEntryWin::FindNextBreak(int nDir)
@@ -181,35 +215,33 @@ namespace CLP
         return (i >= normalizedStart && i < normalizedEnd);
     }
 
-
-    tStringList CommandLineEditor::GetCLPModes()
-    {
-        tStringList modes;
-        if (mpCLP)
+    void CommandLineEditor::SetConfiguredCLP(CommandLineParser* _pCLP)
+    { 
+        pCLP = _pCLP; 
+        availableModes.clear();
+        if (pCLP)
         {
-            for (auto& mode : mpCLP->mModeToCommandLineParser)
-                modes.push_back(mode.first);
+            for (auto& mode : pCLP->mModeToCommandLineParser)
+                availableModes.push_back(mode.first);
         }
-
-        return modes;
     }
 
     tStringList CommandLineEditor::GetCLPNamedParamsForMode(const std::string& sMode)
     {
         tStringList params;
-        if (mpCLP)
+        if (pCLP)
         {
             // go over all general params
-            for (auto& pd : mpCLP->mGeneralCommandLineParser.mParameterDescriptors)
+            for (auto& pd : pCLP->mGeneralCommandLineParser.mParameterDescriptors)
             {
                 if (pd.IsNamed())
                     params.push_back("-" + pd.msName + ":");
             }
 
             // now add any mode specific
-            if (mpCLP->IsRegisteredMode(sMode))
+            if (pCLP->IsRegisteredMode(sMode))
             {
-                for (auto& pd : mpCLP->mModeToCommandLineParser[sMode].mParameterDescriptors)
+                for (auto& pd : pCLP->mModeToCommandLineParser[sMode].mParameterDescriptors)
                 {
                     if (pd.IsNamed())
                         params.push_back("-" + pd.msName + ":");
@@ -224,20 +256,20 @@ namespace CLP
 
     CLP::ParamDesc* CommandLineEditor::GetParamDesc(const std::string& sMode, int64_t position)
     {
-        if (mpCLP)
+        if (pCLP)
         {
             ParamDesc* pDesc = nullptr;
             // if CLP is configured with a specific mode go through parameters for that mode
-            if (!sMode.empty() && mpCLP->IsRegisteredMode(sMode))
+            if (!sMode.empty() && pCLP->IsRegisteredMode(sMode))
             {
-                CLP::CLModeParser& parser = mpCLP->mModeToCommandLineParser[sMode];
+                CLP::CLModeParser& parser = pCLP->mModeToCommandLineParser[sMode];
 
                 if (parser.GetDescriptor(position, &pDesc))
                     return pDesc;
             }
 
             // no mode specific param, search general params
-            if (mpCLP->mGeneralCommandLineParser.GetDescriptor(position, &pDesc))
+            if (pCLP->mGeneralCommandLineParser.GetDescriptor(position, &pDesc))
                 return pDesc;
         }
 
@@ -246,20 +278,20 @@ namespace CLP
 
     CLP::ParamDesc* CommandLineEditor::GetParamDesc(const std::string& sMode, std::string& paramName)
     {
-        if (mpCLP)
+        if (pCLP)
         {
             ParamDesc* pDesc = nullptr;
             // if CLP is configured with a specific mode go through parameters for that mode
-            if (!sMode.empty() && mpCLP->IsRegisteredMode(sMode))
+            if (!sMode.empty() && pCLP->IsRegisteredMode(sMode))
             {
-                CLP::CLModeParser& parser = mpCLP->mModeToCommandLineParser[sMode];
+                CLP::CLModeParser& parser = pCLP->mModeToCommandLineParser[sMode];
 
                 if (parser.GetDescriptor(paramName, &pDesc))
                     return pDesc;
             }
 
             // no mode specific param, search general params
-            if (mpCLP->mGeneralCommandLineParser.GetDescriptor(paramName, &pDesc))
+            if (pCLP->mGeneralCommandLineParser.GetDescriptor(paramName, &pDesc))
                 return pDesc;
         }
 
@@ -327,7 +359,7 @@ namespace CLP
 
     bool RawEntryWin::GetParameterUnderIndex(int64_t index, size_t& outStart, size_t& outEnd, string& outParam)
     {
-        for (auto& entry : mEnteredParams)
+        for (auto& entry : enteredParams)
         {
             if (index >= entry.rawCommandLineStartIndex && index <= entry.rawCommandLineStartIndex + (int64_t)entry.sParamText.length())
             {
@@ -398,35 +430,47 @@ void ListboxWin::Paint(tConsoleBuffer& backBuf)
     if (!mbVisible)
         return;
 
+    Clear(mClearAttrib);
+    
     int64_t topVisibleRow = -1;
     int64_t visibleRows = mHeight - 2;
     if (mSelection > visibleRows)
         topVisibleRow -= (visibleRows- mSelection-1);
 
-    string sCaption(COL_YELLOW + mTopCaption + " [" + SH::FromInt(mSelection + 1) + "/" + SH::FromInt(mEntries.size()) + "]" + COL_RESET);
-    Fill(0, 0, mWidth, 1, 0);   // top
-    Fill(0, 0, 1, mHeight, 0);   // left
-    Fill(0, mHeight - 1, mWidth, mHeight, 0);    // bottom
-    Fill(mWidth - 1, 0, mWidth, mHeight, 0);    // right
-    DrawClippedAnsiText(1, 0, sCaption, false);
+//    string sCaption(COL_YELLOW + mTopCaption + " [" + SH::FromInt(mSelection + 1) + "/" + SH::FromInt(mEntries.size()) + "]" + COL_RESET);
+    string sCaption(mTopCaption + " [" + SH::FromInt(mSelection + 1) + "/" + SH::FromInt(mEntries.size()) + "]");
+
+    Fill(0, 0, mWidth, mHeight, mClearAttrib);
+
+    Fill(0, 0, mWidth, 1, kAttribCaption);   // top
+    Fill(0, 0, 1, mHeight, kAttribCaption);   // left
+    Fill(0, mHeight - 1, mWidth, mHeight, kAttribCaption);    // bottom
+    Fill(mWidth - 1, 0, mWidth, mHeight, kAttribCaption);    // right
+    //DrawClippedAnsiText(1, 0, sCaption, false);
+    DrawClippedText(1, 0, sCaption, kAttribCaption);
 
     if (!mBottomCaption.empty())
     {
-        string sCaption(COL_YELLOW + mBottomCaption + COL_RESET);
-        DrawClippedAnsiText(0, mHeight - 1, sCaption, false);
+//        string sCaption(COL_YELLOW + mBottomCaption + COL_RESET);
+//        DrawClippedAnsiText(0, mHeight - 1, sCaption, false);
+
+        string sCaption(mBottomCaption);
+        DrawClippedText(0, mHeight - 1, sCaption, kAttribCaption);
     }
 
 
     int64_t drawrow = -topVisibleRow;
     int64_t selection = 0;
+
     for (auto& entry : mEntries)
     {
         if (drawrow > 0 && drawrow < mHeight-1)
         {
             string s = entry;
+            DrawClippedText(1, drawrow, s, kAttribListBoxEntry);
             if (selection == mSelection)
-                s = COL_BG_GREEN + s;
-            DrawClippedAnsiText(1, drawrow, s, false);
+                Fill(1, drawrow, mWidth - 1, drawrow + 1, kAttribListBoxSelectedEntry);
+//                DrawClippedText(1, drawrow, s, kAttribListBoxSelectedEntry);
         }
 
         drawrow++;
@@ -609,14 +653,14 @@ void ListboxWin::SetEntries(tStringList entries, string selectionSearch, int64_t
 
     if (height > mAnchorB)
     {
-        t = 0;
-        b = mAnchorB;
+        t = 1;
+        b = mAnchorB-1;
     }
 
     if (width > ScreenW())
     {
-        l = 0;
-        r = ScreenW();
+        l = 1;
+        r = ScreenW()-1;
     }
 
 
@@ -699,69 +743,92 @@ void FolderList::OnKey(int keycode, char c)
 
 
 
-    void ConsoleWin::Clear(WORD attrib)
+    void ConsoleWin::Clear(ZAttrib attrib)
     {
         mClearAttrib = attrib;
         for (size_t i = 0; i < mBuffer.size(); i++)
         {
-            mBuffer[i].Char.AsciiChar = 0;
-            mBuffer[i].Attributes = mClearAttrib;
+            mBuffer[i].c = 0;
+            mBuffer[i].attrib = mClearAttrib;
         }
     }
 
-    void ConsoleWin::Fill(int64_t l, int64_t t, int64_t r, int64_t b, WORD attrib)
+    void ConsoleWin::Fill(int64_t l, int64_t t, int64_t r, int64_t b, ZAttrib attrib)
     {
         for (int64_t y = t; y < b; y++)
         {
             for (int64_t x = l; x < r; x++)
             {
                 size_t offset = y * mWidth + x;
-                mBuffer[offset].Attributes = attrib;
+                mBuffer[offset].attrib = attrib;
             }
         }
     }
 
-
-    void ConsoleWin::DrawCharClipped(char c, int64_t x, int64_t y, WORD attrib)
+    void ConsoleWin::Fill(ZAttrib attrib)
     {
-        WORD foregroundColor = attrib & 0x0F;
-        WORD backgroundColor = (attrib >> 4) & 0x0F;
-        if (foregroundColor == backgroundColor && backgroundColor == mClearAttrib)  // would be invisible
+        return Fill(0, 0, mWidth, mHeight, attrib);
+    }
+
+
+
+    void ConsoleWin::DrawCharClipped(char c, int64_t x, int64_t y, ZAttrib attrib)
+    {
+        if (attrib.FG() == attrib.BG())  // would be invisible
         {
-            if (backgroundColor == FOREGROUND_WHITE)
-                attrib = 0;
-            else
-                attrib = FOREGROUND_WHITE;
+            // invert fg
+            attrib.r = ~attrib.r;
+            attrib.g = ~attrib.g;
+            attrib.b = ~attrib.b;
         }
 
         size_t offset = y * mWidth + x;
         DrawCharClipped(c, (int64_t)offset, attrib);
     }
 
-    void ConsoleWin::DrawCharClipped(char c, int64_t offset, WORD attrib)
+    void ConsoleWin::DrawCharClipped(char c, int64_t offset, ZAttrib attrib)
     {
         if (offset >= 0 && offset < (int64_t)mBuffer.size())    // clip
         {
-            mBuffer[offset].Char.AsciiChar = c;
-            mBuffer[offset].Attributes |= attrib;
+            mBuffer[offset].c = c;
+            if (GET_BA(attrib) > 0)
+                mBuffer[offset].attrib = (uint64_t)attrib;
+            else
+                mBuffer[offset].attrib.SetFG(attrib.FG());  // if background is transparent, only set FG color
         }
     }
 
 
 
-    void ConsoleWin::DrawFixedColumnStrings(int64_t x, int64_t y, tStringArray& strings, vector<size_t>& colWidths, tAttribArray attribs)
+    int64_t ConsoleWin::DrawFixedColumnStrings(int64_t x, int64_t y, tStringArray& strings, vector<size_t>& colWidths, tAttribArray attribs)
     {
         assert(strings.size() == colWidths.size() && colWidths.size() == attribs.size());
 
-        for (int i = 0; i < strings.size(); i++)
+        int64_t rowsDrawn = 0;
+        for (int i = 0; i < strings.size()-1; i++)
         {
-            string sDraw(strings[i].substr(0, colWidths[i]));
-            DrawClippedText(x, y, sDraw, attribs[i], false);
+            DrawClippedText(x, y, strings[i], attribs[i], false);
             x += colWidths[i];
         }
+
+        // draw final column
+        int64_t finalCol = strings.size() - 1;
+        string sDraw = strings[finalCol];
+
+        // draw as many rows as needed to
+        int64_t remainingColumnWidth = screenInfo.srWindow.Right - x;
+        while (remainingColumnWidth > 0 && sDraw.length())
+        {
+            DrawClippedText(x, y, sDraw.substr(0, remainingColumnWidth), attribs[finalCol], false);
+            y++;
+            sDraw = sDraw.substr(std::min<int64_t>(remainingColumnWidth, (int64_t)sDraw.length()));
+            rowsDrawn++;
+        }
+
+        return rowsDrawn;
     }
 
-    void ConsoleWin::DrawClippedText(int64_t x, int64_t y, std::string text, WORD attributes, bool bWrap)
+    void ConsoleWin::DrawClippedText(int64_t x, int64_t y, std::string text, ZAttrib attributes, bool bWrap)
     {
         COORD cursor((SHORT)x, (SHORT)y);
 
@@ -784,7 +851,7 @@ void FolderList::OnKey(int keycode, char c)
         }
     }
 
-    void RawEntryWin::DrawClippedText(int64_t x, int64_t y, std::string text, WORD attributes, bool bWrap, bool bHeightlightSelection)
+/*    void RawEntryWin::DrawClippedText(int64_t x, int64_t y, std::string text, ZAttrib attributes, bool bWrap, bool bHeightlightSelection)
     {
         COORD cursor((SHORT)x, (SHORT)y);
 
@@ -799,19 +866,19 @@ void FolderList::OnKey(int keycode, char c)
             else
             {
                 if (bHeightlightSelection && IsIndexInSelection(textindex))
-                    DrawCharClipped(c, cursor.X, cursor.Y, attributes | BACKGROUND_INTENSITY);
+                    DrawCharClipped(c, cursor.X, cursor.Y, kAttribRawSelectedText);
                 else
-                    DrawCharClipped(c, cursor.X, cursor.Y, attributes);
+                    DrawCharClipped(c, cursor.X, cursor.Y, kAttribRawText);
             }
 
             cursor.X++;
             if (cursor.X >= mWidth && !bWrap)
                 break;
         }
-    }
+    }*/
 
 
-    bool getANSIColorAttribute(const std::string& str, size_t offset, WORD& attribute, size_t& length)
+    bool getANSIColorAttribute(const std::string& str, size_t offset, ZAttrib& attribute, size_t& length)
     {
         // Check if there are enough characters after the offset to form an ANSI sequence
         if (offset + 2 >= str.size())
@@ -864,25 +931,24 @@ void FolderList::OnKey(int keycode, char c)
                 for (const auto& code : colorCodes)
                 {
                     int colorCode = std::stoi(code);
-                    if (colorCode >= 30 && colorCode <= 37)
-                    { // Foreground colors
-//                        attribute |= FOREGROUND_INTENSITY;
-                        switch (colorCode)
-                        {
-                        case 30: break; // Black
-                        case 31: attribute |= FOREGROUND_RED; break;
-                        case 32: attribute |= FOREGROUND_GREEN; break;
-                        case 33: attribute |= FOREGROUND_RED | FOREGROUND_GREEN; break; // Yellow
-                        case 34: attribute |= FOREGROUND_BLUE | FOREGROUND_GREEN; break; // Cyan
-                        case 35: attribute |= FOREGROUND_RED | FOREGROUND_BLUE; break; // Magenta
-                        case 36: attribute |= FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE; break; // White
-                        case 37: break; // Default color
-                        }
-                    }
-                    else if (colorCode >= 40 && colorCode <= 47)
-                    { // Background colors
-                        attribute |= BACKGROUND_INTENSITY;
-                        attribute |= (colorCode - 40) << 4; // Shift left by 4 bits to set the background color
+                    switch (colorCode)
+                    {
+                    case 30: attribute |= BLACK;  break; // Black
+                    case 31: attribute |= RED; break;
+                    case 32: attribute |= GREEN; break;
+                    case 33: attribute |= YELLOW; break; // Yellow
+                    case 34: attribute |= CYAN; break; // Cyan
+                    case 35: attribute |= MAGENTA; break; // Magenta
+                    case 36: attribute |= WHITE; break; // White
+                    case 37: break; // Default color
+                    case 40: attribute |= MAKE_BG(BLACK);  break; // Background Black
+                    case 41: attribute |= MAKE_BG(RED); break;
+                    case 42: attribute |= MAKE_BG(GREEN); break;
+                    case 43: attribute |= MAKE_BG(YELLOW); break; // Yellow
+                    case 44: attribute |= MAKE_BG(CYAN); break; // Cyan
+                    case 45: attribute |= MAKE_BG(MAGENTA); break; // Magenta
+                    case 46: attribute |= MAKE_BG(WHITE); break; // White
+                    case 47: break; // Default color
                     }
                 }
             }
@@ -899,7 +965,7 @@ void FolderList::OnKey(int keycode, char c)
         h = 0;
         int64_t x = 0;
         int64_t y = 0;
-        WORD attrib = FOREGROUND_WHITE;
+        ZAttrib attrib;
         for (size_t i = 0; i < text.length(); i++)
         {
             size_t skiplength = 0;
@@ -930,7 +996,7 @@ void FolderList::OnKey(int keycode, char c)
     {
         COORD cursor((SHORT)x, (SHORT)y);
 
-        WORD attrib = FOREGROUND_WHITE;
+        ZAttrib attrib(WHITE);
 
         for (size_t i = 0; i < ansitext.length(); i++)
         {
@@ -991,6 +1057,7 @@ void FolderList::OnKey(int keycode, char c)
         if (!mbVisible)
             return;
 
+
         int64_t dr = ScreenW();
         int64_t db = ScreenH();
 
@@ -1020,15 +1087,17 @@ void FolderList::OnKey(int keycode, char c)
         if (!mbVisible)
             return;
 
+        Clear(mClearAttrib);
+
         COORD cursor((SHORT)0, (SHORT)-firstVisibleRow);
 
-        std::vector<WORD> attribs;
+        std::vector<ZAttrib> attribs;
         attribs.resize(mText.size());
 
 
         for (size_t textindex = 0; textindex < mText.length(); textindex++)
         {
-            attribs[textindex] = FOREGROUND_WHITE;
+            attribs[textindex] = kRawText;
         }
 
         for (size_t textindex = 0; textindex < mText.length(); textindex++)
@@ -1039,7 +1108,7 @@ void FolderList::OnKey(int keycode, char c)
             string sParamUnderCursor;
             if (GetParameterUnderIndex(textindex, startIndex, endIndex, sParamUnderCursor))
             {
-                for (auto& param : mEnteredParams)
+                for (auto& param : enteredParams)
                 {
                     if (param.sParamText == sParamUnderCursor)
                     {
@@ -1059,7 +1128,7 @@ void FolderList::OnKey(int keycode, char c)
         for (size_t textindex = 0; textindex < mText.length(); textindex++)
         {
             if (IsIndexInSelection(textindex))
-                attribs[textindex] |= BACKGROUND_INTENSITY;
+                attribs[textindex] = kSelectedText;
         }
 
 
@@ -1092,6 +1161,8 @@ void FolderList::OnKey(int keycode, char c)
         // Update display
         if (!mbVisible)
             return;
+
+        //Fill(mClearAttrib);
 
         DrawClippedAnsiText(0, 0, mText);
         ConsoleWin::Paint(backBuf);
@@ -1329,31 +1400,25 @@ void FolderList::OnKey(int keycode, char c)
         UpdateFirstVisibleRow();
     }
 
-    void CommandLineEditor::UpdateDisplay()
+    void ParamListWin::Paint(tConsoleBuffer& backBuf)
     {
+        if (!pCLP)
+            return;
+
+        Clear(mClearAttrib);
 
         string sRaw(rawCommandBuf.GetText());
-       
+
         size_t rows = std::max<size_t>(1, (sRaw.size() + ScreenW() - 1) / ScreenW());
-//        rawCommandBufTopRow = screenBufferInfo.dwSize.Y - rows;
-
-        ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-        // Clear the raw command buffer and param buffers
-        rawCommandBuf.Clear();
-        popupListWin.Clear(BACKGROUND_INTENSITY);
-        historyWin.Clear(BACKGROUND_INTENSITY);
-        popupFolderListWin.Clear(BACKGROUND_INTENSITY);
-        paramListBuf.Clear(BACKGROUND_BLUE);
-        usageBuf.Clear(BACKGROUND_GREEN | BACKGROUND_RED);
-        topInfoBuf.Clear(BACKGROUND_GREEN | BACKGROUND_RED);
+        //        rawCommandBufTopRow = screenBufferInfo.dwSize.Y - rows;
 
 
-        ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+                ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-        // if the command line is bigger than the screen, show the last n rows that fit
+                // if the command line is bigger than the screen, show the last n rows that fit
 
 
-        if (!mParams.empty())   // if there are params entered
+        if (!enteredParams.empty())   // if there are params entered
         {
             // compute column widths
 
@@ -1366,12 +1431,12 @@ void FolderList::OnKey(int keycode, char c)
             colWidths[kColName] = 16;
             colWidths[kColEntry] = 12;
             colWidths[kColUsage] = ScreenW() - (colWidths[kColName] + colWidths[kColEntry]);
-            for (int paramindex = 0; paramindex < mParams.size(); paramindex++)
+            for (int paramindex = 0; paramindex < enteredParams.size(); paramindex++)
             {
-                string sText(mParams[paramindex].sParamText);
+                string sText(enteredParams[paramindex].sParamText);
                 colWidths[kColEntry] = std::max<size_t>(sText.length(), colWidths[kColEntry]);
 
-                ParamDesc* pPD = mParams[paramindex].pRelatedDesc;
+                ParamDesc* pPD = enteredParams[paramindex].pRelatedDesc;
                 if (pPD)
                 {
                     colWidths[kColName] = std::max<size_t>(pPD->msName.length(), colWidths[kColName]);
@@ -1380,67 +1445,66 @@ void FolderList::OnKey(int keycode, char c)
             }
 
             for (auto& i : colWidths)   // pad all cols
-                i+=2;
+                i += 2;
 
             tStringArray strings(3);
             tAttribArray attribs(3);
 
 
-            size_t row = 0;
+            size_t row = 1;
+           
 
-            tStringList modes = GetCLPModes();
-
-            if (modes.empty())
+            if (availableModes.empty())
             {
             }
             else
             {
                 // first param is command
-                string sMode = GetMode();
+                string sMode = CLP::GetMode();
 
                 strings[kColName] = "COMMAND";
-                attribs[kColName] = FOREGROUND_WHITE;
+                attribs[kColName] = kRawText;
 
                 strings[kColEntry] = sMode;
-                attribs[kColUsage] = FOREGROUND_WHITE;
+                attribs[kColUsage] = kRawText;
 
-                bool bModePermitted = modes.empty() || std::find(modes.begin(), modes.end(), sMode) != modes.end(); // if no modes registered or (if there are) if the first param matches one
+                bool bModePermitted = availableModes.empty() || std::find(availableModes.begin(), availableModes.end(), sMode) != availableModes.end(); // if no modes registered or (if there are) if the first param matches one
                 if (bModePermitted)
                 {
-                    attribs[kColEntry] = FOREGROUND_GREEN;
+                    attribs[kColEntry] = kGoodParam;
 
-                    if (mpCLP)
+                    if (pCLP)
                     {
-                        strings[kColUsage] = mpCLP->GetModeDescription(sMode);
+                        strings[kColUsage] = pCLP->GetModeDescription(sMode);
                         //                    mpCLP->GetCommandLineExample(msMode, strings[kColUsage]);
                     }
                 }
                 else
                 {
-                    attribs[kColName] = FOREGROUND_RED;
+                    attribs[kColName] = kUnknownParam;
                     strings[kColName] = "UNKNOWN COMMAND ";
                 }
 
-                paramListBuf.DrawFixedColumnStrings(0, row, strings, colWidths, attribs);
+                row += DrawFixedColumnStrings(0, row, strings, colWidths, attribs);
             }
 
 
 
             // next list positional params
-            row+=2;
+            row++;
             string sSection = "-positional params-" + string(ScreenW(), '-');
-            paramListBuf.DrawClippedText(0, row++, sSection, BACKGROUND_INTENSITY, false);
+            DrawClippedText(0, row++, sSection, kAttribSection, false);
 
 
             tEnteredParams posParams = GetPositionalEntries();
 
             for (auto& param : posParams)
             {
-                attribs[kColName] = FOREGROUND_WHITE;
-                attribs[kColEntry] = FOREGROUND_WHITE | FOREGROUND_INTENSITY;
-                attribs[kColUsage] = FOREGROUND_WHITE;
+                attribs[kColName] = kRawText;
+                attribs[kColEntry] = kUnknownParam;
+                attribs[kColUsage] = kRawText;
 
-//                strings[kColName] = "[" + SH::FromInt(param.positionalindex) + "]";
+                //                strings[kColName] = "[" + SH::FromInt(param.positionalindex) + "]";
 
                 string sFailMessage;
                 if (param.pRelatedDesc)
@@ -1450,26 +1514,26 @@ void FolderList::OnKey(int keycode, char c)
                     if (param.pRelatedDesc->DoesValueSatisfy(param.sParamText, sFailMessage))
                     {
                         strings[kColUsage] = param.pRelatedDesc->msUsage;
-                        attribs[kColEntry] = FOREGROUND_GREEN | FOREGROUND_INTENSITY;
+                        attribs[kColEntry] = kGoodParam;
                     }
                     else
                     {
                         strings[kColUsage] = sFailMessage;
-                        attribs[kColEntry] = FOREGROUND_RED;
-                        attribs[kColUsage] = FOREGROUND_RED;
+                        attribs[kColEntry] = kBadParam;
+                        attribs[kColUsage] = kBadParam;
                     }
                 }
                 else
                 {
                     strings[kColName] = "";
-                    attribs[kColEntry] = FOREGROUND_RED | FOREGROUND_INTENSITY;
+                    attribs[kColEntry] = kUnknownParam;
                     strings[kColUsage] = "Unexpected parameter";
-                    attribs[kColUsage] = FOREGROUND_RED;
+                    attribs[kColUsage] = kUnknownParam;
                 }
 
                 strings[kColEntry] = param.sParamText;
 
-                paramListBuf.DrawFixedColumnStrings(0, row++, strings, colWidths, attribs);
+                row += DrawFixedColumnStrings(0, row, strings, colWidths, attribs);
             }
 
 
@@ -1479,13 +1543,13 @@ void FolderList::OnKey(int keycode, char c)
             {
                 row++;
                 sSection = "-named params-" + string(ScreenW(), '-');
-                paramListBuf.DrawClippedText(0, row++, sSection, BACKGROUND_INTENSITY, false);
+                DrawClippedText(0, row++, sSection, kAttribSection, false);
 
                 for (auto& param : namedParams)
                 {
-                    attribs[kColName] = FOREGROUND_WHITE;
-                    attribs[kColEntry] = FOREGROUND_WHITE | FOREGROUND_INTENSITY;
-                    attribs[kColUsage] = FOREGROUND_WHITE;
+                    attribs[kColName] = kRawText;
+                    attribs[kColEntry] = kUnknownParam;
+                    attribs[kColUsage] = kRawText;
 
                     strings[kColName] = "-";
                     string sFailMessage;
@@ -1493,48 +1557,53 @@ void FolderList::OnKey(int keycode, char c)
                     {
                         string sName;
                         string sValue;
-                        ParseParam(param.sParamText, sName, sValue);
+                        pCLE->ParseParam(param.sParamText, sName, sValue);
 
                         if (param.pRelatedDesc->DoesValueSatisfy(sValue, sFailMessage))
                         {
                             strings[kColName] += param.pRelatedDesc->msName;
-
-                            attribs[kColEntry] = FOREGROUND_GREEN | FOREGROUND_INTENSITY;
-
+                            attribs[kColEntry] = kGoodParam;
                             strings[kColUsage] = param.pRelatedDesc->msUsage;
                         }
                         else
                         {
                             strings[kColName] += param.pRelatedDesc->msName;
-                            attribs[kColEntry] = FOREGROUND_RED;
-
+                            attribs[kColEntry] = kBadParam;
                             strings[kColUsage] = sFailMessage;
-                            attribs[kColUsage] = FOREGROUND_RED;
+                            attribs[kColUsage] = kBadParam;
                         }
                     }
                     else
                     {
-                        attribs[kColEntry] = FOREGROUND_RED;
+                        attribs[kColEntry] = kUnknownParam;
                         strings[kColUsage] = "Unknown parameter";
-                        attribs[kColUsage] = FOREGROUND_RED;
+                        attribs[kColUsage] = kUnknownParam;
                     }
 
 
                     strings[kColEntry] = param.sParamText;
 
-                    paramListBuf.DrawFixedColumnStrings(0, row++, strings, colWidths, attribs);
+                    row += DrawFixedColumnStrings(0, row, strings, colWidths, attribs);
                 }
             }
         }
         else
         {
             // no commands entered
-            TableOutput commandsTable = mpCLP->GetCommandsTable();
+            TableOutput commandsTable = pCLP->GetCommandsTable();
             commandsTable.AlignWidth(ScreenW());
             string sCommands = commandsTable;
-            paramListBuf.DrawClippedAnsiText(0, 0, sCommands);
+            DrawClippedAnsiText(0, 1, sCommands);
         }
 
+        AnsiColorWin::Paint(backBuf);
+
+
+        return;
+    }
+
+    void CommandLineEditor::UpdateDisplay()
+    {
         DrawToScreen();
 
 /*        static int count = 1;
@@ -1708,35 +1777,40 @@ void FolderList::OnKey(int keycode, char c)
 
         // Find set of auto complete for param
 
+        COORD anchor = TextIndexToCursor(selectionstart);
+        anchor.Y += (SHORT)mY;
+
+
 
         // If mode..... popup modes list
-        if (mEnteredParams.empty())
+        if (enteredParams.empty())
         {
             popupListWin.mbVisible = true;
             popupListWin.mTopCaption = "Commands";
-            popupListWin.SetEntries(mAvailableModes, sText, selectionstart, mY);
+            popupListWin.SetEntries(availableModes, sText, anchor.X, anchor.Y);
         }
-        else if (sText == mEnteredParams[0].sParamText && !mAvailableModes.empty())
+        else if (sText == enteredParams[0].sParamText && !availableModes.empty())
         {
             popupListWin.mbVisible = true;
             popupListWin.mTopCaption = "Commands";
-            popupListWin.SetEntries(mAvailableModes, sText, selectionstart, mY);
+            popupListWin.SetEntries(availableModes, sText, anchor.X, anchor.Y);
         }
         else if (sText[0] == '-')
         {
+            popupListWin.mTopCaption = "Options";
             popupListWin.mbVisible = true;
-            popupListWin.SetEntries(mAvailableNamedParams, sText, selectionstart, mY);
+            popupListWin.SetEntries(availableNamedParams, sText, anchor.X, anchor.Y);
         }
         else
         {
             // find param desc
-            for (int i = 0; i < mEnteredParams.size(); i++)
+            for (int i = 0; i < enteredParams.size(); i++)
             {
-                if (sText == mEnteredParams[i].sParamText)
+                if (sText == enteredParams[i].sParamText)
                 {
-                    if (mEnteredParams[i].pRelatedDesc && (mEnteredParams[i].pRelatedDesc->IsAPath()|| mEnteredParams[i].pRelatedDesc->MustHaveAnExistingPath()))
+                    if (enteredParams[i].pRelatedDesc && (enteredParams[i].pRelatedDesc->IsAPath()|| enteredParams[i].pRelatedDesc->MustHaveAnExistingPath()))
                     {
-                        if (popupFolderListWin.Scan(CommandLineParser::StripEnclosure(sText), selectionstart, mY+1))
+                        if (popupFolderListWin.Scan(CommandLineParser::StripEnclosure(sText), anchor.X, anchor.Y+1))
                         {
                             popupFolderListWin.mbVisible = true;
                         }
@@ -1748,13 +1822,44 @@ void FolderList::OnKey(int keycode, char c)
         return true;
     }
 
+    void DrawAnsiChar(int64_t x, int64_t y, char c, ZAttrib ca)
+    {
+        static ZAttrib lastC;
+        static int64_t lastX = -1;
+        static int64_t lastY = -1;
+
+        string s;
+        if (x != lastX || y != lastY)
+        {
+            s += "\033[" + SH::FromInt(x+1) + "G\033[" + SH::FromInt(y) + "d";
+            lastX = x;
+            lastY = y;
+        }
+
+        if (lastC.a != ca.a || lastC.r != ca.r || lastC.g != ca.g || lastC.b != ca.b || lastC.ba != ca.ba || lastC.br != ca.br || lastC.bg != ca.bg || lastC.bb != ca.bb)
+        {
+            s += "\033[38;2;" + SH::FromInt(ca.r) + ";" + SH::FromInt(ca.g) + ";" + SH::FromInt(ca.b) + "m"; //forground color
+            s += "\033[48;2;" + SH::FromInt(ca.br) + ";" + SH::FromInt(ca.bg) + ";" + SH::FromInt(ca.bb) + "m"; //background color
+
+            lastC = ca;
+        }
+
+        if (c < 32)
+            s += ' ';
+        else
+            s += c;
+        cout << s;
+        lastX++;    // cursor advances after drawing
+    };
+
+
     void CommandLineEditor::DrawToScreen()
     {
-        SHORT paramListRows = (SHORT)mParams.size();
+        SHORT paramListRows = (SHORT)enteredParams.size();
 
 
         // clear back buffer
-        memset(&backBuffer[0], 0, backBuffer.size() * sizeof(CHAR_INFO));
+        memset(&backBuffer[0], 0, backBuffer.size() * sizeof(ZChar));
 
         if (helpBuf.mbVisible)
         {
@@ -1763,9 +1868,21 @@ void FolderList::OnKey(int keycode, char c)
         }
         else
         {
-//            paramListBuf.PaintToWindowsConsole(mhOutput);
-//            rawCommandBuf.PaintToWindowsConsole(mhOutput);
-//            popupBuf.PaintToWindowsConsole(mhOutput);
+            if (pCLP)
+            {
+//                if (mpCLP->IsRegisteredMode(msMode))
+                {
+                    string sExample;
+                    pCLP->GetCommandLineExample(CLP::GetMode(), sExample);
+                    usageBuf.SetText(string(COL_BLACK) + "usage: " + sExample);
+                }
+            }
+
+            string sTop = "[F1-Help]   [ESC-Cancel]   [TAB-Contextual]";
+            if (!commandHistory.empty())
+                sTop += "  [UP-History (" + SH::FromInt(commandHistory.size()) + ")]";
+            topInfoBuf.SetText(string(COL_BLACK) + sTop);
+
             paramListBuf.Paint(backBuffer);
             rawCommandBuf.Paint(backBuffer);
             usageBuf.Paint(backBuffer);
@@ -1773,30 +1890,44 @@ void FolderList::OnKey(int keycode, char c)
             popupListWin.Paint(backBuffer);
             historyWin.Paint(backBuffer);
             popupFolderListWin.Paint(backBuffer);
-
-            if (mpCLP)
-            {
-//                if (mpCLP->IsRegisteredMode(msMode))
-                {
-                    string sExample;
-                    mpCLP->GetCommandLineExample(GetMode(), sExample);
-                    usageBuf.SetText(string(COL_BLACK) + "usage: " + sExample);
-                }
-            }
-
-            string sTop = "[F1-Help]   [ESC-Cancel]   [TAB-Contextual]";
-            if (!commandHistory.empty())
-                sTop += "  [UP-" + SH::FromInt(commandHistory.size()) + " History]";
-            topInfoBuf.SetText(string(COL_BLACK) + sTop);
         }
 
-        // Finally draw to screen
-        COORD origin(0, 0);
-        SMALL_RECT region = { screenInfo.srWindow.Left, screenInfo.srWindow.Top, ScreenW(), ScreenH() };
-        WriteConsoleOutput(mhOutput, &backBuffer[0], screenInfo.dwSize, origin, &region);
+        bool bCursorHidden = false;
+        for (int64_t y = 0; y < ScreenH(); y++)
+        {
+            for (int64_t x = 0; x < ScreenW(); x++)
+            {
+                int64_t i = (y * ScreenW()) + x;
+                if (bScreenChanged || backBuffer[i] != drawStateBuffer[i])
+                {
+                    if (!bCursorHidden)
+                    {
+                        bCursorHidden = true;
+                        cout << "\033[?25l";
+                    }
+
+                    bScreenChanged = true;
+                    DrawAnsiChar(x, y, backBuffer[i].c, backBuffer[i].attrib);
+                }
+            }
+        }
+
+        if (bScreenChanged)
+        {
+            bScreenChanged = false;
+            drawStateBuffer = backBuffer;
+            rawCommandBuf.UpdateCursorPos(rawCommandBuf.mLocalCursorPos);
+        }
+
+//        DrawAnsiChar(0, 0, '*', 0xffff00ffff00ff00);
+
+        if (bCursorHidden)
+        {
+            cout << "\033[?25h";
+        }
     }
 
-    void CommandLineEditor::SaveConsoleState()
+/*    void CommandLineEditor::SaveConsoleState()
     {
         originalScreenInfo = screenInfo;
         originalConsoleBuf.resize(originalScreenInfo.dwSize.X * originalScreenInfo.dwSize.Y);
@@ -1809,7 +1940,7 @@ void FolderList::OnKey(int keycode, char c)
         SMALL_RECT writeRegion = { 0, 0, originalScreenInfo.dwSize.X - 1, originalScreenInfo.dwSize.Y - 1 };
         WriteConsoleOutput(mhOutput, &originalConsoleBuf[0], originalScreenInfo.dwSize, { 0, 0 }, &writeRegion);
         SetConsoleCursorPosition(mhOutput, originalScreenInfo.dwCursorPosition);
-    }
+    }*/
 
 
     int64_t RawEntryWin::CursorToTextIndex(COORD coord)
@@ -1921,9 +2052,9 @@ void FolderList::OnKey(int keycode, char c)
     std::string CommandLineEditor::EnteredParamsToText()
     {
         std::string sText;
-        for (int i = 0; i < mParams.size(); i++)
+        for (int i = 0; i < enteredParams.size(); i++)
         {
-            sText += mParams[i].sParamText + " ";
+            sText += enteredParams[i].sParamText + " ";
         }
 
         if (!sText.empty())
@@ -1938,9 +2069,8 @@ void FolderList::OnKey(int keycode, char c)
         string sModeWhileParsing;
 
         const int64_t kModePosition = -1;
-        tStringList modes = GetCLPModes();
         int positionalindex = 0;
-        if (!modes.empty())         
+        if (!availableModes.empty())         
             positionalindex = kModePosition;
 
         size_t length = sText.length();
@@ -1976,14 +2106,14 @@ void FolderList::OnKey(int keycode, char c)
             if (positionalindex == kModePosition) 
             {
                 sModeWhileParsing = param.sParamText;
-                bool bModePermitted = modes.empty() || std::find(modes.begin(), modes.end(), sModeWhileParsing) != modes.end(); // if no modes registered or (if there are) if the first param matches one
+                bool bModePermitted = availableModes.empty() || std::find(availableModes.begin(), availableModes.end(), sModeWhileParsing) != availableModes.end(); // if no modes registered or (if there are) if the first param matches one
                 if (bModePermitted)
                 {
-                    param.drawAttributes = FOREGROUND_GREEN;
+                    param.drawAttributes = kGoodParam;
                 }
                 else
                 {
-                    param.drawAttributes = FOREGROUND_RED;
+                    param.drawAttributes = kUnknownParam;
                 }
                 positionalindex++;
             }
@@ -1991,9 +2121,9 @@ void FolderList::OnKey(int keycode, char c)
             {
                 param.pRelatedDesc = GetParamDesc(sModeWhileParsing, sParamName);
                 if (!param.pRelatedDesc)
-                    param.drawAttributes = FOREGROUND_RED;      // unknown named parameter
+                    param.drawAttributes = kUnknownParam;      // unknown named parameter
                 else if (!param.pRelatedDesc->DoesValueSatisfy(sParamValue, sFailMessage))
-                    param.drawAttributes = FOREGROUND_RED;      // known named parameter but not in required range
+                    param.drawAttributes = kBadParam;      // known named parameter but not in required range
             }
             else
             {
@@ -2001,9 +2131,9 @@ void FolderList::OnKey(int keycode, char c)
                 param.pRelatedDesc = GetParamDesc(sModeWhileParsing, positionalindex);
 
                 if (!param.pRelatedDesc)       // unsatisfied positional parameter
-                    param.drawAttributes = FOREGROUND_RED;
+                    param.drawAttributes = kBadParam;
                 else if (!param.pRelatedDesc->DoesValueSatisfy(param.sParamText, sFailMessage))     // positional param has descriptor but not in required range
-                    param.drawAttributes = FOREGROUND_RED;
+                    param.drawAttributes = kBadParam;
 
                 positionalindex++;
             }
@@ -2024,10 +2154,9 @@ void FolderList::OnKey(int keycode, char c)
 
         mLastParsedText = sText;
 
-        mParams = ParamsFromText(mLastParsedText);
-        rawCommandBuf.mEnteredParams = mParams;
-        rawCommandBuf.mAvailableModes = GetCLPModes();
-        rawCommandBuf.mAvailableNamedParams = GetCLPNamedParamsForMode(GetMode());
+        enteredParams = ParamsFromText(mLastParsedText);
+//        rawCommandBuf.mEnteredParams = mParams;
+        availableNamedParams = GetCLPNamedParamsForMode(CLP::GetMode());
     }
 
     std::string CommandLineEditor::Edit(int argc, char* argv[])
@@ -2037,7 +2166,7 @@ void FolderList::OnKey(int keycode, char c)
         return Edit(CommandLineParser::ToString(params));
     }
 
-    void CommandLineEditor::UpdateFromConsoleSize()
+    void CommandLineEditor::UpdateFromConsoleSize(bool bForce)
     {
         CONSOLE_SCREEN_BUFFER_INFO newScreenInfo;
         if (!GetConsoleScreenBufferInfo(mhOutput, &newScreenInfo))
@@ -2046,22 +2175,45 @@ void FolderList::OnKey(int keycode, char c)
             return;
         }
 
-        if (memcmp(&newScreenInfo, &screenInfo, sizeof(screenInfo) != 0))
+        if ((newScreenInfo.dwSize.X != screenInfo.dwSize.X || newScreenInfo.dwSize.Y != screenInfo.dwSize.Y) || bForce)
         {
             screenInfo = newScreenInfo;
+            bScreenChanged = true;
 
             SHORT w = ScreenW();
             SHORT h = ScreenH();
 
+            if (w < 1)
+                w = 1;
+            if (h < 8)
+                h = 8;
 
+
+            backBuffer.clear();
             backBuffer.resize(w*h);
-            rawCommandBuf.SetArea(0, h - 4, w, h);
-            paramListBuf.SetArea(0, 1, w, h - 6);
-            topInfoBuf.SetArea(0, 0, w, 1);
+
+
+            drawStateBuffer.clear();
+            drawStateBuffer.resize(w * h);
+
+            topInfoBuf.Clear(kAttribTopInfoBG);
+            topInfoBuf.SetArea(0, 1, w, 2);
+
+            paramListBuf.Clear(kAttribParamListBG);
+            paramListBuf.SetArea(0, 2, w, h - 5);
+
+            usageBuf.Clear(kAttribTopInfoBG);
             usageBuf.SetArea(0, h - 5, w, h - 4);
-            helpBuf.SetArea(0, 0, w, h);
-//            popupListWin.SetArea(w / 4, h / 4, w * 3 / 4, h * 3 / 4);
-//            popupFolderListWin.SetArea(w / 4, h / 4, w * 3 / 4, h * 3 / 4);
+
+            rawCommandBuf.Clear(0xff444444);
+            rawCommandBuf.SetArea(0, h - 4, w, h);
+
+            helpBuf.Clear();
+            helpBuf.SetArea(0, 1, w, h);
+
+            popupFolderListWin.Clear(kAttribFolderListBG);
+            historyWin.Clear(0xFF888800FF000000);
+            popupListWin.Clear(kAttribListBoxBG);
 
             UpdateDisplay();
         }
@@ -2070,17 +2222,17 @@ void FolderList::OnKey(int keycode, char c)
     void CommandLineEditor::ShowHelp()
     {
         string sText;
-        helpBuf.Init(0, 0, ScreenW(), ScreenH());
-        helpBuf.Clear(0);
+        helpBuf.Init(0, 1, ScreenW(), ScreenH());
+        helpBuf.Clear(0xFF444444FF000000);
 
-        if (mpCLP)
+        if (pCLP)
         {
-            string sMode = GetMode();
+            string sMode = CLP::GetMode();
 
-            if (mpCLP->IsRegisteredMode(sMode))
-                sText = mpCLP->GetModeHelpString(sMode, false);
+            if (pCLP->IsRegisteredMode(sMode))
+                sText = pCLP->GetModeHelpString(sMode, false);
             else
-                sText = mpCLP->GetGeneralHelpString();
+                sText = pCLP->GetGeneralHelpString();
         }
 
         TableOutput additionalHelp;
@@ -2145,8 +2297,48 @@ void FolderList::OnKey(int keycode, char c)
             return sCommandLine;
         }
 
+
         SHORT w = ScreenW();
         SHORT h = ScreenH();
+
+
+        //SaveConsoleState();
+        std::vector<CHAR_INFO> blank(w * h);
+        for (int i = 0; i < blank.size(); i++)
+        {
+            blank[i].Char.AsciiChar = ' ';
+            blank[i].Attributes = 0;
+        }
+        SMALL_RECT smallrect(0, 0, w, h);
+        WriteConsoleOutput(mhOutput, &blank[0], screenInfo.dwSize, { 0, 0 }, &smallrect);
+
+
+        // Set console mode to allow reading mouse and key events
+        DWORD mode;
+        if (!GetConsoleMode(mhInput, &mode))
+        {
+            cerr << "Failed to get console mode." << endl;
+            return sCommandLine;
+        }
+        mode |= ENABLE_MOUSE_INPUT | ENABLE_EXTENDED_FLAGS | ENABLE_WINDOW_INPUT | ENABLE_VIRTUAL_TERMINAL_PROCESSING;
+        mode &= ~ENABLE_PROCESSED_INPUT;
+
+        //mode |= ENABLE_PROCESSED_INPUT;
+        if (!SetConsoleMode(mhInput, mode))
+        {
+            cerr << "Failed to set console mode." << endl;
+            return sCommandLine;
+        }
+
+        // Main loop to read input events
+        INPUT_RECORD inputRecord[128];
+        DWORD numEventsRead;
+
+
+
+
+
+
 
 
         popupListWin.Init(w / 4, h / 4, w * 3 / 4, h * 3 / 4);
@@ -2163,6 +2355,7 @@ void FolderList::OnKey(int keycode, char c)
         LoadHistory();
 
         backBuffer.resize(w*h);
+        drawStateBuffer.resize(w * h);
         rawCommandBuf.Init(0, h - 4, w, h);
 
 
@@ -2175,42 +2368,17 @@ void FolderList::OnKey(int keycode, char c)
 
 
         paramListBuf.Init(0, 1, w, h - 6);
-//        rawCommandBuf.UpdateCursorPos(COORD((SHORT)sCommandLine.length(), 0));
-
         usageBuf.Init(0, h - 6, w, h - 5);
         topInfoBuf.Init(0, 0, w, 1);
 
 
-        SaveConsoleState();
-        std::vector<CHAR_INFO> blank(w*h);
-        for (int i = 0; i < blank.size(); i++)
-        {
-            blank[i].Char.AsciiChar = ' ';
-            blank[i].Attributes = 0;
-        }
-        SMALL_RECT smallrect(0, 0, w, h);
-        WriteConsoleOutput(mhOutput, &blank[0], screenInfo.dwSize, { 0, 0 }, &smallrect);
+        ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+        // Clear the raw command buffer and param buffers
+        UpdateFromConsoleSize(true);
 
 
-        // Set console mode to allow reading mouse and key events
-        DWORD mode;
-        if (!GetConsoleMode(mhInput, &mode)) 
-        {
-            cerr << "Failed to get console mode." << endl;
-            return sCommandLine;
-        }
-        mode |= ENABLE_MOUSE_INPUT | ENABLE_EXTENDED_FLAGS | ENABLE_WINDOW_INPUT;
-        mode &= ~ENABLE_PROCESSED_INPUT ;
-        //mode |= ENABLE_PROCESSED_INPUT;
-        if (!SetConsoleMode(mhInput, mode  ))
-        {
-            cerr << "Failed to set console mode." << endl;
-            return sCommandLine;
-        }
 
-        // Main loop to read input events
-        INPUT_RECORD inputRecord[128];
-        DWORD numEventsRead;
+
 
         while (!rawCommandBuf.mbDone && !rawCommandBuf.mbCanceled)
         {
@@ -2290,7 +2458,7 @@ void FolderList::OnKey(int keycode, char c)
         }
 
 
-        RestoreConsoleState();
+        //RestoreConsoleState();
         if (rawCommandBuf.mbCanceled)
         {
             cout << "Canceled editing.\n";
@@ -2324,6 +2492,7 @@ void FolderList::OnKey(int keycode, char c)
             return;
 
         Clear(mClearAttrib);
+
         DrawClippedAnsiText(0, -firstVisibleRow, mText);
 
         for (int64_t y = 0; y < mHeight; y++)
@@ -2331,7 +2500,7 @@ void FolderList::OnKey(int keycode, char c)
             int64_t readOffset = (y * mWidth);
             int64_t writeOffset = ((y + mY) * mWidth + mX);
 
-            memcpy(&backBuf[writeOffset], &mBuffer[readOffset], mWidth * sizeof(CHAR_INFO));
+            memcpy(&backBuf[writeOffset], &mBuffer[readOffset], mWidth * sizeof(ZChar));
         }
     }
 

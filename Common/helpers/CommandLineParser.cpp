@@ -1044,6 +1044,11 @@ namespace CLP
 
     bool CommandLineParser::Parse(int argc, char* argv[], [[maybe_unused]] bool bEditOnParseFail)
     {
+
+        //ZAttrib test = 0x0011223300445566;
+
+
+
 #ifdef ENABLE_CLE
         CLP::CommandLineEditor editor;
 #endif
@@ -1061,19 +1066,8 @@ namespace CLP
         }
 #endif
         // Extract  application name
-        size_t nLastSlash = appPath.find_last_of('/');
-        size_t nLastBackSlash = appPath.find_last_of('\\');
-        nLastSlash = (nLastSlash > nLastBackSlash) ? nLastSlash : nLastBackSlash;
-
-        if (nLastSlash != string::npos)
-        {
-            appName = appPath.substr(nLastSlash + 1);
-            appPath = appPath.substr(0, nLastBackSlash);
-        }
-        else
-            appName = appPath;
-
-
+        appName = fs::path(appPath).filename().string();
+        appPath = fs::path(appPath).parent_path().string();
 
         tStringArray argArray(ToArray(argc-1, argv+1));
         bool bSuccess = false;
