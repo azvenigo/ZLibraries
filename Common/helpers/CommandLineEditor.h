@@ -12,10 +12,28 @@ typedef std::list<std::string> tStringList;
 typedef std::vector<WORD> tAttribArray;
 typedef std::vector<CHAR_INFO> tConsoleBuffer;
 
+
 #define FOREGROUND_WHITE  (FOREGROUND_GREEN | FOREGROUND_BLUE | FOREGROUND_RED)
 
 namespace CLP
 {
+    struct Rect
+    {
+        Rect(int64_t _l = 0, int64_t _t = 0, int64_t _r = 0, int64_t _b = 0)
+        {
+            l = _l;
+            t = _t;
+            r = _r;
+            b = _b;
+        };
+
+        int64_t l;
+        int64_t t;
+        int64_t r;
+        int64_t b;
+    };
+
+
 
     // for processing entered parameters
     struct EnteredParams
@@ -43,12 +61,12 @@ namespace CLP
         void Clear(WORD attrib = 0);
         void Fill(int64_t l, int64_t t, int64_t r, int64_t b, WORD attrib);
 
-        void DrawCharClipped(char c, int64_t x, int64_t y, WORD attrib = FOREGROUND_WHITE);
+        void DrawCharClipped(char c, int64_t x, int64_t y, WORD attrib = FOREGROUND_WHITE, Rect* pClip = nullptr);
         void DrawCharClipped(char c, int64_t offset, WORD attrib = FOREGROUND_WHITE);
 
-        void DrawClippedText(int64_t x, int64_t y, std::string text, WORD attributes = FOREGROUND_WHITE, bool bWrap = true);
-        void DrawClippedAnsiText(int64_t x, int64_t y, std::string ansitext, bool bWrap = true);
-        void DrawFixedColumnStrings(int64_t x, int64_t y, tStringArray& strings, std::vector<size_t>& colWidths, tAttribArray attribs);
+        void DrawClippedText(int64_t x, int64_t y, std::string text, WORD attributes = FOREGROUND_WHITE, bool bWrap = true,  Rect* pClip = nullptr);
+        void DrawClippedAnsiText(int64_t x, int64_t y, std::string ansitext, bool bWrap = true, Rect* pClip = nullptr);
+        void DrawFixedColumnStrings(int64_t x, int64_t y, tStringArray& strings, std::vector<size_t>& colWidths, tAttribArray attribs, Rect* pClip = nullptr);
 
         void GetTextOuputRect(std::string text, int64_t& w, int64_t& h);        
 
@@ -96,7 +114,7 @@ namespace CLP
     public:
         void SetText(const std::string& text);
 
-        void DrawClippedText(int64_t x, int64_t y, std::string text, WORD attributes = FOREGROUND_WHITE, bool bWrap = true, bool bHeightlightSelection = true);
+        void DrawClippedText(int64_t x, int64_t y, std::string text, WORD attributes = FOREGROUND_WHITE, bool bWrap = true, bool bHighlightSelection = true, Rect* pClip = nullptr);
 
         void Paint(tConsoleBuffer& backBuf);
         bool GetParameterUnderIndex(int64_t index, size_t& outStart, size_t& outEnd, std::string& outParam);
@@ -151,17 +169,17 @@ namespace CLP
 
 
 
-    // InfoWin - read only window (maybe add scrolling around?) that closes on esc
+    // InfoWin - read only window that closes on esc
     class InfoWin : public ConsoleWin
     {
     public:
-        void SetText(const std::string& text) { mText = text; }
         void Paint(tConsoleBuffer& backBuf);
         void OnKey(int keycode, char c);
 
         int64_t firstVisibleRow = 0;
-    protected:
-        std::string     mText;
+        std::string mTopCaption;
+        std::string mBottomCaption;
+        std::string mText;
     };
 
 

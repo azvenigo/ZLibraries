@@ -456,8 +456,8 @@ int main(int argc, char* argv[])
 
     parser.RegisterMode("dump", "Dump byte range to cout");
     parser.RegisterParam("dump", ParamDesc("FILE", &sSourcePath, CLP::kPositional | CLP::kRequired | CLP::kPath | CLP::kExistingPath, "File to read from"));
-    parser.RegisterParam("dump", ParamDesc("OFFSET", &nSourceOffset, CLP::kNamed , "Starting offset"));
-    parser.RegisterParam("dump", ParamDesc("BYTES", &nBytes, CLP::kNamed, "Number of bytes to dump."));
+    parser.RegisterParam("dump", ParamDesc("OFFSET", &nSourceOffset, CLP::kPositional, "Starting offset"));
+    parser.RegisterParam("dump", ParamDesc("BYTES", &nBytes, CLP::kPositional, "Number of bytes to dump."));
     parser.RegisterParam("dump", ParamDesc("COLUMNS", &nColumns, CLP::kNamed, "Number of columns"));
 
 
