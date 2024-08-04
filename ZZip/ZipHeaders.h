@@ -18,6 +18,7 @@
 #include <list>
 #include <thread>
 #include <iostream>
+#include <memory>
 #include "helpers/ZZFileAPI.h"
 #include "helpers/StringHelpers.h"
 

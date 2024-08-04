@@ -869,7 +869,7 @@ namespace CLP
             {
                 // Case 1
                 msMode = sMode;
-                for (int i = 1; i < params.size(); i++)
+                for (uint32_t i = 1; i < params.size(); i++)
                 {
                     std::string sParam(params[i]);
 
@@ -910,7 +910,7 @@ namespace CLP
             else
             {
                 // Case 2
-                for (int i = 0; i < params.size(); i++)
+                for (uint32_t i = 0; i < params.size(); i++)
                 {
                     std::string sParam(params[i]);
 
@@ -1042,8 +1042,13 @@ namespace CLP
         return s.substr(0, s.length() - 1); // strip last ' '
     }
 
-    bool CommandLineParser::Parse(int argc, char* argv[], bool bEditOnParseFail)
+    bool CommandLineParser::Parse(int argc, char* argv[], [[maybe_unused]] bool bEditOnParseFail)
     {
+
+        //ZAttrib test = 0x0011223300445566;
+
+
+
 #ifdef ENABLE_CLE
         CLP::CommandLineEditor editor;
 #endif
@@ -1061,19 +1066,8 @@ namespace CLP
         }
 #endif
         // Extract  application name
-        int32_t nLastSlash = (int32_t)appPath.find_last_of('/');
-        int32_t nLastBackSlash = (int32_t)appPath.find_last_of('\\');
-        nLastSlash = (nLastSlash > nLastBackSlash) ? nLastSlash : nLastBackSlash;
-
-        if (nLastSlash != string::npos)
-        {
-            appName = appPath.substr(nLastSlash + 1);
-            appPath = appPath.substr(0, nLastBackSlash);
-        }
-        else
-            appName = appPath;
-
-
+        appName = fs::path(appPath).filename().string();
+        appPath = fs::path(appPath).parent_path().string();
 
         tStringArray argArray(ToArray(argc-1, argv+1));
         bool bSuccess = false;
@@ -1181,7 +1175,7 @@ namespace CLP
 
     std::string CommandLineParser::GetFirstPositionalArgument(const tStringArray& params)
     {
-        for (int i = 0; i < params.size(); i++)
+        for (size_t i = 0; i < params.size(); i++)
             if (params[i][0] != '-')
                 return params[i];
 
@@ -1338,7 +1332,7 @@ namespace CLP
         return ss.str();
     }
 
-    TableOutput CommandLineParser::GetCLPHelp(bool bDetailed)
+    TableOutput CommandLineParser::GetCLPHelp([[maybe_unused]] bool bDetailed)
     {
         TableOutput descriptionTable;
         descriptionTable.SetSeparator(' ', 1);
@@ -1352,7 +1346,7 @@ namespace CLP
         descriptionTable.AddRow("Run the application with no parameters to get a list of available commands.");
         descriptionTable.AddRow("Parameters can be positional (1st, 2nd, 3rd, etc.) or named key:value pairs.");
         descriptionTable.AddRow("Parameters can be required or optional");
-        descriptionTable.AddRow("You can get general help by adding '?' or '??' anywhere on the command line.");
+        descriptionTable.AddRow("You can get general help by adding \'?\' or \'??\' anywhere on the command line.");
 
         return descriptionTable;
     }
@@ -1448,7 +1442,7 @@ namespace CLP
         helpTable.SetBorders(0, '*', '*', '*');
         helpTable.SetSeparator(' ', 1);
         helpTable.AddRow(cols[kSECTION] + "-------Help-------" + cols[kRESET]);
-        helpTable.AddRow("Add '?' or '??' anywhere on command line for command help.");
+        helpTable.AddRow("Add \'?\' or \'??\' anywhere on command line for command help.");
 
         string sExampleCommand;
         if (IsMultiMode())

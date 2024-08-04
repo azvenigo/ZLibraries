@@ -337,7 +337,6 @@ bool ZZipAPI::DecompressToFile(const string& sFilename, const string& sOutputFil
 
         decompressor.InitStream(pCompStream, (uint32_t)nBytesToProcess);
         int32_t nStatus = Z_OK;
-        int64_t nOutIndex = 0;
         while (decompressor.HasMoreOutput())
         {
             if (nStatus == Z_OK || nStatus == Z_STREAM_END)
@@ -351,8 +350,6 @@ bool ZZipAPI::DecompressToFile(const string& sFilename, const string& sOutputFil
                     cerr << "Failed to seek to write decompressed stream for file " << sFilename.c_str() << " to file " << sOutputFilename.c_str() << ".  Reason: " << pOutFile->GetLastError() << "\n";
                     return false;
                 }
-
-                nOutIndex += nDecompressedBytes;
 
                 if (pProgress)
                     pProgress->AddBytesProcessed(nDecompressedBytes);
@@ -489,7 +486,6 @@ bool ZZipAPI::AddToZipFile(const string& sFilename, const string& sBaseFolder, P
 
             compressor.InitStream(pStream, (int32_t)nBytesToProcess);
             int32_t nStatus = Z_OK;
-            int64_t nOutIndex = 0;
             while (compressor.HasMoreOutput())
             {
                 if (nStatus == Z_OK)
@@ -507,7 +503,6 @@ bool ZZipAPI::AddToZipFile(const string& sFilename, const string& sBaseFolder, P
                     }
 
                     nOffsetOfStreamData += nCompressedBytes;
-                    nOutIndex += nCompressedBytes;
                     newLocalHeader.mCompressedSize += nCompressedBytes;
                 }
 
@@ -605,7 +600,6 @@ bool ZZipAPI::AddToZipFileFromBuffer(uint8_t* pInputBuffer, uint32_t nInputBuffe
     compressor.Init(mnCompressionLevel);
     compressor.InitStream(pInputBuffer, (uint32_t)nInputBufferSize);
     int32_t nStatus = Z_OK;
-    int64_t nOutIndex = 0;
     while (compressor.HasMoreOutput())
     {
         if (nStatus == Z_OK)
@@ -620,7 +614,6 @@ bool ZZipAPI::AddToZipFileFromBuffer(uint8_t* pInputBuffer, uint32_t nInputBuffe
             }
 
             nOffsetOfStreamData += nCompressedBytes;
-            nOutIndex += nCompressedBytes;
             newLocalHeader.mCompressedSize += nCompressedBytes;
         }
 

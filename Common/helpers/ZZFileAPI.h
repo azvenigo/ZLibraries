@@ -23,6 +23,7 @@
 #include <fstream>
 #include <atomic>
 #include <mutex>
+#include <memory>
 
 
 typedef std::shared_ptr<class cZZFile> tZZFilePtr;
