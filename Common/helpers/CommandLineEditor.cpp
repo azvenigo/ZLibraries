@@ -437,8 +437,6 @@ void ListboxWin::Paint(tConsoleBuffer& backBuf)
     if (mSelection > visibleRows)
         topVisibleRow -= (visibleRows- mSelection-1);
 
-//    string sCaption(COL_YELLOW + mTopCaption + " [" + SH::FromInt(mSelection + 1) + "/" + SH::FromInt(mEntries.size()) + "]" + COL_RESET);
-    string sCaption(mTopCaption + " [" + SH::FromInt(mSelection + 1) + "/" + SH::FromInt(mEntries.size()) + "]");
 
     Fill(0, 0, mWidth, mHeight, mClearAttrib);
 
@@ -447,16 +445,10 @@ void ListboxWin::Paint(tConsoleBuffer& backBuf)
     Fill(0, mHeight - 1, mWidth, mHeight, kAttribCaption);    // bottom
     Fill(mWidth - 1, 0, mWidth, mHeight, kAttribCaption);    // right
     //DrawClippedAnsiText(1, 0, sCaption, false);
-    DrawClippedText(1, 0, sCaption, kAttribCaption);
+    DrawClippedText(1, 0, mTopCaption, kAttribCaption, false);
 
-    if (!mBottomCaption.empty())
-    {
-//        string sCaption(COL_YELLOW + mBottomCaption + COL_RESET);
-//        DrawClippedAnsiText(0, mHeight - 1, sCaption, false);
-
-        string sCaption(mBottomCaption);
-        DrawClippedText(0, mHeight - 1, sCaption, kAttribCaption);
-    }
+    string sCaption("(" + SH::FromInt(mSelection + 1) + "/" + SH::FromInt(mEntries.size()) + ") " + mBottomCaption);
+    DrawClippedText(1, mHeight - 1, sCaption, kAttribCaption, false);
 
 
     int64_t drawrow = -topVisibleRow;
@@ -737,7 +729,14 @@ void FolderList::OnKey(int keycode, char c)
         }
     }
 
-    return ListboxWin::OnKey(keycode, c);
+    ListboxWin::OnKey(keycode, c);
+
+    if (SH::EndsWith(GetSelection(), "\\"))
+        mBottomCaption = "[ENTER-Select Folder] [TAB-Into Subfolder]";
+    else
+        mBottomCaption = "[ENTER-Select File]";
+
+    mBottomCaption += " [BACKSPACE-Up to Parent]";
 }
 
 
@@ -772,8 +771,14 @@ void FolderList::OnKey(int keycode, char c)
 
 
 
-    void ConsoleWin::DrawCharClipped(char c, int64_t x, int64_t y, ZAttrib attrib)
+    void ConsoleWin::DrawCharClipped(char c, int64_t x, int64_t y, ZAttrib attrib, Rect* pClip)
     {
+        if (pClip)
+        {
+            if (x < pClip->l || y < pClip->t || x >= pClip->r || y >= pClip->b)
+                return;
+        }
+
         if (attrib.FG() == attrib.BG())  // would be invisible
         {
             // invert fg
@@ -800,14 +805,14 @@ void FolderList::OnKey(int keycode, char c)
 
 
 
-    int64_t ConsoleWin::DrawFixedColumnStrings(int64_t x, int64_t y, tStringArray& strings, vector<size_t>& colWidths, tAttribArray attribs)
+    int64_t ConsoleWin::DrawFixedColumnStrings(int64_t x, int64_t y, tStringArray& strings, vector<size_t>& colWidths, tAttribArray attribs, Rect* pClip)
     {
         assert(strings.size() == colWidths.size() && colWidths.size() == attribs.size());
 
         int64_t rowsDrawn = 0;
         for (int i = 0; i < strings.size()-1; i++)
         {
-            DrawClippedText(x, y, strings[i], attribs[i], false);
+            DrawClippedText(x, y, strings[i], attribs[i], false, pClip);
             x += colWidths[i];
         }
 
@@ -819,7 +824,7 @@ void FolderList::OnKey(int keycode, char c)
         int64_t remainingColumnWidth = screenInfo.srWindow.Right - x;
         while (remainingColumnWidth > 0 && sDraw.length())
         {
-            DrawClippedText(x, y, sDraw.substr(0, remainingColumnWidth), attribs[finalCol], false);
+            DrawClippedText(x, y, sDraw.substr(0, remainingColumnWidth), attribs[finalCol], false, pClip);
             y++;
             sDraw = sDraw.substr(std::min<int64_t>(remainingColumnWidth, (int64_t)sDraw.length()));
             rowsDrawn++;
@@ -828,7 +833,7 @@ void FolderList::OnKey(int keycode, char c)
         return rowsDrawn;
     }
 
-    void ConsoleWin::DrawClippedText(int64_t x, int64_t y, std::string text, ZAttrib attributes, bool bWrap)
+    void ConsoleWin::DrawClippedText(int64_t x, int64_t y, std::string text, ZAttrib attributes, bool bWrap, Rect* pClip)
     {
         COORD cursor((SHORT)x, (SHORT)y);
 
@@ -842,7 +847,7 @@ void FolderList::OnKey(int keycode, char c)
             }
             else
             {
-                DrawCharClipped(c, cursor.X, cursor.Y, attributes);
+                DrawCharClipped(c, cursor.X, cursor.Y, attributes, pClip);
             }
 
             cursor.X++;
@@ -992,7 +997,7 @@ void FolderList::OnKey(int keycode, char c)
     }
 
 
-    void ConsoleWin::DrawClippedAnsiText(int64_t x, int64_t y, std::string ansitext, bool bWrap)
+    void ConsoleWin::DrawClippedAnsiText(int64_t x, int64_t y, std::string ansitext, bool bWrap, Rect* pClip)
     {
         COORD cursor((SHORT)x, (SHORT)y);
 
@@ -1015,7 +1020,7 @@ void FolderList::OnKey(int keycode, char c)
                 }
                 else
                 {
-                    DrawCharClipped(c, cursor.X, cursor.Y, attrib);
+                    DrawCharClipped(c, cursor.X, cursor.Y, attrib, pClip);
                     cursor.X++;
                     if (cursor.X >= mWidth && !bWrap)
                         break;
@@ -1248,7 +1253,8 @@ void FolderList::OnKey(int keycode, char c)
 
                     // show history window
                     historyWin.mbVisible = true;
-                    historyWin.mTopCaption = "History [ESC - Cancel] [ENTER - Select] [DEL - Delete Entry]";
+                    historyWin.mTopCaption = "History";
+                    historyWin.mBottomCaption = "[ESC-Cancel] [ENTER-Select] [DEL-Delete Entry]";
                     historyWin.mMinWidth = ScreenW();
                     historyWin.SetEntries(commandHistory, mText, selectionstart, mY);
                 }
@@ -1741,8 +1747,17 @@ void FolderList::OnKey(int keycode, char c)
 
         SetEntries(mEntries, sSelectedPath, anchor_l, anchor_b);
 
-        mTopCaption = "Browse [TAB - Subfolder] [BACKSPACE - Parent]";
-        mBottomCaption = GetSelection();
+        string sSelection = GetSelection();
+        if (sSelection == kEmptyFolderCaption)
+            mTopCaption = "Empty Folder: " + sSelection;
+        else
+            mTopCaption = sPath;
+
+        mBottomCaption = "[ENTER-Select]";
+        if (SH::EndsWith(mBottomCaption, "\\"))
+            mBottomCaption += " [TAB-Into Subfolder]";
+        mBottomCaption += " [BACKSPACE-Up to Parent]";
+
         mPath = sSelectedPath;
 
 
@@ -1878,9 +1893,9 @@ void FolderList::OnKey(int keycode, char c)
                 }
             }
 
-            string sTop = "[F1-Help]   [ESC-Cancel]   [TAB-Contextual]";
+            string sTop = "[F1-Help] [ESC-Cancel] [TAB-Contextual] [CTRL+Z-Undo]";
             if (!commandHistory.empty())
-                sTop += "  [UP-History (" + SH::FromInt(commandHistory.size()) + ")]";
+                sTop += " [UP-History (" + SH::FromInt(commandHistory.size()) + ")]";
             topInfoBuf.SetText(string(COL_BLACK) + sTop);
 
             paramListBuf.Paint(backBuffer);
@@ -2230,9 +2245,15 @@ void FolderList::OnKey(int keycode, char c)
             string sMode = CLP::GetMode();
 
             if (pCLP->IsRegisteredMode(sMode))
+            {
                 sText = pCLP->GetModeHelpString(sMode, false);
+                helpBuf.mTopCaption = "Help for \"" + sMode + "\"";
+            }
             else
+            {
                 sText = pCLP->GetGeneralHelpString();
+                helpBuf.mTopCaption = "General Help";
+            }
         }
 
         TableOutput additionalHelp;
@@ -2246,12 +2267,12 @@ void FolderList::OnKey(int keycode, char c)
 
         additionalHelp.AddRow(cols[kPARAM] + "[TAB]", "Context specific popup" + cols[kRESET]);
 
-        additionalHelp.AddRow(cols[kPARAM] + "[SHIFT - LEFT/RIGHT]", "Select characters" + cols[kRESET]);
-        additionalHelp.AddRow(cols[kPARAM] + "[SHIFT+CTRL - LEFT/RIGHT]", "Select words" + cols[kRESET]);
+        additionalHelp.AddRow(cols[kPARAM] + "[SHIFT-LEFT/RIGHT]", "Select characters" + cols[kRESET]);
+        additionalHelp.AddRow(cols[kPARAM] + "[SHIFT+CTRL-LEFT/RIGHT]", "Select words" + cols[kRESET]);
 
-        additionalHelp.AddRow(cols[kPARAM] + "[CTRL - A]", "Select All" + cols[kRESET]);
-        additionalHelp.AddRow(cols[kPARAM] + "[CTRL - C/V]", "Copy/Paste" + cols[kRESET]);
-        additionalHelp.AddRow(cols[kPARAM] + "[CTRL - Z]", "Undo" + cols[kRESET]);
+        additionalHelp.AddRow(cols[kPARAM] + "[CTRL-A]", "Select All" + cols[kRESET]);
+        additionalHelp.AddRow(cols[kPARAM] + "[CTRL-C/V]", "Copy/Paste" + cols[kRESET]);
+        additionalHelp.AddRow(cols[kPARAM] + "[CTRL-Z]", "Undo" + cols[kRESET]);
 
         additionalHelp.AddRow(cols[kPARAM] + "[UP]", "Command Line History (When cursor at top)" + cols[kRESET]);
 
@@ -2268,7 +2289,7 @@ void FolderList::OnKey(int keycode, char c)
         sText += "Path parameters bring up folder listing at that path. (TAB to go into the folder, BACKSPACE to go up a folder.)\n";
         sText += (string)additionalHelp;
 
-        helpBuf.SetText(sText);
+        helpBuf.mText = sText;
     }
 
 
@@ -2493,7 +2514,16 @@ void FolderList::OnKey(int keycode, char c)
 
         Clear(mClearAttrib);
 
-        DrawClippedAnsiText(0, -firstVisibleRow, mText);
+        Rect clip(mX, mY, mX + mWidth, mY + mHeight);
+        int64_t firstDrawRow = firstVisibleRow;
+        if (!mTopCaption.empty())
+        {
+            Fill(mX, mY, mX+mWidth, mY+1, kAttribCaption);
+            DrawClippedAnsiText(mX, mY, mTopCaption, false, &clip);
+            clip.t++;
+            firstDrawRow--;
+        }
+        DrawClippedAnsiText(0, -firstDrawRow, mText, true, &clip);
 
         for (int64_t y = 0; y < mHeight; y++)
         {
@@ -2523,7 +2553,7 @@ void FolderList::OnKey(int keycode, char c)
             int64_t h = 0;
             GetTextOuputRect(mText, w, h);
 
-            if (firstVisibleRow < (h - mHeight))
+            if (firstVisibleRow < (h - mHeight + 1))
                 firstVisibleRow++;
         }
         else if (keycode == VK_HOME)
