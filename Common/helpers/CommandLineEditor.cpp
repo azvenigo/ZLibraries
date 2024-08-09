@@ -430,26 +430,26 @@ void ListboxWin::Paint(tConsoleBuffer& backBuf)
     if (!mbVisible)
         return;
 
-    Clear(mClearAttrib);
+//    Clear(mClearAttrib);
+    ConsoleWin::Paint();
     
     int64_t topVisibleRow = -1;
     int64_t visibleRows = mHeight - 2;
     if (mSelection > visibleRows)
         topVisibleRow -= (visibleRows- mSelection-1);
 
-
+/*
     Fill(0, 0, mWidth, mHeight, mClearAttrib);
 
     Fill(0, 0, mWidth, 1, kAttribCaption);   // top
     Fill(0, 0, 1, mHeight, kAttribCaption);   // left
     Fill(0, mHeight - 1, mWidth, mHeight, kAttribCaption);    // bottom
     Fill(mWidth - 1, 0, mWidth, mHeight, kAttribCaption);    // right
-    //DrawClippedAnsiText(1, 0, sCaption, false);
     DrawClippedText(1, 0, mTopCaption, kAttribCaption, false);
 
     string sCaption("(" + SH::FromInt(mSelection + 1) + "/" + SH::FromInt(mEntries.size()) + ") " + mBottomCaption);
     DrawClippedText(1, mHeight - 1, sCaption, kAttribCaption, false);
-
+*/
 
     int64_t drawrow = -topVisibleRow;
     int64_t selection = 0;
@@ -469,7 +469,9 @@ void ListboxWin::Paint(tConsoleBuffer& backBuf)
         selection++;
     }
 
-    ConsoleWin::Paint(backBuf);
+//    ConsoleWin::Paint(backBuf);
+    ConsoleWin::RenderToBackBuf(backBuf);
+
 }
 
 string ListboxWin::GetSelection()
@@ -620,11 +622,14 @@ void ListboxWin::SetEntries(tStringList entries, string selectionSearch, int64_t
     }
 
     // find widest entry
-    int64_t width = 0;
+    int64_t width = mMinWidth;
     int64_t height = mEntries.size();
 
-
-    width = MH::Max(mBottomCaption.length() + 8, mTopCaption.length() + 8, (size_t)mMinWidth);
+    for (uint8_t pos = 0; pos < ConsoleWin::Position::MAX; pos++)
+    {
+        string caption = positionCaption[pos];
+        width = MH::Max(caption.length() + 8, caption.length() + 8, (size_t)width);
+    }
 
 //    width = std::max<int64_t>(mBottomCaption.length()+8, mTopCaption.length()+8);
 //    width = std::max<int64_t>(width, mMinWidth);
@@ -685,13 +690,6 @@ void ListboxWin::SetEntries(tStringList entries, string selectionSearch, int64_t
     SetArea(l, t, r, b);
 }
 
-
-
-void FolderList::Paint(tConsoleBuffer& backBuf)
-{
-    return ListboxWin::Paint(backBuf);
-}
-
 void FolderList::OnKey(int keycode, char c)
 {
     bool bCTRLHeld = GetKeyState(VK_CONTROL) & 0x800;
@@ -732,11 +730,14 @@ void FolderList::OnKey(int keycode, char c)
     ListboxWin::OnKey(keycode, c);
 
     if (SH::EndsWith(GetSelection(), "\\"))
-        mBottomCaption = "[ENTER-Select Folder] [TAB-Into Subfolder]";
+    {
+        positionCaption[Position::LB] = "[TAB-Into Subfolder] [BACKSPACE-Up to Parent]";
+        positionCaption[Position::RB] = "[ENTER-Select Folder]";
+    }
     else
-        mBottomCaption = "[ENTER-Select File]";
-
-    mBottomCaption += " [BACKSPACE-Up to Parent]";
+    {
+        positionCaption[Position::RB] = "[ENTER-Select File]";
+    }
 }
 
 
@@ -751,6 +752,13 @@ void FolderList::OnKey(int keycode, char c)
             mBuffer[i].attrib = mClearAttrib;
         }
     }
+
+    void ConsoleWin::ClearCaptions()
+    {
+        for (uint8_t pos = 0; pos < ConsoleWin::Position::MAX; pos++)
+            positionCaption[pos].clear();
+    }
+
 
     void ConsoleWin::Fill(int64_t l, int64_t t, int64_t r, int64_t b, ZAttrib attrib)
     {
@@ -768,8 +776,6 @@ void FolderList::OnKey(int keycode, char c)
     {
         return Fill(0, 0, mWidth, mHeight, attrib);
     }
-
-
 
     void ConsoleWin::DrawCharClipped(char c, int64_t x, int64_t y, ZAttrib attrib, Rect* pClip)
     {
@@ -1056,13 +1062,54 @@ void FolderList::OnKey(int keycode, char c)
     }
 
 
-    void ConsoleWin::Paint(tConsoleBuffer& backBuf)
+    void ConsoleWin::GetCaptionPosition(string& caption, ConsoleWin::Position pos, int64_t& x, int64_t& y)
+    {
+        if (pos == Position::LT || pos == Position::LB) // Left
+            x = mX;
+        else if (pos == Position::CT || pos == Position::CB) // Center
+            x = mX + (mWidth - caption.length()) / 2;
+        else
+            x = mX + mWidth - caption.length(); // Right
+
+        if (pos == Position::LT || pos == Position::CT || pos == Position::RT)
+            y = mY;
+        else
+            y = mY + mHeight;
+    }
+
+    void ConsoleWin::Paint()
     {
         // Update display
         if (!mbVisible)
             return;
 
+        Clear(mClearAttrib);
 
+        // Fill 
+        Fill(0, 0, mWidth, mHeight, mClearAttrib);
+
+        Fill(0, 0, mWidth, 1, kAttribCaption);   // top
+        Fill(0, 0, 1, mHeight, kAttribCaption);   // left
+        Fill(0, mHeight - 1, mWidth, mHeight, kAttribCaption);    // bottom
+        Fill(mWidth - 1, 0, mWidth, mHeight, kAttribCaption);    // right
+
+        // draw all captions
+        for (uint8_t pos = 0; pos < Position::MAX; pos++)
+        {
+            string caption = positionCaption[pos];
+            if (!caption.empty())
+            {
+                int64_t x = 0;
+                int64_t y = 0;
+                GetCaptionPosition(caption, Position(pos), x, y);
+                DrawClippedText(x, y, caption, kAttribCaption, false);
+            }
+        }
+    }
+
+
+    void ConsoleWin::RenderToBackBuf(tConsoleBuffer& backBuf)
+    {
         int64_t dr = ScreenW();
         int64_t db = ScreenH();
 
@@ -1092,7 +1139,7 @@ void FolderList::OnKey(int keycode, char c)
         if (!mbVisible)
             return;
 
-        Clear(mClearAttrib);
+        ConsoleWin::Paint();
 
         COORD cursor((SHORT)0, (SHORT)-firstVisibleRow);
 
@@ -1157,8 +1204,8 @@ void FolderList::OnKey(int keycode, char c)
         }
 
 
-
-        ConsoleWin::Paint(backBuf);
+        
+        ConsoleWin::RenderToBackBuf(backBuf);
     }
 
     void AnsiColorWin::Paint(tConsoleBuffer& backBuf)
@@ -1167,26 +1214,13 @@ void FolderList::OnKey(int keycode, char c)
         if (!mbVisible)
             return;
 
-        //Fill(mClearAttrib);
+        ConsoleWin::Paint();
 
         DrawClippedAnsiText(0, 0, mText);
-        ConsoleWin::Paint(backBuf);
+
+        ConsoleWin::RenderToBackBuf(backBuf);
     }
 
-
-/*    void ConsoleWin::PaintToWindowsConsole(HANDLE hOut)
-    {
-        // Update display
-        if (!mbVisible)
-            return;
-
-        DrawClippedAnsiText(0, 0, mText);
-
-        COORD origin((SHORT)mX, (SHORT)mY);
-        SMALL_RECT writeRegion((SHORT)mX, (SHORT)mY, (SHORT)(mX + mWidth), (SHORT)(mY + mHeight));
-        COORD bufsize((SHORT)mWidth, (SHORT)mHeight);
-        WriteConsoleOutput(hOut, &mBuffer[0], bufsize, origin, &writeRegion);
-    }*/
 
     void RawEntryWin::OnKey(int keycode, char c)
     {
@@ -1253,8 +1287,8 @@ void FolderList::OnKey(int keycode, char c)
 
                     // show history window
                     historyWin.mbVisible = true;
-                    historyWin.mTopCaption = "History";
-                    historyWin.mBottomCaption = "[ESC-Cancel] [ENTER-Select] [DEL-Delete Entry]";
+                    historyWin.positionCaption[Position::CT] = "History";
+                    historyWin.positionCaption[Position::RB] = "[ESC-Cancel] [ENTER-Select] [DEL-Delete Entry]";
                     historyWin.mMinWidth = ScreenW();
                     historyWin.SetEntries(commandHistory, mText, selectionstart, mY);
                 }
@@ -1411,7 +1445,7 @@ void FolderList::OnKey(int keycode, char c)
         if (!pCLP)
             return;
 
-        Clear(mClearAttrib);
+        ConsoleWin::Paint();
 
         string sRaw(rawCommandBuf.GetText());
 
@@ -1602,8 +1636,9 @@ void FolderList::OnKey(int keycode, char c)
             DrawClippedAnsiText(0, 1, sCommands);
         }
 
-        AnsiColorWin::Paint(backBuf);
+        ConsoleWin::RenderToBackBuf(backBuf);
 
+//        AnsiColorWin::Paint(backBuf);
 
         return;
     }
@@ -1749,14 +1784,15 @@ void FolderList::OnKey(int keycode, char c)
 
         string sSelection = GetSelection();
         if (sSelection == kEmptyFolderCaption)
-            mTopCaption = "Empty Folder: " + sSelection;
+            positionCaption[Position::LT] = "Empty Folder: " + sSelection;
         else
-            mTopCaption = sPath;
+            positionCaption[Position::LT] = sPath;
 
-        mBottomCaption = "[ENTER-Select]";
-        if (SH::EndsWith(mBottomCaption, "\\"))
-            mBottomCaption += " [TAB-Into Subfolder]";
-        mBottomCaption += " [BACKSPACE-Up to Parent]";
+
+        positionCaption[Position::LB] = "[ENTER-Select]";
+        if (SH::EndsWith(positionCaption[Position::LB], "\\"))
+            positionCaption[Position::LB] += " [TAB-Into Subfolder]";
+        positionCaption[Position::LB] += " [BACKSPACE-Up to Parent]";
 
         mPath = sSelectedPath;
 
@@ -1801,18 +1837,18 @@ void FolderList::OnKey(int keycode, char c)
         if (enteredParams.empty())
         {
             popupListWin.mbVisible = true;
-            popupListWin.mTopCaption = "Commands";
+            popupListWin.positionCaption[Position::CT] = "Commands";
             popupListWin.SetEntries(availableModes, sText, anchor.X, anchor.Y);
         }
         else if (sText == enteredParams[0].sParamText && !availableModes.empty())
         {
             popupListWin.mbVisible = true;
-            popupListWin.mTopCaption = "Commands";
+            popupListWin.positionCaption[Position::CT] = "Commands";
             popupListWin.SetEntries(availableModes, sText, anchor.X, anchor.Y);
         }
         else if (sText[0] == '-')
         {
-            popupListWin.mTopCaption = "Options";
+            popupListWin.positionCaption[Position::CT] = "Options";
             popupListWin.mbVisible = true;
             popupListWin.SetEntries(availableNamedParams, sText, anchor.X, anchor.Y);
         }
@@ -2247,12 +2283,12 @@ void FolderList::OnKey(int keycode, char c)
             if (pCLP->IsRegisteredMode(sMode))
             {
                 sText = pCLP->GetModeHelpString(sMode, false);
-                helpBuf.mTopCaption = "Help for \"" + sMode + "\"";
+                helpBuf.positionCaption[ConsoleWin::Position::LT] = "Help for \"" + sMode + "\"";
             }
             else
             {
                 sText = pCLP->GetGeneralHelpString();
-                helpBuf.mTopCaption = "General Help";
+                helpBuf.positionCaption[ConsoleWin::Position::LT] = "General Help";
             }
         }
 
@@ -2512,26 +2548,24 @@ void FolderList::OnKey(int keycode, char c)
         if (!mbVisible)
             return;
 
-        Clear(mClearAttrib);
+//        Clear(mClearAttrib);
+        ConsoleWin::Paint();
 
-        Rect clip(mX, mY, mX + mWidth, mY + mHeight);
-        int64_t firstDrawRow = firstVisibleRow;
-        if (!mTopCaption.empty())
-        {
-            Fill(mX, mY, mX+mWidth, mY+1, kAttribCaption);
-            DrawClippedAnsiText(mX, mY, mTopCaption, false, &clip);
-            clip.t++;
-            firstDrawRow--;
-        }
+        Rect clip(mX+1, mY+1, mX + mWidth-2, mY + mHeight-2);
+        int64_t firstDrawRow = firstVisibleRow-1;
+        clip.t++;
         DrawClippedAnsiText(0, -firstDrawRow, mText, true, &clip);
 
-        for (int64_t y = 0; y < mHeight; y++)
+        ConsoleWin::RenderToBackBuf(backBuf);
+
+/*        for (int64_t y = 0; y < mHeight; y++)
         {
             int64_t readOffset = (y * mWidth);
             int64_t writeOffset = ((y + mY) * mWidth + mX);
 
             memcpy(&backBuf[writeOffset], &mBuffer[readOffset], mWidth * sizeof(ZChar));
         }
+        */
     }
 
     void InfoWin::OnKey(int keycode, char c)

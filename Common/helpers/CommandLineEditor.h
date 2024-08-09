@@ -217,6 +217,21 @@ namespace CLP
     class ConsoleWin
     {
     public:
+        enum Position : uint8_t
+        {
+            LT = 0,
+            CT = 1,
+            RT = 2,
+
+            LB = 3,
+            CB = 4,
+            RB = 5,
+
+            MAX = 6
+
+        };
+
+
         bool Init(int64_t l, int64_t t, int64_t r, int64_t b);
 
         void Clear(ZAttrib attrib = 0);
@@ -230,11 +245,11 @@ namespace CLP
         void DrawClippedAnsiText(int64_t x, int64_t y, std::string ansitext, bool bWrap = true, Rect* pClip = nullptr);
         int64_t DrawFixedColumnStrings(int64_t x, int64_t y, tStringArray& strings, std::vector<size_t>& colWidths, tAttribArray attribs, Rect* pClip = nullptr); // returns rows drawn
 
-        void GetTextOuputRect(std::string text, int64_t& w, int64_t& h);        
+        void GetTextOuputRect(std::string text, int64_t& w, int64_t& h);
+        void GetCaptionPosition(std::string& caption, Position pos, int64_t& x, int64_t& y);
 
-        //virtual void PaintToWindowsConsole(HANDLE hOut);
-        virtual void Paint(tConsoleBuffer& backBuf);
-
+        virtual void Paint();
+        virtual void RenderToBackBuf(tConsoleBuffer& backBuf);
 
         virtual void OnKey(int keycode, char c) {}
 
@@ -247,6 +262,10 @@ namespace CLP
         bool mbCanceled = false;
         bool mbVisible = false;
         tConsoleBuffer  mBuffer;
+
+        void ClearCaptions();
+
+        std::string positionCaption[Position::MAX];
 
     protected:
         ZAttrib mClearAttrib = 0;
@@ -336,8 +355,6 @@ namespace CLP
         void OnKey(int keycode, char c);
 
         int64_t firstVisibleRow = 0;
-        std::string mTopCaption;
-        std::string mBottomCaption;
         std::string mText;
     };
 
@@ -369,14 +386,15 @@ namespace CLP
         virtual void Paint(tConsoleBuffer& backBuf);
         virtual void OnKey(int keycode, char c);
 
-        std::string mTopCaption;
-        std::string mBottomCaption;
-        int64_t mMinWidth;
+        int64_t     mMinWidth;
+        int64_t     mMinHeight;
+
     protected:
         tStringList mEntries;
         int64_t     mSelection;
         int64_t     mAnchorL;
         int64_t     mAnchorB;
+
     };
 
     class HistoryWin : public ListboxWin
@@ -390,7 +408,6 @@ namespace CLP
     public:
         bool            Scan(std::string sPath, int64_t origin_l, int64_t origin_b);  // bottom left corner to auto size from
         std::string     FindClosestParentPath(std::string sPath);    // given some path with possibly non-existant elements, walk up the chain until finding an existing parent
-        virtual void    Paint(tConsoleBuffer& backBuf);
         virtual void    OnKey(int keycode, char c);
 
         tStringList     mEntries;
