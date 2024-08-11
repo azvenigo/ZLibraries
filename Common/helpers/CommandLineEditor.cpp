@@ -103,8 +103,80 @@ namespace CLP
 
 
 
-    bool CopyTextToClipboard(const std::string& text);
-    
+    string GetTextFromClipboard()
+    {
+        if (!OpenClipboard(NULL))
+            return "";
+
+        HANDLE hData = GetClipboardData(CF_TEXT);
+        if (hData == NULL)
+        {
+            CloseClipboard();
+            return "";
+        }
+
+        CHAR* pszText = static_cast<CHAR*>(GlobalLock(hData));
+        if (pszText == NULL)
+        {
+            CloseClipboard();
+            return "";
+        }
+
+        std::string clipboardText = pszText;
+
+        GlobalUnlock(hData);
+        CloseClipboard();
+
+        return clipboardText;
+    }
+
+    bool CopyTextToClipboard(const std::string& text)
+    {
+        if (!OpenClipboard(NULL))
+        {
+            std::cerr << "Error opening clipboard" << std::endl;
+            return false;
+        }
+
+        if (!EmptyClipboard())
+        {
+            CloseClipboard();
+            std::cerr << "Error emptying clipboard" << std::endl;
+            return false;
+        }
+
+        HGLOBAL hClipboardData = GlobalAlloc(GMEM_MOVEABLE, (text.length() + 1) * sizeof(char));
+        if (hClipboardData == NULL)
+        {
+            CloseClipboard();
+            std::cerr << "Error allocating memory for clipboard" << std::endl;
+            return false;
+        }
+
+        char* pBuffer = static_cast<char*>(GlobalLock(hClipboardData));
+        if (pBuffer == NULL)
+        {
+            CloseClipboard();
+            std::cerr << "Error locking memory for clipboard" << std::endl;
+            return false;
+        }
+
+        // Copy the text to the buffer
+        strcpy_s(pBuffer, text.length() + 1, text.c_str());
+
+        GlobalUnlock(hClipboardData);
+
+        if (!SetClipboardData(CF_TEXT, hClipboardData))
+        {
+            CloseClipboard();
+            std::cerr << "Error setting clipboard data" << std::endl;
+            return false;
+        }
+
+        CloseClipboard();
+        return true;
+    }
+
     CommandLineEditor::CommandLineEditor()
     {
         pCLP = nullptr;
@@ -1427,6 +1499,11 @@ namespace CLP
                 if (IsTextSelected())
                 {
                     AddUndoEntry();
+                    if (bSHIFTHeld) // SHIFT-DELETE is cut
+                    {
+                        CopyTextToClipboard(GetSelectedText());
+                    }
+
                     DeleteSelection();
                 }
                 else
@@ -1443,6 +1520,21 @@ namespace CLP
                 bHandled = true;
             }
             break;
+            case 0x58:
+            {
+                if (bCTRLHeld)  // CTRL-X is cut
+                {
+                    if (IsTextSelected())
+                    {
+                        AddUndoEntry();
+                        CopyTextToClipboard(GetSelectedText());
+                        DeleteSelection();
+                    }
+
+                    bHandled = true;
+                    break;
+                }
+            }
             case 0x41:
             {
                 if (bCTRLHeld)  // CTRL-A
@@ -1454,12 +1546,20 @@ namespace CLP
                 }
             }
             break;
+            case VK_INSERT:
             case 0x43:
             {
                 if (bCTRLHeld)  // CTRL-C
                 {
                     // handle copy
                     CopyTextToClipboard(GetSelectedText());
+                    bHandled = true;
+                    break;
+                }
+                if (bSHIFTHeld)  // SHIFT-INSERT is paste
+                {
+                    AddUndoEntry();
+                    HandlePaste(GetTextFromClipboard());
                     bHandled = true;
                     break;
                 }
@@ -1712,79 +1812,6 @@ namespace CLP
     }
 
 
-    string GetTextFromClipboard() 
-    {
-        if (!OpenClipboard(NULL)) 
-            return "";
-
-        HANDLE hData = GetClipboardData(CF_TEXT);
-        if (hData == NULL) 
-        {
-            CloseClipboard();
-            return "";
-        }
-
-        CHAR* pszText = static_cast<CHAR*>(GlobalLock(hData));
-        if (pszText == NULL) 
-        {
-            CloseClipboard();
-            return "";
-        }
-
-        std::string clipboardText = pszText;
-
-        GlobalUnlock(hData);
-        CloseClipboard();
-
-        return clipboardText;
-    }
-
-    bool CopyTextToClipboard(const std::string& text)
-    {
-        if (!OpenClipboard(NULL)) 
-        {
-            std::cerr << "Error opening clipboard" << std::endl;
-            return false;
-        }
-
-        if (!EmptyClipboard()) 
-        {
-            CloseClipboard();
-            std::cerr << "Error emptying clipboard" << std::endl;
-            return false;
-        }
-
-        HGLOBAL hClipboardData = GlobalAlloc(GMEM_MOVEABLE, (text.length() + 1) * sizeof(char));
-        if (hClipboardData == NULL) 
-        {
-            CloseClipboard();
-            std::cerr << "Error allocating memory for clipboard" << std::endl;
-            return false;
-        }
-
-        char* pBuffer = static_cast<char*>(GlobalLock(hClipboardData));
-        if (pBuffer == NULL) 
-        {
-            CloseClipboard();
-            std::cerr << "Error locking memory for clipboard" << std::endl;
-            return false;
-        }
-
-        // Copy the text to the buffer
-        strcpy_s(pBuffer, text.length() + 1, text.c_str());
-
-        GlobalUnlock(hClipboardData);
-
-        if (!SetClipboardData(CF_TEXT, hClipboardData)) 
-        {
-            CloseClipboard();
-            std::cerr << "Error setting clipboard data" << std::endl;
-            return false;
-        }
-
-        CloseClipboard();
-        return true;
-    }
 
     FolderList::FolderList()
     {
@@ -1964,6 +1991,15 @@ namespace CLP
 
         // clear back buffer
         memset(&backBuffer[0], 0, backBuffer.size() * sizeof(ZChar));
+        bool bCursorShouldBeHidden = false;
+
+        if (helpWin.mbVisible || popupListWin.mbVisible || popupFolderListWin.mbVisible || historyWin.mbVisible)
+            bCursorShouldBeHidden = true;
+
+
+
+
+
 
         if (helpWin.mbVisible)
         {
@@ -2025,7 +2061,7 @@ namespace CLP
 
 //        DrawAnsiChar(0, 0, '*', 0xffff00ffff00ff00);
 
-        if (bCursorHidden)
+        if (bCursorHidden && !bCursorShouldBeHidden)
         {
             cout << "\033[?25h";
         }
@@ -2408,6 +2444,12 @@ namespace CLP
         int MY_HOTKEY_ID = 1;
 
         if (!RegisterHotKey(NULL, MY_HOTKEY_ID, MOD_CONTROL, 'V'))
+        {
+            std::cerr << "Error registering hotkey" << std::endl;
+            return "";
+        }
+
+        if (!RegisterHotKey(NULL, MY_HOTKEY_ID, MOD_SHIFT, VK_INSERT))
         {
             std::cerr << "Error registering hotkey" << std::endl;
             return "";
