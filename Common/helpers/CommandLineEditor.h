@@ -217,6 +217,16 @@ namespace CLP
     class ConsoleWin
     {
     public:
+        enum Side : uint8_t
+        {
+            L    = 0,
+            T    = 1,
+            R    = 2, 
+            B    = 3,
+
+            MAX_SIDES = 4
+        };
+
         enum Position : uint8_t
         {
             LT = 0,
@@ -227,15 +237,16 @@ namespace CLP
             CB = 4,
             RB = 5,
 
-            MAX = 6
-
+            MAX_POSITIONS = 6
         };
 
 
-        bool Init(int64_t l, int64_t t, int64_t r, int64_t b);
-
+        bool Init(const Rect& r);
+        void SetEnableFrame(bool _l = 1, bool _t = 1, bool _r = 1, bool _b = 1);
         void Clear(ZAttrib attrib = 0);
-        void Fill(int64_t l, int64_t t, int64_t r, int64_t b, ZAttrib attrib);
+
+
+        void Fill(const Rect& r, ZAttrib attrib);
         void Fill(ZAttrib attrib);
 
         void DrawCharClipped(char c, int64_t x, int64_t y, ZAttrib attrib = {}, Rect* pClip = nullptr);
@@ -248,13 +259,14 @@ namespace CLP
         void GetTextOuputRect(std::string text, int64_t& w, int64_t& h);
         void GetCaptionPosition(std::string& caption, Position pos, int64_t& x, int64_t& y);
 
-        virtual void Paint();
+        virtual void BasePaint();
         virtual void RenderToBackBuf(tConsoleBuffer& backBuf);
 
         virtual void OnKey(int keycode, char c) {}
 
-        virtual void SetArea(int64_t l, int64_t t, int64_t r, int64_t b);
-        void GetArea(int64_t& l, int64_t& t, int64_t& r, int64_t& b);
+        virtual void SetArea(const Rect& r);
+        void GetArea(Rect& r);
+        void GetInnerArea(Rect& r);  // adjusted for frame
 
         void ClearScreenBuffer();
 
@@ -265,7 +277,8 @@ namespace CLP
 
         void ClearCaptions();
 
-        std::string positionCaption[Position::MAX];
+        std::string positionCaption[Position::MAX_POSITIONS];
+        bool enableFrame[Side::MAX_SIDES] = { 0 };
 
     protected:
         ZAttrib mClearAttrib = 0;
@@ -313,7 +326,7 @@ namespace CLP
         bool IsIndexInSelection(int64_t i);
         bool IsTextSelected() { return selectionstart >= 0 && selectionend >= 0; }
 
-        void SetArea(int64_t l, int64_t t, int64_t r, int64_t b);
+        void SetArea(const Rect& r);
 
         virtual void OnKey(int keycode, char c);
 
@@ -354,7 +367,7 @@ namespace CLP
         void Paint(tConsoleBuffer& backBuf);
         void OnKey(int keycode, char c);
 
-        int64_t firstVisibleRow = 0;
+        int64_t mTopVisibleRow = 0;
         std::string mText;
     };
 
@@ -379,12 +392,15 @@ namespace CLP
     class ListboxWin : public ConsoleWin
     {
     public:
-        ListboxWin() : mMinWidth(0), mSelection(-1), mAnchorL(-1), mAnchorB(-1) {}
+        ListboxWin() : mMinWidth(0), mSelection(-1), mTopVisibleRow(0), mAnchorL(-1), mAnchorB(-1) {}
         virtual std::string GetSelection();
 
         virtual void SetEntries(tStringList entries, std::string selectionSearch = "", int64_t anchor_l = -1, int64_t anchor_b = -1);
         virtual void Paint(tConsoleBuffer& backBuf);
         virtual void OnKey(int keycode, char c);
+
+        virtual void SizeWindowToEntries();
+        virtual void UpdateCaptions();
 
         int64_t     mMinWidth;
         int64_t     mMinHeight;
@@ -392,6 +408,7 @@ namespace CLP
     protected:
         tStringList mEntries;
         int64_t     mSelection;
+        int64_t     mTopVisibleRow;
         int64_t     mAnchorL;
         int64_t     mAnchorB;
 
@@ -400,16 +417,19 @@ namespace CLP
     class HistoryWin : public ListboxWin
     {
     public:
+        HistoryWin();
         virtual void OnKey(int keycode, char c);
     };
 
     class FolderList : public ListboxWin
     {
     public:
+        FolderList();
         bool            Scan(std::string sPath, int64_t origin_l, int64_t origin_b);  // bottom left corner to auto size from
         std::string     FindClosestParentPath(std::string sPath);    // given some path with possibly non-existant elements, walk up the chain until finding an existing parent
         virtual void    OnKey(int keycode, char c);
 
+        void            UpdateCaptions();
         tStringList     mEntries;
     protected:
         std::string     mPath;
