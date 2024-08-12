@@ -243,7 +243,7 @@ namespace CLP
 
         bool Init(const Rect& r);
         void SetEnableFrame(bool _l = 1, bool _t = 1, bool _r = 1, bool _b = 1);
-        void Clear(ZAttrib attrib = 0);
+        void Clear(ZAttrib attrib = 0, bool bGradient = false);
 
 
         void Fill(const Rect& r, ZAttrib attrib);
@@ -282,6 +282,7 @@ namespace CLP
 
     protected:
         ZAttrib mClearAttrib = 0;
+        bool mbGradient = false;
 
         int64_t mWidth = 0;
         int64_t mHeight = 0;
@@ -366,6 +367,7 @@ namespace CLP
     public:
         void Paint(tConsoleBuffer& backBuf);
         void OnKey(int keycode, char c);
+        virtual void UpdateCaptions();
 
         int64_t mTopVisibleRow = 0;
         std::string mText;
@@ -431,6 +433,7 @@ namespace CLP
 
         void            UpdateCaptions();
         tStringList     mEntries;
+        bool            IsRootFolder(std::string sPath);
     protected:
         std::string     mPath;
         int64_t         mSelection;

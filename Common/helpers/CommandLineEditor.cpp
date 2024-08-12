@@ -62,7 +62,7 @@ namespace CLP
     tStringList     availableModes;
     tStringList     availableNamedParams;
 
-    const string    kEmptyFolderCaption("[EMPTY]");
+    const string    kEmptyFolderCaption("[Empty Folder]");
 
     CONSOLE_SCREEN_BUFFER_INFO screenInfo;
     inline SHORT ScreenW() { return screenInfo.srWindow.Right - screenInfo.srWindow.Left+1; }
@@ -477,7 +477,7 @@ namespace CLP
                 mBuffer.resize(newW * newH);
                 mWidth = newW;
                 mHeight = newH;
-                Clear(mClearAttrib);
+                Clear(mClearAttrib, mbGradient);
             }
 
         }
@@ -638,7 +638,7 @@ namespace CLP
             rawCommandBuf.ClearSelection();
             break;
         }
-        Clear(mClearAttrib);
+        Clear(mClearAttrib, mbGradient);
         UpdateCaptions();
     }
 
@@ -819,6 +819,14 @@ namespace CLP
                 if (selection == kEmptyFolderCaption)
                     selection = mPath;
 
+                // if selecting a new drive to scan, just scan instead of returning
+                if (IsRootFolder(selection))
+                {
+                    Scan(selection, mX, mY + mHeight);
+                    return;
+                }
+
+
                 rawCommandBuf.AddUndoEntry();
                 rawCommandBuf.HandlePaste(CommandLineParser::EncloseWhitespaces(mPath + selection));
                 mEntries.clear();
@@ -847,9 +855,10 @@ namespace CLP
 
 
 
-    void ConsoleWin::Clear(ZAttrib attrib)
+    void ConsoleWin::Clear(ZAttrib attrib, bool bGradient)
     {
         mClearAttrib = attrib;
+        mbGradient = bGradient;
         for (size_t i = 0; i < mBuffer.size(); i++)
         {
             mBuffer[i].c = 0;
@@ -877,6 +886,13 @@ namespace CLP
     {
         for (int64_t y = r.t; y < r.b; y++)
         {
+          // playing with gradient fill
+            if (mbGradient)
+            {
+                attrib.br = (uint64_t)(attrib.br * 0.96);
+                attrib.bg = (uint64_t)(attrib.bg * 0.96);
+                attrib.bb = (uint64_t)(attrib.bb * 0.96);
+            }
             for (int64_t x = r.l; x < r.r; x++)
             {
                 size_t offset = y * mWidth + x;
@@ -1200,7 +1216,7 @@ namespace CLP
         if (!mbVisible)
             return;
 
-        Clear(mClearAttrib);
+        Clear(mClearAttrib, mbGradient);
 
         // Fill 
         Fill(Rect(0, 0, mWidth, mHeight), mClearAttrib);
@@ -1825,9 +1841,16 @@ namespace CLP
         if (!fs::exists(sPath))
             return false;
 
+        bool bIsRoot = false;
         sPath = FH::Canonicalize(sPath);
-        if (!fs::is_directory(sPath))
+        if (fs::is_directory(sPath))
+        {
+            bIsRoot = IsRootFolder(sPath);
+        }
+        else
+        {
             sPath = fs::path(sPath).parent_path().string();
+        }
 
         tStringList folders;
         tStringList files;
@@ -1857,14 +1880,31 @@ namespace CLP
             }
         }
 
+        mEntries.clear();
         if (folders.empty() && files.empty())
         {
-            mEntries.clear();
             mEntries.push_back(kEmptyFolderCaption);
         }
         else
         {
-            mEntries = folders;
+            if (bIsRoot)
+            {
+
+                char buf[1024];
+                GetLogicalDriveStringsA(1024, buf);
+
+                char* pBuf = &buf[0];
+                while (*pBuf && pBuf < &buf[1024])
+                {
+                    string sDrive(pBuf);
+                    mEntries.push_back(sDrive);
+                    pBuf += sDrive.length()+1;
+                }
+
+            }
+
+
+            mEntries.splice(mEntries.end(), folders);
             mEntries.splice(mEntries.end(), files);
         }
 
@@ -1893,6 +1933,12 @@ namespace CLP
 
         return sPath;
     }
+
+    bool FolderList::IsRootFolder(std::string sPath)
+    {
+        return fs::path(sPath).root_path() == fs::path(sPath);
+    }
+
 
     bool RawEntryWin::HandleParamContext()
     {
@@ -2348,7 +2394,7 @@ namespace CLP
             rawCommandBuf.Clear(0xff444444);
             rawCommandBuf.SetArea(Rect(0, h - 4, w, h));
 
-            helpWin.Clear(kAttribHelpBG);
+            helpWin.Clear(kAttribHelpBG, true);
             helpWin.SetArea(Rect(0, 1, w, h));
             helpWin.SetEnableFrame();
 
@@ -2361,6 +2407,7 @@ namespace CLP
             popupListWin.Clear(kAttribListBoxBG);
             popupListWin.SetEnableFrame();
             popupListWin.mMinWidth = 32;
+            popupListWin.positionCaption[ConsoleWin::Position::RB] = "[UP/DOWN][ENTER-Select][ESC-Cancel]";
 
             UpdateDisplay();
         }
@@ -2370,7 +2417,7 @@ namespace CLP
     {
         string sText;
         helpWin.Init(Rect(0, 1, ScreenW(), ScreenH()));
-        helpWin.Clear(kAttribHelpBG);
+        helpWin.Clear(kAttribHelpBG, true);
 
         Rect drawArea;
         helpWin.GetInnerArea(drawArea);
@@ -2427,6 +2474,7 @@ namespace CLP
         sText += (string)additionalHelp;
 
         helpWin.mText = sText;
+        helpWin.UpdateCaptions();
     }
 
 
@@ -2676,11 +2724,36 @@ namespace CLP
         */
     }
 
+    void InfoWin::UpdateCaptions()
+    {
+        Rect drawArea;
+        GetInnerArea(drawArea);
+        int64_t drawHeight = drawArea.b - drawArea.t;
+
+        int64_t docWidth = 0;
+        int64_t docHeight = 0;
+        GetTextOuputRect(mText, docWidth, docHeight);
+
+        if (docHeight > drawHeight)
+        {
+            positionCaption[ConsoleWin::Position::RT] = "Lines (" + SH::FromInt(mTopVisibleRow + 1) + "-" + SH::FromInt(mTopVisibleRow + drawHeight) + "/" + SH::FromInt(docHeight) + ")";
+            positionCaption[ConsoleWin::Position::RB] = "[UP/DOWN][PAGE Up/Down][HOME/END]";
+        }
+        else
+        {
+            positionCaption[ConsoleWin::Position::RT].clear();
+        }
+    }
+
     void InfoWin::OnKey(int keycode, char c)
     {
         Rect drawArea;
         GetInnerArea(drawArea);
         int64_t drawHeight = drawArea.b - drawArea.t;
+
+        int64_t docWidth = 0;
+        int64_t docHeight = 0;
+        GetTextOuputRect(mText, docWidth, docHeight);
 
         if (keycode == VK_F1 || keycode == VK_ESCAPE)
         {
@@ -2688,32 +2761,42 @@ namespace CLP
             mbVisible = false;
             mbDone = true;
         }
-        else if (keycode == VK_UP)
-        {
-            if (mTopVisibleRow > 0)
-                mTopVisibleRow--;
-        }
-        else if (keycode == VK_DOWN)
-        {
-            int64_t w = 0;
-            int64_t h = 0;
-            GetTextOuputRect(mText, w, h);
 
-            if (mTopVisibleRow < (h - drawHeight + 1))
+        if (docHeight > drawHeight)
+        {
+            if (keycode == VK_UP)
+            {
+                mTopVisibleRow--;
+            }
+            else if (keycode == VK_DOWN)
+            {
                 mTopVisibleRow++;
+            }
+            else if (keycode == VK_HOME)
+            {
+                mTopVisibleRow = 0;
+            }
+            else if (keycode == VK_PRIOR)
+            {
+                mTopVisibleRow -= drawHeight;
+            }
+            else if (keycode == VK_NEXT)
+            {
+                mTopVisibleRow += drawHeight;
+            }
+            else if (keycode == VK_END)
+            {
+                mTopVisibleRow = docHeight - drawHeight;
+            }
+
+            if (mTopVisibleRow < 0)
+                mTopVisibleRow = 0;
+            if (mTopVisibleRow > (docHeight - drawHeight))
+                mTopVisibleRow = (docHeight - drawHeight);
         }
-        else if (keycode == VK_HOME)
-        {
-            mTopVisibleRow = 0;
-        }
-        else if (keycode == VK_END)
-        {
-            int64_t w = 0;
-            int64_t h = 0;
-            GetTextOuputRect(mText, w, h);
-            if (h > drawHeight)
-                mTopVisibleRow = h - drawHeight;
-        }
+
+        UpdateCaptions();
+
     }
 
     string CommandLineEditor::HistoryPath()
