@@ -65,21 +65,21 @@ int main(int argc, char* argv[])
 
     parser.RegisterMode("create", "Creates a ZIP archive from a given folder or file.");
     parser.RegisterParam("create", ParamDesc("ZIPFILE", &gsPackageURL, CLP::kPositional | CLP::kRequired, "Path of the ZIP archive to create."));
-    parser.RegisterParam("create", ParamDesc("FOLDER", &gsBaseFolder, CLP::kPositional | CLP::kRequired, "Base folder of files add to the archive"));
+    parser.RegisterParam("create", ParamDesc("FOLDER", &gsBaseFolder, CLP::kPositional | CLP::kRequired | CLP::kExistingPath, "Base folder of files add to the archive"));
 
     parser.RegisterMode("diff", "Compares the contents of a ZIP archive with a local folder and reports the differences." );
     parser.RegisterParam("diff", ParamDesc("ZIPFILE", &gsPackageURL, CLP::kPositional | CLP::kRequired, "Path or URL to a ZIP archive"));
-    parser.RegisterParam("diff", ParamDesc("FOLDER", &gsBaseFolder, CLP::kPositional | CLP::kRequired, "Base folder to diff against"));
+    parser.RegisterParam("diff", ParamDesc("FOLDER", &gsBaseFolder, CLP::kPositional | CLP::kRequired | CLP::kExistingPath, "Base folder to diff against"));
 
     parser.RegisterMode("update", "Compares the contents of a ZIP archive with a local folder and extracts all files that are new or different.");
     parser.RegisterParam("update", ParamDesc("ZIPFILE", &gsPackageURL, CLP::kPositional | CLP::kRequired, "Path or URL to a ZIP archive"));
-    parser.RegisterParam("update", ParamDesc("FOLDER", &gsBaseFolder, CLP::kPositional | CLP::kRequired, "Base folder to update"));
+    parser.RegisterParam("update", ParamDesc("FOLDER", &gsBaseFolder, CLP::kPositional | CLP::kRequired | CLP::kExistingPath, "Base folder to update"));
     parser.RegisterParam("update", ParamDesc("skipcrc", &gbSkipCRC, CLP::kNamed | CLP::kOptional, "Skip CRC checks for matching files and overwrite everything when doing an update. (Same behavior as extract.)"));
     parser.RegisterParam("update", ParamDesc("pattern", &gsPattern, CLP::kPositional | CLP::kOptional, "Wildcard pattern to use when filtering filenames"));
 
     parser.RegisterMode("extract", "Extracts files from a ZIP archive.");
     parser.RegisterParam("extract", ParamDesc("ZIPFILE", &gsPackageURL, CLP::kPositional | CLP::kRequired, "Path or URL to a ZIP archive"));
-    parser.RegisterParam("extract", ParamDesc("FOLDER", &gsBaseFolder, CLP::kPositional | CLP::kRequired, "Base folder to extract to"));
+    parser.RegisterParam("extract", ParamDesc("FOLDER", &gsBaseFolder, CLP::kPositional | CLP::kRequired | CLP::kPath, "Base folder to extract to"));
     parser.RegisterParam("extract", ParamDesc("pattern", &gsPattern, CLP::kPositional | CLP::kOptional, "Wildcard pattern to use when filtering filenames"));
 
     parser.RegisterParam(ParamDesc("pattern", &gsPattern, CLP::kNamed | CLP::kOptional, "Wildcard pattern to use when filtering filenames"));

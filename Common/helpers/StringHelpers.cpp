@@ -473,7 +473,11 @@ bool SH::ContainsWhitespace(const std::string& s, bool bSkipQuotes)
             if (std::isspace(c))
                 return true;
             if (c == '\'' || c == '\"')
-                i = FindMatching(s, i);     // skip quote
+            {
+                size_t match = FindMatching(s, i);     // skip quote
+                if (match != string::npos)
+                    i = match;
+            }
         }
 
         return false;
