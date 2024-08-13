@@ -69,9 +69,9 @@ namespace FH
 
             return sReturnPath;
         }
-        catch (const std::filesystem::filesystem_error& e)
+        catch (const std::filesystem::filesystem_error& /*e*/)
         {
-            std::cerr << "Filesystem error: " << e.what() << std::endl;
+//            std::cerr << "Filesystem error: " << e.what() << std::endl;
         }
         catch (const std::exception& e)
         {
