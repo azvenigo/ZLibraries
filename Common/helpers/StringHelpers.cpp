@@ -571,7 +571,7 @@ public:
         assert(SH::FindMatching(s5, 1) == 14);
 
         string s6("[Dave's Crabshack]");
-        assert(SH::FindMatching(s6, 0) == 11);
+        assert(SH::FindMatching(s6, 0) == 17);
         assert(SH::FindMatching(s6, 6) == string::npos);
 
 
