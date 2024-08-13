@@ -533,12 +533,10 @@ size_t SH::FindMatching(const std::string& s, size_t i)
 
         if (s[i] == '\"' || s[i] == '\'' || s[i] == '{' || s[i] == '[' || s[i] == '[' || s[i] == '<' || s[i] == '(' || s[i] == '`')   // another enclosure?
         {
-            i = FindMatching(s, i); // find that enclosure
-            if (i == string::npos)
+            size_t j = FindMatching(s, i); // find that enclosure
+            if (j != string::npos)
             {
-                // couldn't find enclosing message
-//                assert(false);
-//                return string::npos;
+                i = j;  // found another enclosure, advance i
             }
         }
     } while (i < s.length());
@@ -571,6 +569,10 @@ public:
         string s5("[< <<>><<<>>> >]");
         assert(SH::FindMatching(s5, 0) == 15);
         assert(SH::FindMatching(s5, 1) == 14);
+
+        string s6("[Dave's Crabshack]");
+        assert(SH::FindMatching(s6, 0) == 11);
+        assert(SH::FindMatching(s6, 6) == string::npos);
 
 
 
