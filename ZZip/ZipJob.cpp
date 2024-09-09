@@ -203,6 +203,8 @@ void ZipJob::RunCompressionJob(void* pContext)
     pZipJob->mJobStatus.mStatus = JobStatus::kFinished;
 }
 
+
+
 void ZipJob::RunDiffJob(void* pContext)
 {
     ZipJob* pZipJob = (ZipJob*) pContext;

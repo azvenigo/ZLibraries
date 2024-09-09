@@ -130,9 +130,9 @@ bool ZZipAPI::OpenForReading()
     return true;
 }
 
-bool ZZipAPI::CreateZipFile()
+bool ZZipAPI::CreateZipFile(bool bAppend)
 {
-    if (!cZZFile::Open(msZipURL, cZZFile::ZZFILE_WRITE, mpZZFile))
+    if (!cZZFile::Open(msZipURL, cZZFile::ZZFILE_WRITE, mpZZFile, bAppend))
     {
         cerr << "Couldn't open file for writing \"" << msZipURL << "\"!\n";
         return false;

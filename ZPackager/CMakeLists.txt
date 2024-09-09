@@ -11,7 +11,14 @@ project(ZPackager)
 ####################
 # ZPackager
 
-set(ZPACKAGER_SOURCES main.cpp ZZipAPI.h ZZipAPI.cpp ZipJob.h ZipJob.cpp ZipHeaders.h ZipHeaders.cpp ZZipTrackers.h zlibAPI.h zlibAPI.cpp)
+set(ZPACKAGER_SOURCES 
+main.cpp 
+../ZZip/ZZipAPI.h ../ZZip/ZZipAPI.cpp 
+../ZZip/ZipJob.h ../ZZip/ZipJob.cpp 
+../ZZip/ZipHeaders.h ../ZZip/ZipHeaders.cpp 
+../ZZip/ZZipTrackers.h 
+../ZZip/zlibAPI.h ../ZZip/zlibAPI.cpp)
+
 list(APPEND COMMON_FILES 
 ../Common/helpers/Crc32Fast.h 
 ../Common/helpers/Crc32Fast.cpp

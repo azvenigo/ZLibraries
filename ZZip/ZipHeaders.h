@@ -18,7 +18,6 @@
 #include <list>
 #include <thread>
 #include <iostream>
-#include <memory>
 #include "helpers/ZZFileAPI.h"
 #include "helpers/StringHelpers.h"
 
@@ -57,6 +56,18 @@ public:
 };
 
 typedef std::list<cExtensibleFieldEntry> tExtensibleFieldList;
+
+
+
+
+
+enum eToStringFormat
+{
+    kUnknown = 0,
+    kTabs = 1,
+    kCommas = 2,
+    kHTML = 3
+};
 
 
 
@@ -310,3 +321,105 @@ public:
     bool                    mbInitted;
 
 };
+
+//////////////////////////////////////////////////////////////////////////////////////////////
+// Output format helpers
+// A way of formatting output into tabs, commas or HTML
+
+inline std::string StartPageHeader(eToStringFormat format)
+{
+    if (format == kHTML)
+        return "<html><style> *{ font-family: 'Lucida Console', Lucida, sans-serif; font-size: 10px !important;}</style><body>";
+
+    return "";
+}
+
+inline std::string EndPageFooter(eToStringFormat format)
+{
+    if (format == kHTML)
+        return "</body></html>";
+
+    return "";
+}
+
+inline std::string StartSection(eToStringFormat format)
+{
+    if (format == kHTML)
+        return "<table border=1>";
+
+    return "";
+}
+
+inline std::string EndSection(eToStringFormat format)
+{
+    if (format == kHTML)
+        return "</table>";
+
+    return "";
+}
+
+
+inline std::string StartDelimiter(eToStringFormat format, int32_t nSpan = 1)
+{
+    if (format == kHTML)
+        return "<tr><td colspan=\"" + std::to_string(nSpan) + "\">";
+
+    return "";
+}
+
+inline std::string Separator(eToStringFormat format)
+{
+    switch (format)
+    {
+    case kHTML:
+        return "</td><td>";
+        break;
+    case kTabs:
+        return "\t";
+        break;
+    default:
+        break;
+    }
+
+    return ",";
+}
+
+inline std::string EndDelimiter(eToStringFormat format)
+{
+    if (format == kHTML)
+        return "</td></tr>\n";
+
+    return "\n";
+}
+
+inline std::string NextLine(eToStringFormat format)
+{
+    if (format == kHTML)
+        return "<br>\n";
+
+    return "\n";
+}
+
+template <class ...A>
+std::string FormatStrings(eToStringFormat format, A... arg)
+{
+
+    int32_t numArgs = sizeof...(arg);
+    tStringList stringList = { arg... };
+
+    std::string sReturn(StartDelimiter(format));
+
+    if (numArgs > 0)
+    {
+        tStringList::iterator it = stringList.begin();
+        for (int32_t i = 0; i < numArgs - 1; i++) // add all but the last one with the separator trailing
+            sReturn += (*it++) + Separator(format);
+
+        sReturn += (*it);
+    }
+
+    sReturn += EndDelimiter(format);
+
+    return sReturn;
+}
+

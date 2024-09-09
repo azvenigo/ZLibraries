@@ -14,6 +14,7 @@
 #include <iostream>
 #include <sstream>
 #include <iomanip>
+#include <fstream>
 
 using namespace std;
 
@@ -593,4 +594,36 @@ public:
 FindMatchingUnitTest gFindMatchingUnitTestInstance;
 
 #endif
+
+
+bool SH::Load(const std::string& filename, std::string& s)
+{
+    ifstream inFile(filename, std::ios::binary);
+    if (!inFile)
+    {
+        assert(false);
+        return false;
+    }
+
+    inFile.seekg(0, ios::end);
+    size_t size = inFile.tellg();
+    inFile.seekg(0, ios::beg);
+
+    s.resize(size);
+    inFile.read(&s[0], size);
+    return true;
+}
+
+bool SH::Save(const std::string& filename, const std::string& s)
+{
+    ofstream outFile(filename, std::ios::binary|std::ios::trunc);
+    if (!outFile)
+    {
+        assert(false);
+        return false;
+    }
+
+    outFile.write(&s[0], s.length());
+    return true;
+}
 

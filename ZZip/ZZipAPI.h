@@ -33,37 +33,38 @@ public:
     enum eOpenType
     {
         kZipOpen = 0,       // For existing Zips
-        kZipCreate = 1      // For creating new Zips
+        kZipCreate = 1,     // For creating new Zips
+        kZipAppend = 2      // special case for appending a zip archive to an existing file
     };
 
-    bool			        Init(const std::string& sFilename, eOpenType openType = kZipOpen, int32_t nCompressionLevel = Z_DEFAULT_COMPRESSION, const std::string& sName = "", const std::string& sPassword = "");
-    bool                    Shutdown();
+    bool                        Init(const std::string& sFilename, eOpenType openType = kZipOpen, int32_t nCompressionLevel = Z_DEFAULT_COMPRESSION, const std::string& sName = "", const std::string& sPassword = "");
+    bool                        Shutdown();
 
     // Accessors
     std::string                 GetZipFilename() const { return msZipURL; }
-    cZipCD&                 GetZipCD() { return mZipCD;  }
+    cZipCD& GetZipCD() { return mZipCD; }
 
     // Commands for existing Zips
-    void                    DumpReport(const std::string& sOutputFilename);
-    bool                    DecompressToBuffer(const std::string& sFilename, uint8_t* pOutputBuffer, Progress* pProgress = nullptr);    // output buffer must be large enough to hold entire output
-    bool                    DecompressToFile(const std::string& sFilename, const std::string& sOutputFilename, Progress* pProgress = nullptr);
-    bool                    DecompressToFolder(const std::string& sPattern, const std::string& sOutputFolder, Progress* pProgress = nullptr);
-    bool                    ExtractRawStream(const std::string& sFilename, const std::string& sOutputFilename, Progress* pProgress = nullptr);
+    void                        DumpReport(const std::string& sOutputFilename);
+    bool                        DecompressToBuffer(const std::string& sFilename, uint8_t* pOutputBuffer, Progress* pProgress = nullptr);    // output buffer must be large enough to hold entire output
+    bool                        DecompressToFile(const std::string& sFilename, const std::string& sOutputFilename, Progress* pProgress = nullptr);
+    bool                        DecompressToFolder(const std::string& sPattern, const std::string& sOutputFolder, Progress* pProgress = nullptr);
+    bool                        ExtractRawStream(const std::string& sFilename, const std::string& sOutputFilename, Progress* pProgress = nullptr);
 
     // Commands for creating new Zips
-    bool                    AddToZipFile(const std::string& sFilename, const std::string& sBaseFolder, Progress* pProgress = nullptr);  // Only usable if zip file was open with kZipCreate
-    bool                    AddToZipFileFromBuffer(uint8_t* nInputBufferSize, uint32_t nBufferSize, const std::string& sFilename, Progress* pProgress = nullptr);       // filename is the relative path within the zipfile 
+    bool                        AddToZipFile(const std::string& sFilename, const std::string& sBaseFolder, Progress* pProgress = nullptr);  // Only usable if zip file was open with kZipCreate
+    bool                        AddToZipFileFromBuffer(uint8_t* nInputBufferSize, uint32_t nBufferSize, const std::string& sFilename, Progress* pProgress = nullptr);       // filename is the relative path within the zipfile 
 
 private:
-    bool                    OpenForReading();
-    bool                    CreateZipFile();
+    bool                        OpenForReading();
+    bool                        CreateZipFile(bool bAppend = false);
 
-    eOpenType               mOpenType;              // kZipOpen or kZipCreate
-    int32_t                 mnCompressionLevel;     // Valid ranges from -1 (default) to 9.
+    eOpenType                   mOpenType;              // kZipOpen or kZipCreate
+    int32_t                     mnCompressionLevel;     // Valid ranges from -1 (default) to 9.
     std::string                 msZipURL;               // path to the zip archive or URL
     std::string                 msName;
     std::string                 msPassword;
     std::shared_ptr<cZZFile>     mpZZFile;               // Abstraction to local file or HTTP file
-    cZipCD                  mZipCD;                 // Zip Central Directory including all headers
-    bool                    mbInitted;
+    cZipCD                      mZipCD;                 // Zip Central Directory including all headers
+    bool                        mbInitted;
 };

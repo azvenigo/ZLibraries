@@ -17,11 +17,11 @@
 #include <iostream>
 #include <locale>
 #include <string>
-#include "ZipHeaders.h"
-#include "ZZipAPI.h"
-#include "zlibAPI.h"
+#include "../ZZip/ZipHeaders.h"
+#include "../ZZip/ZZipAPI.h"
+#include "../ZZip/zlibAPI.h"
 #include <filesystem>
-#include "ZipJob.h"
+#include "../ZZip/ZipJob.h"
 #include "helpers/FileHelpers.h"
 #include "helpers/CommandLineParser.h"
 #include "helpers/ThreadPool.h"
@@ -155,7 +155,7 @@ bool ExtractInstallFile(const string& sArchiveFilename, string& sResult)
     cZipCD& zipCD = zipAPI.GetZipCD();
 
     if (LOG::gnVerbosityLevel >= LVL_DIAG_BASIC)
-        zipCD.DumpCD(cout, "*", true, SH::eToStringFormat::kTabs);
+        zipCD.DumpCD(cout, "*", true, eToStringFormat::kTabs);
 
 
     cCDFileHeader fileHeader;

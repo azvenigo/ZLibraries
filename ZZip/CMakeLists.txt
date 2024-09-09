@@ -19,7 +19,17 @@ endif()
 ####################
 # ZZip
 
-set(ZZIP_SOURCES main.cpp ZZipAPI.h ZZipAPI.cpp ZipJob.h ZipJob.cpp ZipHeaders.h ZipHeaders.cpp ZZipTrackers.h zlibAPI.h zlibAPI.cpp)
+set(ZZIP_SOURCES 
+	main.cpp 
+	ZZipAPI.h ZZipAPI.cpp 
+	ZipJob.h ZipJob.cpp 
+	ZipHeaders.h ZipHeaders.cpp 
+	ZZipTrackers.h 
+	ZZipHelpers.h
+	zlibAPI.h zlibAPI.cpp
+	)
+
+
 list(APPEND COMMON_FILES 
 ../Common/helpers/Crc32Fast.h ../Common/helpers/Crc32Fast.cpp
 ../Common/helpers/ZZFileAPI.h ../Common/helpers/ZZFileAPI.cpp 
