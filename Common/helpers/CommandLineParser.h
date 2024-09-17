@@ -120,11 +120,8 @@ namespace CLP
     const static uint32_t kOptional             = 0;    // default
     const static uint32_t kRequired             = 2;    // if set the parameter is required or the parser shows an error
 
-    const static uint32_t kRangeUnrestricted    = 0;    // default
-    const static uint32_t kRangeRestricted      = 4;    // if set the integer values must fall between some min and max
-
     const static uint32_t kCaseInsensitive      = 0;    // default
-    const static uint32_t kCaseSensitive        = 8;    // if set the named key must match case 
+    const static uint32_t kCaseSensitive        = 4;    // if set the named key must match case 
 
     const static uint32_t kPath                 = 16;   // value should be a path
     const static uint32_t kExistingPath         = 32;   // if set, must be able to find an existing file/folder
@@ -183,15 +180,14 @@ namespace CLP
         bool        IsRequired()                    const { return mBehaviorFlags & kRequired; }
         bool        IsOptional()                    const { return !IsRequired(); }
 
-        bool        IsRangeRestricted()             const { return mBehaviorFlags & kRangeRestricted; }
-        bool        IsRangeUnrestricted()           const { return !IsRangeRestricted(); }
-
         bool        IsCaseSensitive()               const { return mBehaviorFlags & kCaseSensitive; }
         bool        IsCaseInsensitive()             const { return !IsCaseSensitive(); }
 
         bool        IsAPath()                       const { return mBehaviorFlags & kPath; }
         bool        MustHaveAnExistingPath()        const { return mBehaviorFlags & kExistingPath; }
         bool        MustNotHaveAnExistingPath()     const { return mBehaviorFlags & kNoExistingPath; }
+
+        bool        IsRangeRestricted()             const;
 
         bool        Satisfied();                                                                    // If value is required and set and (if appropriate) within required range
         bool        DoesValueSatisfy(const std::string& sValue, std::string& sFailMessage, bool bOutputError = false);        // converts string form of value into eParamValueType and returns whether it satisfies conditions

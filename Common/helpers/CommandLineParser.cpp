@@ -54,9 +54,6 @@ namespace CLP
         mbFound = false;
         msUsage = sUsage;
         mAllowedStrings = allowedStrings;
-
-        if (!mAllowedStrings.empty())
-            mBehaviorFlags |= kRangeRestricted;
     }
 
 
@@ -79,9 +76,6 @@ namespace CLP
         mnMinInt = nRangeMin;
         mnMaxInt = nRangeMax;
 
-        if (mnMinInt.has_value() || mnMaxInt.has_value())
-            mBehaviorFlags |= kRangeRestricted;
-
         mbFound = false;
         msUsage = sUsage;
     }
@@ -94,9 +88,6 @@ namespace CLP
         mBehaviorFlags = behavior;
         mfMinFloat = fRangeMin;
         mfMaxFloat = fRangeMax;
-
-        if (mfMinFloat.has_value() || mfMaxFloat.has_value())
-            mBehaviorFlags |= kRangeRestricted;
 
         mbFound = false;
         msUsage = sUsage;
@@ -121,6 +112,25 @@ namespace CLP
         return "unknown_value";
     }
 
+    bool ParamDesc::IsRangeRestricted() const
+    {
+        // Depending on value type, if there are values set for min or max or allowed sets, then this is true
+        switch (mValueType)
+        {
+        case ParamDesc::kString:
+            return !mAllowedStrings.empty();
+        case ParamDesc::kInt64:
+            return mnMinInt.has_value() || mnMaxInt.has_value();
+        case ParamDesc::kFloat:
+            return mfMaxFloat.has_value() || mfMaxFloat.has_value();
+        default:
+            break;
+        }
+
+        return false;
+    }
+
+
     bool ParamDesc::Satisfied()
     {
         // basic case of optional unrestricted
@@ -141,12 +151,24 @@ namespace CLP
                     case ParamDesc::kInt64:
                     {
                         int64_t nValue = *(int64_t*)mpValue;
-                        return nValue >= mnMinInt && nValue <= mnMaxInt;
+                        if (mnMinInt.has_value() && nValue < mnMinInt)
+                            return false;
+
+                        if (mnMaxInt.has_value() && nValue > mnMaxInt)
+                            return false;
+
+                        return true;
                     }
                     case ParamDesc::kFloat:
                     {
                         float fValue = *(float*)mpValue;
-                        return fValue >= mfMaxFloat && fValue <= mfMaxFloat;
+                        if (mfMinFloat.has_value() && fValue < mfMinFloat)
+                            return false;
+
+                        if (mfMaxFloat.has_value() && fValue > mfMaxFloat)
+                            return false;
+
+                        return true;
                     }
                     case ParamDesc::kBool:
                     {
@@ -200,28 +222,55 @@ namespace CLP
             {
                 case ParamDesc::kString:
                 {
-                    if (mAllowedStrings.find(sValue) != mAllowedStrings.end())
-                        return true;
+                    if (!mAllowedStrings.empty() && mAllowedStrings.find(sValue) == mAllowedStrings.end())
+                    {
+                        sFailMessage = "Error: Allowed values:{" + FromSet(mAllowedStrings) + "}";
+                        if (bOutputError)
+                            cerr << cols[kERROR] + sFailMessage + cols[kRESET] << "\n";
+                        return false;
+                    }
 
-                    sFailMessage = "Error: Allowed values:{" + FromSet(mAllowedStrings)  + "}";
-                    if (bOutputError)
-                        cerr << cols[kERROR] + sFailMessage + cols[kRESET] << "\n";
-                    return false;
+                    return true;
                 }
                 case ParamDesc::kInt64:
                 {
                     int64_t nValue = SH::ToInt(sValue);
-                    if (nValue >= mnMinInt && nValue <= mnMaxInt)
-                        return true;
-                    sFailMessage =  "Error: Allowed range:(" + SH::FromInt(mnMinInt.value()) + "-" + SH::FromInt(mnMaxInt.value()) + ")";
-                    if (bOutputError)
-                        cerr << cols[kERROR] << sFailMessage << cols[kRESET] << "\n";
-                    return false;
+                    if (mnMinInt.has_value() && nValue < mnMinInt)
+                    {
+                        sFailMessage = "Error: value:" + SH::FromInt(nValue) + " < min:" + SH::FromInt(mnMinInt.value());
+                        if (bOutputError)
+                            cerr << cols[kERROR] << sFailMessage << cols[kRESET] << "\n";
+                        return false;
+                    }
+                    else if (mnMaxInt.has_value() && nValue > mnMaxInt)
+                    {
+                        sFailMessage = "Error: value:" + SH::FromInt(nValue) + " > max:" + SH::FromInt(mnMaxInt.value());
+                        if (bOutputError)
+                            cerr << cols[kERROR] << sFailMessage << cols[kRESET] << "\n";
+                        return false;
+                    }
+                    return true;
                 }
                 case ParamDesc::kFloat:
                 {
                     float fValue = (float)SH::ToDouble(sValue);
-                    if (fValue >= mfMaxFloat && fValue <= mfMaxFloat)
+                    if (mfMinFloat.has_value() && fValue < mfMinFloat)
+                    {
+                        sFailMessage = "Error: value:" + SH::FromDouble(fValue) + " < min:" + SH::FromDouble(mfMinFloat.value());
+                        if (bOutputError)
+                            cerr << cols[kERROR] << sFailMessage << cols[kRESET] << "\n";
+                        return false;
+                    }
+                    else if (mfMaxFloat.has_value() && fValue > mfMaxFloat)
+                    {
+                        sFailMessage = "Error: value:" + SH::FromDouble(fValue) + " > max:" + SH::FromDouble(mfMaxFloat.value());
+                        if (bOutputError)
+                            cerr << cols[kERROR] << sFailMessage << cols[kRESET] << "\n";
+                        return false;
+                    }
+
+
+                    if (fValue >= mfMaxFloat && fValue <= mfMinFloat)
                         return true;
                     sFailMessage = "Error: Allowed range:(" + SH::FromDouble(mfMinFloat.value()) + "-" + SH::FromDouble(mfMaxFloat.value()) + ")";
                     if (bOutputError)
@@ -698,7 +747,7 @@ namespace CLP
             ResetCols();
 
         if (bEnableVerbosity)
-            RegisterParam(ParamDesc("verbose", &LOG::gnVerbosityLevel, CLP::kNamed | CLP::kOptional | CLP::kRangeRestricted, "Verbosity level. 0-silent, 1-default, 2-basic, 3-full", 0, 3));
+            RegisterParam(ParamDesc("verbose", &LOG::gnVerbosityLevel, CLP::kNamed | CLP::kOptional, "Verbosity level. 0-silent, 1-default, 2-basic, 3-full", 0, 3));
     }
 
 

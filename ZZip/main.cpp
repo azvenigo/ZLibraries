@@ -87,7 +87,7 @@ int main(int argc, char* argv[])
     parser.RegisterParam(ParamDesc("name", &gsAuthName, CLP::kNamed | CLP::kOptional, "Auth name"));
     parser.RegisterParam(ParamDesc("password", &gsAuthPassword, CLP::kNamed | CLP::kOptional, "Auth password"));
 
-    parser.RegisterParam(ParamDesc("threads", &gNumThreads, CLP::kNamed | CLP::kOptional | CLP::kRangeRestricted, "Number of threads to use when updating or extracting. Defaults to number of CPU cores.", 1, 256));
+    parser.RegisterParam(ParamDesc("threads", &gNumThreads, CLP::kNamed | CLP::kOptional, "Number of threads to use when updating or extracting. Defaults to number of CPU cores.", 1, 256));
     parser.RegisterParam(ParamDesc("skip_cert_check", &gbSkipCertCheck, CLP::kNamed | CLP::kOptional, "If true, bypasses certificate verification on secure connetion. (Careful!)"));
 
     parser.RegisterParam(ParamDesc("verbose", &gbVerbose, CLP::kNamed | CLP::kOptional, "Noisy logging for diagnostic purposes. (Note: Single threaded and slow.)"));
