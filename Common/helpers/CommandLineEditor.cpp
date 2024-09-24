@@ -19,6 +19,7 @@ using namespace std;
 namespace fs = std::filesystem;
 
 // Styles
+const ZAttrib kAttribAppName(GOLD);
 const ZAttrib kAttribCaption(BLACK | MAKE_BG(GOLD));
 const ZAttrib kAttribSection(CYAN);
 
@@ -49,7 +50,7 @@ namespace CLP
     RawEntryWin     rawCommandBuf;  // raw editing buffer 
     ParamListWin    paramListBuf;   // parsed parameter list with additional info
     AnsiColorWin    topInfoBuf;
-    AnsiColorWin    usageBuf;       // simple one line drawing of usage
+    UsageWin        usageBuf;       // simple one line drawing of usage
     InfoWin         helpWin;        // popup help window
     ListboxWin      popupListWin;
     HistoryWin      historyWin;
@@ -222,7 +223,7 @@ namespace CLP
 
     COORD RawEntryWin::LocalCursorToGlobal(COORD cursor)
     {
-        return COORD(cursor.X + (SHORT)mX, cursor.Y + (SHORT)mY);
+        return COORD(cursor.X + (SHORT)mX + (SHORT) (CLP::appName.length() + 1), cursor.Y + (SHORT)mY);
     }
 
 
@@ -430,7 +431,7 @@ namespace CLP
         return true;
     }*/
 
-    bool RawEntryWin::GetParameterUnderIndex(int64_t index, size_t& outStart, size_t& outEnd, string& outParam)
+    bool RawEntryWin::GetParameterUnderIndex(int64_t index, size_t& outStart, size_t& outEnd, string& outParam, ParamDesc** ppPD)
     {
         for (auto& entry : enteredParams)
         {
@@ -439,6 +440,8 @@ namespace CLP
                 outParam = entry.sParamText;
                 outStart = (size_t)entry.rawCommandLineStartIndex;
                 outEnd = outStart + outParam.length();
+                if (ppPD)
+                    *ppPD = entry.pRelatedDesc;
                 return true;
             }
         }
@@ -1324,6 +1327,24 @@ namespace CLP
         }
 
 
+        for (size_t textindex = 0; textindex < CLP::appName.size(); textindex++)
+        {
+            char c = CLP::appName[textindex];
+            if (c == '\n')
+            {
+
+                cursor.X = 0;
+                cursor.Y++;
+            }
+            else
+            {
+                DrawCharClipped(c, cursor.X, cursor.Y, kAttribAppName);
+            }
+
+            cursor.X++;
+        }
+
+        cursor.X++;
 
 
         for (size_t textindex = 0; textindex < mText.size(); textindex++)
@@ -1609,6 +1630,36 @@ namespace CLP
 
 
         UpdateFirstVisibleRow();
+    }
+
+    void UsageWin::Paint(tConsoleBuffer& backBuf)
+    {
+        if (!pCLP)
+            return;
+
+        // Update display
+        if (!mbVisible)
+            return;
+
+        ConsoleWin::BasePaint();
+
+        Rect r;
+        GetInnerArea(r);
+
+        string sDrawString = mText;
+        if (!sHighlightParam.empty())
+        {
+            string sHighlight = "\033[38;2;" + SH::FromInt(highlightAttrib.r) + ";" + SH::FromInt(highlightAttrib.g) + ";" + SH::FromInt(highlightAttrib.b) + "m"; //forground color
+            sHighlight += "\033[48;2;" + SH::FromInt(highlightAttrib.br) + ";" + SH::FromInt(highlightAttrib.bg) + ";" + SH::FromInt(highlightAttrib.bb) + "m"; //background color
+
+            sDrawString = SH::replaceTokens(sDrawString, sHighlightParam, sHighlight + sHighlightParam + COL_BLACK);
+        }
+
+
+
+        DrawClippedAnsiText(r.l, r.t, sDrawString, true, &r);
+
+        ConsoleWin::RenderToBackBuf(backBuf);
     }
 
     void ParamListWin::Paint(tConsoleBuffer& backBuf)
@@ -2030,6 +2081,33 @@ namespace CLP
     };
 
 
+    void CommandLineEditor::UpdateUsageWin()
+    {
+        string sParamUnderCursor;
+        size_t startIndex;
+        size_t endIndex;
+        ParamDesc* pPD = nullptr;
+        if (rawCommandBuf.GetParameterUnderIndex(rawCommandBuf.CursorToTextIndex(rawCommandBuf.mLocalCursorPos), startIndex, endIndex, sParamUnderCursor, &pPD))
+        {
+            string sExample;
+            pCLP->GetCommandLineExample(CLP::GetMode(), sExample);
+            usageBuf.SetText(string(COL_BLACK) + "usage: " + sExample);
+
+            if (pPD)
+            {
+                usageBuf.sHighlightParam = pPD->msName;
+                usageBuf.highlightAttrib = kSelectedText;
+            }
+            else
+            {
+                if (pCLP->IsRegisteredMode(sParamUnderCursor))
+                    usageBuf.sHighlightParam = sParamUnderCursor;
+                else
+                    usageBuf.sHighlightParam.clear();
+            }
+        }
+    }
+
     void CommandLineEditor::DrawToScreen()
     {
         SHORT paramListRows = (SHORT)enteredParams.size();
@@ -2054,16 +2132,6 @@ namespace CLP
         }
         else
         {
-            if (pCLP)
-            {
-//                if (mpCLP->IsRegisteredMode(msMode))
-                {
-                    string sExample;
-                    pCLP->GetCommandLineExample(CLP::GetMode(), sExample);
-                    usageBuf.SetText(string(COL_BLACK) + "usage: " + sExample);
-                }
-            }
-
             string sTop = "[F1-Help] [ESC-Cancel] [TAB-Contextual] [CTRL+Z-Undo]";
             if (!commandHistory.empty())
                 sTop += " [UP-History (" + SH::FromInt(commandHistory.size()) + ")]";
@@ -2665,6 +2733,8 @@ namespace CLP
                                 rawCommandBuf.OnKey(keycode, c);
                         }
                     }
+
+                    UpdateUsageWin();
                 }
             }
         }

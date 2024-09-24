@@ -272,6 +272,8 @@ bool Dump(const std::string& sSourcePath, int64_t nSourceOffset, int64_t nBytes,
         return false;
     }
 
+    if (nBytes == 0)
+        nBytes = nSourceSize;
 
     if (nSourceOffset + nBytes > nSourceSize)
     {

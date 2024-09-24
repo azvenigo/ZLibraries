@@ -312,7 +312,7 @@ namespace CLP
         void DrawClippedText(int64_t x, int64_t y, std::string text, ZAttrib attributes = WHITE_ON_BLACK, bool bWrap = true, bool bHighlightSelection = true, Rect* pClip = nullptr);
 
         void Paint(tConsoleBuffer& backBuf);
-        bool GetParameterUnderIndex(int64_t index, size_t& outStart, size_t& outEnd, std::string& outParam);
+        bool GetParameterUnderIndex(int64_t index, size_t& outStart, size_t& outEnd, std::string& outParam, ParamDesc** ppPD = nullptr);
         bool HandleParamContext();
 
         std::string GetText() { return mText; }
@@ -387,6 +387,14 @@ namespace CLP
     {
     public:
         void Paint(tConsoleBuffer& backBuf);
+    };
+
+    class UsageWin : public AnsiColorWin
+    {
+    public:
+        void Paint(tConsoleBuffer& backBuf);
+        std::string sHighlightParam;
+        ZAttrib highlightAttrib;
     };
 
 
@@ -498,6 +506,7 @@ namespace CLP
         // Processing of registered CLP
         tStringList GetCLPModes();
         tStringList GetCLPNamedParamsForMode(const std::string& sMode);
+        void UpdateUsageWin();
         CLP::ParamDesc* GetParamDesc(const std::string& sMode, std::string& paramName);
         CLP::ParamDesc* GetParamDesc(const std::string& sMode, int64_t position);
     };

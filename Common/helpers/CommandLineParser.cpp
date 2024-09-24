@@ -657,7 +657,7 @@ namespace CLP
         string sParamsExample;
         for (auto& desc : mGeneralCommandLineParser.mParameterDescriptors)
         {
-            if (desc.IsPositional() && desc.IsRequired())
+            if (desc.IsPositional() /*&& desc.IsRequired()*/)
                 sParamsExample += " " + desc.msName;
         }
         for (auto& desc : mGeneralCommandLineParser.mParameterDescriptors)
@@ -671,7 +671,7 @@ namespace CLP
             sCommandLineExample += " " + sMode + sParamsExample;
             for (auto& desc : mModeToCommandLineParser[sMode].mParameterDescriptors)
             {
-                if (desc.IsPositional() && desc.IsRequired())
+                if (desc.IsPositional() /*&& desc.IsRequired()*/)
                     sCommandLineExample += " " + desc.msName;
             }
             for (auto& desc : mGeneralCommandLineParser.mParameterDescriptors)
