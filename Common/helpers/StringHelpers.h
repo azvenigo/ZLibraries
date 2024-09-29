@@ -147,6 +147,18 @@ namespace SH
     bool StartsWith(const std::string& a, const std::string& prefix, bool bCaseSensitive = true);
     bool EndsWith(const std::string& a, const std::string& suffix, bool bCaseSensitive = true);
 
+    template <class T>
+    inline bool InContainer(const std::string& s, T container, bool bCaseSensitive = true)
+    {
+        for (const auto& s2 : container)
+        {
+            if (SH::Compare(s, s2, bCaseSensitive))
+                return true;
+        }
+
+        return false;
+    }
+    
     // URL encoding
     inline bool URL_Safe(char c)
     {
