@@ -596,6 +596,57 @@ FindMatchingUnitTest gFindMatchingUnitTestInstance;
 #endif
 
 
+std::string SH::convertToASCII(const std::string& input) 
+{
+    size_t startIndex = 0;
+    // If UTF-8 BOM at the beginning, skip it
+    if (input.length() >= 3)
+    {
+        if (input[0] == 0xef && input[1] == 0xbb && input[2] == 0xbf)
+            startIndex = 3;
+    }
+
+
+    std::string output;
+    for (size_t i = 0; i < input.length(); ++i) 
+    {
+        unsigned char c = static_cast<unsigned char>(input[i]);
+
+        // Check for UTF-8 encoded curly quotes and replace them
+        if (c == 0xE2 && i + 2 < input.length())
+        {
+            // Handle double curly quotes
+            uint8_t c1 = (uint8_t)input[i + 1];
+            uint8_t c2 = (uint8_t)input[i + 2];
+
+            if (c1 == 0x80)
+            {
+                if (c2 == 0x9C || c2 == 0x9D)
+                { // Opening curly double quote “
+                    output += '"';
+                    i += 2;
+                }
+                else if (c2 == 0x92 || c2 == 0x98 || c2 == 0x99)
+                {
+                    output += '\'';
+                    i += 2;
+                }
+            }
+        }
+        else if (c < 128)
+        {
+            // If it's a valid ASCII character, append it to output
+            output += c;
+        }
+        else
+        {
+            // Optionally, handle other non-ASCII characters (e.g., skip or replace them)
+            output += '?';  // Replace unsupported characters with '?'
+        }
+    }
+    return output;
+}
+
 bool SH::Load(const std::string& filename, std::string& s)
 {
     ifstream inFile(filename, std::ios::binary);

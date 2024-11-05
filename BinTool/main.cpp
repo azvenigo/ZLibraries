@@ -432,6 +432,27 @@ bool Diff(const std::string& sFile1, const std::string& sFile2, bool bVerbose)
 
 int main(int argc, char* argv[])
 {
+
+    Table table;
+    table.SetBorders("t", "b", "l", "r", "|");
+    table.AddRow("single");
+    table.AddRow("double1", "double_two");
+    table.AddRow("tttrrriippllle1", "tttttrrrriiiipppplllleeee2", "tttttrrrriiiipppplllleeee3");
+    table.AddRow("double again", "double_two again");
+
+    std::cout << table;
+
+
+
+
+
+
+
+
+
+
+
+
     std::string sSourcePath;
     std::string sDestPath;
 
