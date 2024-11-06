@@ -434,8 +434,13 @@ int main(int argc, char* argv[])
 {
 
     Table table;
-    table.SetBorders("t", "b", "l", "r", "|");
-    table.AddRow("single");
+    table.SetBorders("l", COL_RED "t", "r", "b", "|");
+
+    Table::Style centeredStyle;
+    centeredStyle.alignment = Table::CENTER;
+    centeredStyle.color = COL_BG_CYAN COL_YELLOW;
+
+    table.AddRow(Table::Cell("single", centeredStyle));
     table.AddRow("double1", "double_two");
     table.AddRow("tttrrriippllle1", "tttttrrrriiiipppplllleeee2", "tttttrrrriiiipppplllleeee3");
     table.AddRow("double again", "double_two again");

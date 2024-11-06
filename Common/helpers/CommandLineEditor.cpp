@@ -1854,7 +1854,7 @@ namespace CLP
         else
         {
             // no commands entered
-            TableOutput commandsTable = pCLP->GetCommandsTable();
+            Table commandsTable = pCLP->GetCommandsTable();
             commandsTable.AlignWidth(ScreenW());
             string sCommands = commandsTable;
             DrawClippedAnsiText(drawArea.l, drawArea.t, sCommands, true, &drawArea);
@@ -2508,10 +2508,9 @@ namespace CLP
             }
         }
 
-        TableOutput additionalHelp;
-        additionalHelp.SetBorders('+', '+', '+', '+');
-        additionalHelp.SetSeparator(' ', 1);
-        additionalHelp.SetMinimumOutputWidth(drawWidth);
+        Table additionalHelp;
+        additionalHelp.SetBorders("+", "+", "+", "+");
+        additionalHelp.renderWidth = drawWidth;
 
         additionalHelp.AddRow(cols[kSECTION] + "--Key Combo--", "--Action--");
 

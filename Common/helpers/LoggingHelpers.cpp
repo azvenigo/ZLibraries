@@ -78,14 +78,7 @@ void Table::Clear()
     mRows.clear();
 }
 
-template <typename T, typename...Types>
-void Table::AddRow(T arg, Types...more)
-{
-    tCellArray columns;
-    ToCellList(columns, arg, more...);
 
-    mRows.push_back(columns);
-}
 
 void Table::AddRow(tStringArray& row_strings)
 {
@@ -111,7 +104,7 @@ void Table::AddMultilineRow(string& sMultiLine)
         AddRow(s);
 }
 
-Table::Cell Table::GetCell(size_t row, size_t col)
+Table::Cell Table::GetCell(size_t col, size_t row)
 {
     if (row > mRows.size())
         return {};
@@ -133,9 +126,14 @@ size_t Table::Cell::Width() const
     size_t w = s.length();
 
     if (style.has_value())
-        w += style.value().padding;
+        w += style.value().padding*2;
 
     return w;
+}
+
+std::string Substring(const std::string& str, size_t len) 
+{
+    return str.substr(0, std::min(len, str.size()));
 }
 
 string Table::Cell::StyledOut(size_t width)
@@ -143,7 +141,7 @@ string Table::Cell::StyledOut(size_t width)
     if (style == nullopt)
     {
         if (s.length() < width)
-            return s.substr(width); // however many will fit
+            return Substring(s, width); // however many will fit
         
         return s + PAD(width - s.length()); // pad out however many remaining spaces
     }
@@ -152,12 +150,12 @@ string Table::Cell::StyledOut(size_t width)
     uint8_t padding = style.value().padding;
     size_t remaining_width = width - padding * 2;
 
-    string sOut = PAD(padding) + s.substr(remaining_width) + PAD(padding);
+    string sOut = PAD(padding) + Substring(s, remaining_width) + PAD(padding);
 
     if (alignment == Table::CENTER)
     {
         size_t left_pad = (width - sOut.length()) / 2;
-        size_t right_pad = (width - left_pad);
+        size_t right_pad = (width - left_pad - sOut.length());
         sOut = PAD(left_pad) + sOut + PAD(right_pad);
     }
     else if (alignment == Table::RIGHT)
@@ -266,10 +264,14 @@ ostream& operator <<(ostream& os, Table& tableOut)
     if (tableOut.mRows.empty())
         return os;
 
+    size_t renderWidth = tableOut.renderWidth;
+    if (renderWidth == 0)
+        renderWidth = tableOut.GetTableMinWidth();
+
     // Draw top border
     if (!tableOut.borders[Table::TOP].empty())
     {
-        os << RepeatString(tableOut.borders[Table::TOP], tableOut.renderWidth) << "\n";
+        os << RepeatString(tableOut.borders[Table::TOP], renderWidth) << COL_RESET << "\n";
     }
 
 
@@ -278,43 +280,61 @@ ostream& operator <<(ostream& os, Table& tableOut)
     size_t row_num = 0;
     for (const auto& row : tableOut.mRows)
     {
-        size_t nCharsOnRow = 0;
+        size_t cursor = 0;
         size_t cols = row.size();
 
         string separator = tableOut.borders[Table::CENTER];
 
         // Draw left border
-        os << tableOut.borders[Table::LEFT];
+        os << tableOut.borders[Table::LEFT] << COL_RESET;
+        cursor += VisLength(tableOut.borders[Table::LEFT]);
+
 
         for (size_t col_num = 0; col_num < cols; col_num++)
         {
-            size_t nColWidth = tableOut.colCountToColWidths[cols][col_num];
+            bool bLastColumnInRow = (col_num == cols - 1);
 
+
+            size_t nColWidth = tableOut.colCountToColWidths[cols][col_num];
             size_t nDrawWidth = nColWidth;
 
             Table::Style style = tableOut.GetStyle(col_num, row_num);
-            if (style.spacing == Table::TIGHT)
-                nDrawWidth = nColWidth;
-            else if (style.spacing == Table::EVEN)
-                nDrawWidth = tableOut.renderWidth / cols;
+
+            if (bLastColumnInRow)
+            {
+                // last column is drawn to end
+                nDrawWidth = renderWidth - cursor - VisLength(tableOut.borders[Table::RIGHT]);
+            }
+            else
+            {
+                if (style.spacing == Table::TIGHT)
+                    nDrawWidth = nColWidth;
+                else if (style.spacing == Table::EVEN)
+                    nDrawWidth = renderWidth / cols;
+            }
 
             os << tableOut.GetCell(col_num, row_num).StyledOut(nDrawWidth);
 
-            // Output a separator for all but last column
-            if (col_num < cols)
-                os << separator;
+            cursor += nDrawWidth;
 
-            row_num++;
+            // Output a separator for all but last column
+            if (!bLastColumnInRow)
+            {
+                os << separator << COL_RESET;
+                cursor += VisLength(separator);
+            }
         }
 
         // Draw right border
-        os << tableOut.borders[Table::RIGHT] << "\n";
+        os << tableOut.borders[Table::RIGHT] << COL_RESET << "\n";
+
+        row_num++;
     }
 
     // bottom border
     if (!tableOut.borders[Table::BOTTOM].empty())
     {
-        os << RepeatString(tableOut.borders[Table::BOTTOM], tableOut.renderWidth) << "\n";
+        os << RepeatString(tableOut.borders[Table::BOTTOM], renderWidth) << COL_RESET << "\n";
     }
 
     return os;

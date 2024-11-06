@@ -263,7 +263,7 @@ public:
     Style GetStyle(size_t col, size_t row);
 
     // Accessors
-    Cell GetCell(size_t row, size_t col);
+    Cell GetCell(size_t col, size_t row);
     size_t GetRowCount() const;
     size_t GetTableMinWidth();    // minimum width for all cells to be fully visible
 
@@ -272,7 +272,14 @@ public:
     void Clear();
 
     template <typename T, typename...Types>
-    void AddRow(T arg, Types...more);
+    void AddRow(T arg, Types...more)
+    {
+        tCellArray columns;
+        ToCellList(columns, arg, more...);
+
+        mRows.push_back(columns);
+    }    
+    
     void AddRow(tStringArray& columns);
     void AddRow(tCellArray& columns);
 
@@ -310,13 +317,22 @@ protected:
 
 
     template <typename S, typename...SMore>
-    inline void ToCellList(tStringArray& columns, S arg, SMore...moreargs)
+    inline void ToCellList(tCellArray& columns, S arg, SMore...moreargs)
     {
         std::stringstream ss;
         ss << arg;
         columns.push_back(Cell(ss.str()));
-        return ToCellList(columns, moreargs...);
+        ToCellList(columns, moreargs...);
     }
+
+
+    template <typename...SMore>
+    inline void ToCellList(tCellArray& columns, const Cell& cell, SMore...moreargs)
+    {
+        columns.push_back(cell);
+        ToCellList(columns, moreargs...);
+    }
+
 
     inline void ToCellList(tCellArray&) {}   // needed for the variadic with no args
     std::vector<tCellArray> mRows;
