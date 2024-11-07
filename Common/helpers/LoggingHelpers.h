@@ -336,7 +336,17 @@ public:
 
         mRows.push_back(columns);
     }    
-    
+
+    template <typename T, typename...Types>
+    void AddRow(const Style& style, T arg, Types...more)
+    {
+        tCellArray columns;
+        ToCellList(columns, style, arg, more...);
+
+        mRows.push_back(columns);
+    }
+
+
     void AddRow(tStringArray& columns);
     void AddRow(tCellArray& columns);
 
@@ -382,6 +392,15 @@ protected:
         ToCellList(columns, moreargs...);
     }
 
+    template <typename S, typename...SMore>
+    inline void ToCellList(tCellArray& columns, const Style& style, S arg, SMore...moreargs)
+    {
+        std::stringstream ss;
+        ss << arg;
+        columns.push_back(Cell(ss.str(), style));
+        ToCellList(columns, style, moreargs...);
+    }
+
 
     template <typename...SMore>
     inline void ToCellList(tCellArray& columns, const Cell& cell, SMore...moreargs)
@@ -392,6 +411,8 @@ protected:
 
 
     inline void ToCellList(tCellArray&) {}   // needed for the variadic with no args
+    inline void ToCellList(tCellArray&, const Style&) {}   // needed for the variadic with no args
+
     std::vector<tCellArray> mRows;
 
     tColCountToStyles   colCountToColStyles; // an array of column styles for each column count

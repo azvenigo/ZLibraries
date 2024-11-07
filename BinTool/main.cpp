@@ -442,6 +442,7 @@ int main(int argc, char* argv[])
 
     Table::Style rightStyle;
     rightStyle.alignment = Table::RIGHT;
+    rightStyle.padding = 5;
 
 
     table.AddRow(Table::Cell("single", centeredStyle));
@@ -451,7 +452,7 @@ int main(int argc, char* argv[])
     table.AddRow("tttrrriippllle3", "tttttrrrr3", "tttttrrrriiiipppleeee3");
     table.AddRow("tttre4", "tttttrrrriiiipppplllleeee4", "tttttrrrriiieeee4");
     table.AddRow("tttrrriippe5", "tttttrrrriiiipppplllleeee5", "tttttrrrriiiipppplllleeee5");
-    table.AddRow(Table::Cell("double again", rightStyle), Table::Cell("double_two again", rightStyle));
+    table.AddRow(rightStyle, "double again", "double_two again");
 
     Table::Style brightStyle;
     brightStyle.color = COL_BG_YELLOW COL_BLACK;
