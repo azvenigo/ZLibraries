@@ -38,6 +38,12 @@ bool Table::SetColStyle(size_t col_count, size_t col_num, const Style& style)
     return true;
 }
 
+bool Table::SetRowStyle(size_t row, const Style& style)
+{
+    rowStyles[row] = style;
+    return true;
+}
+
 Table::Style Table::GetStyle(size_t col, size_t row)
 {
     // bounds checks
@@ -64,12 +70,27 @@ Table::Style Table::GetStyle(size_t col, size_t row)
 
     // col
     size_t col_count = mRows[row].size();
-    if (colCountToColStyles[col_count][col] != nullopt)
-        return colCountToColStyles[col_count][col].value();
+    if (colCountToColStyles[col_count].size() == col_count)
+    {
+        if (colCountToColStyles[col_count][col] != nullopt)
+            return colCountToColStyles[col_count][col].value();
+    }
 
     return defaultStyle;
 }
 
+bool Table::SetCellStyle(size_t col, size_t row, const Style& style)
+{
+    // bounds checks
+    if (row >= mRows.size())
+        return false;
+
+    if (col >= mRows[row].size())
+        return false;
+
+    mRows[row][col].style = style;
+    return true;
+}
 
 
 // Table manimpulation
@@ -121,12 +142,16 @@ size_t Table::GetRowCount() const
     return mRows.size();
 }
 
-size_t Table::Cell::Width() const
+size_t Table::Cell::Width(tOptionalStyle _style) const
 {
-    size_t w = s.length();
+    tOptionalStyle use_style = _style;
+    if (use_style == nullopt)   // if none passed in, use member style
+        use_style = style;
 
-    if (style.has_value())
-        w += style.value().padding*2;
+    size_t w = VisLength(s);
+
+    if (use_style.has_value())
+        w += use_style.value().padding*2;
 
     return w;
 }
@@ -136,36 +161,89 @@ std::string Substring(const std::string& str, size_t len)
     return str.substr(0, std::min(len, str.size()));
 }
 
-string Table::Cell::StyledOut(size_t width)
+Table::Cell::Cell(const std::string& _s, tOptionalStyle _style)
 {
-    if (style == nullopt)
+    style = _style;
+
+    std::string ansi;
+    std::string rest;
+    if (ExtractStyle(_s, ansi, rest))
     {
-        if (s.length() < width)
+        s = rest;
+
+        if (style == nullopt)
+            style = Style();
+
+        style.value().color = ansi;
+    }
+    else
+    {
+        s = _s;
+    }
+}
+
+string Table::Cell::StyledOut(size_t width, tOptionalStyle _style)
+{
+    tOptionalStyle use_style = _style;
+    if (use_style == nullopt)   // if none passed in, use member style
+        use_style = style;
+
+    if (use_style == nullopt)       // no style passed in and no member style
+    {
+        if (s.length() > width)
             return Substring(s, width); // however many will fit
         
         return s + PAD(width - s.length()); // pad out however many remaining spaces
     }
 
-    uint8_t alignment = style.value().alignment;
-    uint8_t padding = style.value().padding;
+    uint8_t alignment = use_style.value().alignment;
+    uint8_t padding = use_style.value().padding;
     size_t remaining_width = width - padding * 2;
 
     string sOut = PAD(padding) + Substring(s, remaining_width) + PAD(padding);
+    size_t visOutLen = VisLength(sOut);
+
 
     if (alignment == Table::CENTER)
     {
-        size_t left_pad = (width - sOut.length()) / 2;
-        size_t right_pad = (width - left_pad - sOut.length());
+        size_t left_pad = (width - visOutLen) / 2;
+        size_t right_pad = (width - left_pad - visOutLen);
         sOut = PAD(left_pad) + sOut + PAD(right_pad);
     }
     else if (alignment == Table::RIGHT)
     {
-        sOut = PAD(width - sOut.length()) + sOut;
+        sOut = PAD(width - visOutLen) + sOut;
     }
     else // default left
-        sOut += PAD(width - sOut.length());
+        sOut += PAD(width - visOutLen);
 
-    return style.value().color + sOut + COL_RESET;
+    return use_style.value().color + sOut + COL_RESET;
+}
+
+
+bool Table::Cell::ExtractStyle(const std::string& s, std::string& ansi, std::string& rest)
+{
+    if (s.size() < 4 || s[0] != '\x1b' || s[1] != '[')
+        return false;
+
+    size_t pos = 2;
+    while (pos < s.size())
+    {
+        char c = s[pos];
+        if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z'))
+        {
+            ansi = s.substr(0, pos + 1);
+            rest = StripAnsiSequences(s.substr(pos + 1));
+            return true;
+        }
+        else if (!(c >= '0' && c <= '9') && c != ';')
+        {
+            return false;
+        }
+        pos++;
+    }
+
+    return false;
 }
 
 
@@ -177,6 +255,7 @@ void Table::ComputeColumns()
 
     colCountToColWidths.clear();
 
+    size_t row_num = 0;
     for (const auto& row : mRows)
     {
         size_t cols = row.size();
@@ -187,10 +266,12 @@ void Table::ComputeColumns()
             if (colCountToColWidths[cols].size() < cols)    // make sure there are enough entries for each column
                 colCountToColWidths[cols].resize(cols);
 
-            colCountToColWidths[cols][col_num] = std::max<size_t>(colCountToColWidths[cols][col_num], cell.Width());
+            tOptionalStyle style = GetStyle(col_num, row_num);
+            colCountToColWidths[cols][col_num] = std::max<size_t>(colCountToColWidths[cols][col_num], cell.Width(style));
 
             col_num++;
         }
+        row_num++;
     }
 
     bLayoutNeedsUpdating = false;
@@ -200,17 +281,22 @@ void Table::ComputeColumns()
 size_t Table::GetTableMinWidth() 
 {
     ComputeColumns();
+    size_t sepLen = VisLength(borders[Table::CENTER]);
+    size_t leftBorderLen = VisLength(borders[Table::LEFT]);
+    size_t rightBorderLen = VisLength(borders[Table::RIGHT]);
 
     size_t minWidth = 0;
     for (const auto& cols : colCountToColWidths)
     {
-        size_t colCountWidth = 0;
+        size_t colCountWidth = sepLen*(cols.first-1); // start width computation by taking account separators for all but last column
         for (const auto& col : cols.second)
         {
             colCountWidth += col;
         }
         minWidth = std::max<size_t>(minWidth, colCountWidth);
     }
+
+    minWidth += leftBorderLen + rightBorderLen; // account for left and right borders
 
     return minWidth;
 }
@@ -228,21 +314,6 @@ Table::operator string()
     return sTable;
 }
 
-size_t VisLength(const std::string& s)
-{
-    const size_t kEscapeLength = strlen(COL_RESET);
-
-    size_t nCount = 0;
-    size_t nEscapeChar = s.find("\x1b", 0);
-    do
-    {
-        if (nEscapeChar != std::string::npos)
-            nCount++;
-        nEscapeChar = s.find("\x1b", nEscapeChar + kEscapeLength);
-    } while (nEscapeChar != std::string::npos);
-
-    return s.length() - nCount * kEscapeLength;
-}
 
 string RepeatString(const string& s, int64_t w)
 {
@@ -313,7 +384,7 @@ ostream& operator <<(ostream& os, Table& tableOut)
                     nDrawWidth = renderWidth / cols;
             }
 
-            os << tableOut.GetCell(col_num, row_num).StyledOut(nDrawWidth);
+            os << tableOut.GetCell(col_num, row_num).StyledOut(nDrawWidth, style);
 
             cursor += nDrawWidth;
 

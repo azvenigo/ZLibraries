@@ -434,16 +434,29 @@ int main(int argc, char* argv[])
 {
 
     Table table;
-    table.SetBorders("l", COL_RED "t", "r", "b", "|");
+    table.SetBorders(COL_RED"l", COL_RED "t", COL_RED"r", COL_RED"b", "|");
 
     Table::Style centeredStyle;
     centeredStyle.alignment = Table::CENTER;
     centeredStyle.color = COL_BG_CYAN COL_YELLOW;
 
+    Table::Style rightStyle;
+    rightStyle.alignment = Table::RIGHT;
+
+
     table.AddRow(Table::Cell("single", centeredStyle));
     table.AddRow("double1", "double_two");
-    table.AddRow("tttrrriippllle1", "tttttrrrriiiipppplllleeee2", "tttttrrrriiiipppplllleeee3");
-    table.AddRow("double again", "double_two again");
+    table.AddRow("0ttrrriippllle1", "tttttrrrriiiipppplllleeee2", "tttttrrrriiiipppplllleeee3");
+    table.AddRow("tttrrriil2", "tttttrrrriiiipeeee2", "tttttrrrriiieeee2");
+    table.AddRow("tttrrriippllle3", "tttttrrrr3", "tttttrrrriiiipppleeee3");
+    table.AddRow("tttre4", "tttttrrrriiiipppplllleeee4", "tttttrrrriiieeee4");
+    table.AddRow("tttrrriippe5", "tttttrrrriiiipppplllleeee5", "tttttrrrriiiipppplllleeee5");
+    table.AddRow(Table::Cell("double again", rightStyle), Table::Cell("double_two again", rightStyle));
+
+    Table::Style brightStyle;
+    brightStyle.color = COL_BG_YELLOW COL_BLACK;
+
+    table.SetRowStyle(2, brightStyle);
 
     std::cout << table;
 

@@ -2489,7 +2489,7 @@ namespace CLP
 
         Rect drawArea;
         helpWin.GetInnerArea(drawArea);
-        int64_t drawWidth = drawArea.r - drawArea.l-1;
+        int64_t drawWidth = drawArea.r - drawArea.l-5;
 
 
         if (pCLP)
@@ -2514,7 +2514,7 @@ namespace CLP
 
         additionalHelp.AddRow(cols[kSECTION] + "--Key Combo--", "--Action--");
 
-        additionalHelp.AddRow(cols[kPARAM] + "[F1]", "General help or contextual help (if first parameter is recognized command.)" + cols[kRESET]);
+        additionalHelp.AddRow(cols[kPARAM] + "[F1]", "General help or contextual help (if first parameter is recognized command.)");
 
         additionalHelp.AddRow(cols[kPARAM] + "[TAB]", "Context specific popup" + cols[kRESET]);
 

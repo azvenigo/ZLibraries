@@ -74,7 +74,7 @@ namespace LOG
 #define LVL_DEFAULT 1
 #define LVL_DIAG_BASIC 2
 #define LVL_DIAG_FULL 3
-    extern int64_t gnVerbosityLevel;
+extern int64_t gnVerbosityLevel;
 
 #define OUT_ALL(statement)      { if (LOG::gnVerbosityLevel > LVL_SILENT) statement;}
 #define OUT_DEFAULT(statement)  { if (LOG::gnVerbosityLevel >= LVL_DEFAULT) statement; }
@@ -174,11 +174,66 @@ inline void DumpMemoryToCout(uint8_t* pBuf, uint32_t nBytes, uint64_t nBaseMemor
     }
 }
 
+
+inline size_t VisLength(const std::string& s)   // length of string without ansi sequences
+{
+    const size_t kEscapeLength = strlen(COL_RESET);
+
+    size_t nCount = 0;
+    size_t nEscapeChar = s.find("\x1b", 0);
+    do
+    {
+        if (nEscapeChar != std::string::npos)
+            nCount++;
+        nEscapeChar = s.find("\x1b", nEscapeChar + kEscapeLength);
+    } while (nEscapeChar != std::string::npos);
+
+    return s.length() - nCount * kEscapeLength;
+}
+
+inline std::string StripAnsiSequences(const std::string& s)
+{
+    std::string result;
+    size_t pos = 0;
+
+    while (pos < s.size()) 
+    {
+        // If we find the start of an ANSI escape sequence
+        char c = s[pos];
+        if (c == '\x1b' && pos + 1 < s.size() && s[pos + 1] == '[') {
+            // Skip the ANSI sequence by advancing pos
+            while (pos < s.size() && (
+                c != 'm' && c != 'A' && c != 'B' &&
+                c != 'C' && c != 'D' && c != 'E' &&
+                c != 'F' && c != 'G' && c != 'H' &&
+                c != 'J' && c != 'K' && c != 'L' &&
+                c != 'M' && c != 'P' && c != 'S' &&
+                c != 'T' && c != 'X' && c != 'f' &&
+                c != 'm' && c != 's' && c != 'u')) 
+            {
+                pos++;
+            }
+            pos++; // Skip the final character that ends the ANSI sequence (e.g., 'm', 'A', etc.)
+        }
+        else 
+        {
+            result += c;
+            pos++;
+        }
+    }
+
+    return result;
+}
+
+
+
+
+
 typedef std::vector<std::string> tStringArray;
 
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// TableOutput - Prints a table with columns automatically sizes. Rows can have any number of elements
+// Table - Prints a table with columns automatically sizes. Rows can have any number of elements
 // usage:
 // TableOutput t(',');
 // t.AddRow(1, 2.0, "three");
@@ -222,11 +277,13 @@ public:
 
     struct Cell
     {
-        Cell(const std::string& _s = "", const Style& _style = {}) : s(_s), style(_style) {}
+        Cell(const std::string& _s = "", tOptionalStyle _style = std::nullopt);
 
-        std::string StyledOut(size_t width);    // output aligned, padded, colored as needed into provided width
+        std::string StyledOut(size_t width, tOptionalStyle _style = std::nullopt);    // output aligned, padded, colored as needed into provided width
+        size_t Width(tOptionalStyle _style = std::nullopt) const;
 
-        size_t Width() const;
+        bool ExtractStyle(const std::string& s, std::string& ansi, std::string& rest);  // if a string starts with an ansi sequence split it out
+
 
         std::string     s;
         tOptionalStyle  style;
