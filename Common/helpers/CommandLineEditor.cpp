@@ -2489,7 +2489,7 @@ namespace CLP
 
         Rect drawArea;
         helpWin.GetInnerArea(drawArea);
-        int64_t drawWidth = drawArea.r - drawArea.l-5;
+        int64_t drawWidth = drawArea.r - drawArea.l-2;
 
 
         if (pCLP)
@@ -2509,6 +2509,7 @@ namespace CLP
         }
 
         Table additionalHelp;
+        additionalHelp.defaultStyle.color = ColToAnsi(0xFF888888);
         additionalHelp.SetBorders("+", "+", "+", "+");
         additionalHelp.renderWidth = drawWidth;
 

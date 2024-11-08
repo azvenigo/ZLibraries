@@ -225,6 +225,18 @@ inline std::string StripAnsiSequences(const std::string& s)
     return result;
 }
 
+inline std::string ColToAnsi(uint8_t r, uint8_t g, uint8_t b)
+{
+    std::string s;
+    s += "\033[38;2;" + std::to_string(r) + ";" + std::to_string(g) + ";" + std::to_string(b) + "m";
+    return s;
+};
+
+inline std::string ColToAnsi(uint32_t col)
+{
+    return ColToAnsi((col & 0x00ff0000) >> 16, (col & 0x0000ff00) >> 8, (col & 0x000000ff));
+}
+
 
 
 
@@ -235,17 +247,32 @@ typedef std::vector<std::string> tStringArray;
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Table - Prints a table with columns automatically sizes. Rows can have any number of elements
 // usage:
-// TableOutput t(',');
-// t.AddRow(1, 2.0, "three");
-// t.AddRow('4', 5, 6.0, 7.0, 8, "nine", "ten");
-// cout << t;
+// Table table;
+// table.SetBorders("L", COL_RED "T", "R", COL_RED "B", "|");
+// table.defaultStyle = Table::Style(COL_GREEN, Table::RIGHT, Table::TIGHT, 1);
+// 
+// Table::Style sectionStyle;
+// sectionStyle.alignment = Table::CENTER;
+// sectionStyle.color = COL_BG_CYAN COL_YELLOW;
+
+// Table::Style rightStyle;
+// rightStyle.alignment = Table::RIGHT;
+// rightStyle.padding = 4;
+//
+// table.AddRow(sectionStyle, "This is a section");
+// table.AddRow("a name", "another cell");
+// table.AddRow(rightStyle, 1.345, 0, 543, "wow");
+// 
+// table.renderWidth = 80;
+// std::cout << table;
+
 class Table
 {
 public:
     Table();
 
     // Formatting
-    size_t renderWidth = 0; // table output will be to this width (ideally at least GetTableMinWidth()  )
+    size_t renderWidth = 0; // if not set, table will output to minimum width for all cells to be visible and padded per style
 
     enum eSide : uint8_t
     {
@@ -315,7 +342,6 @@ public:
     bool SetColStyle(size_t col_count, size_t col_num, const Style& style); 
     bool SetRowStyle(size_t row, const Style& style);
     bool SetCellStyle(size_t col, size_t row, const Style& style);
-    bool SetDefaultStyle(const Style& style);
 
     Style GetStyle(size_t col, size_t row);
 
@@ -376,6 +402,7 @@ public:
     }
 
 
+    Style               defaultStyle;
 
 protected:
     size_t CellWidth(size_t row, size_t col);
@@ -417,7 +444,5 @@ protected:
 
     tColCountToStyles   colCountToColStyles; // an array of column styles for each column count
     tRowToStyleMap      rowStyles;
-    Style               defaultStyle;
-
     tColCountToColWidth colCountToColWidths;
 };

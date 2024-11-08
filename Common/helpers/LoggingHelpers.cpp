@@ -97,6 +97,8 @@ bool Table::SetCellStyle(size_t col, size_t row, const Style& style)
 void Table::Clear()
 { 
     mRows.clear();
+
+    bLayoutNeedsUpdating = true;
 }
 
 
@@ -108,11 +110,15 @@ void Table::AddRow(tStringArray& row_strings)
         a.push_back(s);
 
     mRows.push_back(a);
+
+    bLayoutNeedsUpdating = true;
 }
 
 void Table::AddRow(tCellArray& row)
 {
     mRows.push_back(row);
+
+    bLayoutNeedsUpdating = true;
 }
 
 
@@ -198,6 +204,11 @@ string Table::Cell::StyledOut(size_t width, tOptionalStyle _style)
 
     uint8_t alignment = use_style.value().alignment;
     uint8_t padding = use_style.value().padding;
+
+    if (width < padding * 2)    // if not enough space to draw anything
+        return use_style.value().color + PAD(width) + COL_RESET;
+
+
     size_t remaining_width = width - padding * 2;
 
     string sOut = PAD(padding) + Substring(s, remaining_width) + PAD(padding);
@@ -335,9 +346,12 @@ ostream& operator <<(ostream& os, Table& tableOut)
     if (tableOut.mRows.empty())
         return os;
 
+
+    size_t tableMinWidth = tableOut.GetTableMinWidth();
+
     size_t renderWidth = tableOut.renderWidth;
-    if (renderWidth == 0)
-        renderWidth = tableOut.GetTableMinWidth();
+    if (renderWidth < tableMinWidth)
+        renderWidth = tableMinWidth;
 
     // Draw top border
     if (!tableOut.borders[Table::TOP].empty())
@@ -365,34 +379,38 @@ ostream& operator <<(ostream& os, Table& tableOut)
         {
             bool bLastColumnInRow = (col_num == cols - 1);
 
-
             size_t nColWidth = tableOut.colCountToColWidths[cols][col_num];
             size_t nDrawWidth = nColWidth;
 
+            size_t nEndDraw = renderWidth - VisLength(tableOut.borders[Table::RIGHT]);
+
             Table::Style style = tableOut.GetStyle(col_num, row_num);
 
-            if (bLastColumnInRow)
+            if (cursor < nEndDraw)   // adding this check in case previously drawn columns were wider than total available
             {
-                // last column is drawn to end
-                nDrawWidth = renderWidth - cursor - VisLength(tableOut.borders[Table::RIGHT]);
-            }
-            else
-            {
-                if (style.spacing == Table::TIGHT)
-                    nDrawWidth = nColWidth;
-                else if (style.spacing == Table::EVEN)
-                    nDrawWidth = renderWidth / cols;
-            }
+                if (bLastColumnInRow)
+                {
+                    // last column is drawn to end
+                    nDrawWidth = nEndDraw - cursor;
+                }
+                else
+                {
+                    if (style.spacing == Table::TIGHT)
+                        nDrawWidth = nColWidth;
+                    else if (style.spacing == Table::EVEN)
+                        nDrawWidth = renderWidth / cols;
+                }
 
-            os << tableOut.GetCell(col_num, row_num).StyledOut(nDrawWidth, style);
+                os << tableOut.GetCell(col_num, row_num).StyledOut(nDrawWidth, style);
 
-            cursor += nDrawWidth;
+                cursor += nDrawWidth;
 
-            // Output a separator for all but last column
-            if (!bLastColumnInRow)
-            {
-                os << separator << COL_RESET;
-                cursor += VisLength(separator);
+                // Output a separator for all but last column
+                if (!bLastColumnInRow && cursor < nEndDraw)
+                {
+                    os << separator << COL_RESET;
+                    cursor += VisLength(separator);
+                }
             }
         }
 

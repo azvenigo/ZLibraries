@@ -392,6 +392,14 @@ namespace CLP
         else
             param.mnPosition = -1;
 
+#ifdef _DEBUG
+        // check that app isn't trying to register a parameter that's already been registered (verbose is a frequent mistake)
+        for (const auto& registeredParam : mParameterDescriptors)
+        {
+            assert(registeredParam.msName != param.msName);            
+        }
+#endif
+
         mParameterDescriptors.emplace_back(param);
 
         return true;
@@ -1258,21 +1266,21 @@ namespace CLP
                 additionalInfoTable.AddRow(" ");
                 additionalInfoTable.AddRow(cols[kSECTION] + "---Additional Info----" + cols[kRESET]);
 
-                additionalInfoTable.SetBorders("", "-", "*", "*");
+                additionalInfoTable.SetBorders("*", "", "*", "-");
             }
 
             if (bHasRequiredParameters)
             {
                 requiredParamTable.AddRow(" ");
                 requiredParamTable.AddRow(cols[kSECTION] + "-------Required------", "---Type---", "---Default---", "---Description---" + cols[kRESET]);
-                requiredParamTable.SetBorders("", "", "*", "*");
+                requiredParamTable.SetBorders("*", "", "*", "");
             }
 
             if (bHasOptionalParameters)
             {
                 optionalParamTable.AddRow(" ");
                 optionalParamTable.AddRow(cols[kSECTION] + "------[Options]------", "---Type---", "---Default---", "---Description---" + cols[kRESET]);
-                optionalParamTable.SetBorders("", "", "*", "*");
+                optionalParamTable.SetBorders("*", "", "*", "");
             }
 
 
@@ -1296,21 +1304,21 @@ namespace CLP
                 additionalInfoTable.AddRow(" ");
                 additionalInfoTable.AddRow(cols[kSECTION] + "---Additional Info----" + cols[kRESET]);
 
-                additionalInfoTable.SetBorders("", "-", "*", "*");
+                additionalInfoTable.SetBorders("*", "-", "*", "");
             }
 
             if (bHasRequiredParameters)
             {
                 requiredParamTable.AddRow(" ");
                 requiredParamTable.AddRow(cols[kSECTION] + "-------Required------", "---Type---", "---Default---", "---Description---" + cols[kRESET]);
-                requiredParamTable.SetBorders("", "", "*", "*");
+                requiredParamTable.SetBorders("*", "", "*", "");
             }
 
             if (bHasOptionalParameters)
             {
                 optionalParamTable.AddRow(" ");
                 optionalParamTable.AddRow(cols[kSECTION] + "------[Options]------", "---Type---", "---Default---", "---Description---" + cols[kRESET]);
-                optionalParamTable.SetBorders("", "", "*", "*");
+                optionalParamTable.SetBorders("*", "", "*", "");
             }
 
             GetCommandLineExample("", sCommandLineExample);
@@ -1322,7 +1330,7 @@ namespace CLP
 
         usageTable.AddRow(cols[kSECTION] + "--------Usage---------" + cols[kRESET]);
         usageTable.AddRow(sCommandLineExample);
-        usageTable.SetBorders("-", "*", "*", "*");
+        usageTable.SetBorders("*", "-", "*", "*");
 
 
         Table GeneralHelpTable = GetCLPHelp(bDetailed);
@@ -1332,7 +1340,7 @@ namespace CLP
 #ifdef _WIN64
         CONSOLE_SCREEN_BUFFER_INFO screenInfo;
         if (GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &screenInfo))
-            nMinWidth = screenInfo.dwSize.X-1;
+            nMinWidth = screenInfo.dwSize.X-4;
 #endif
 
 
@@ -1377,7 +1385,7 @@ namespace CLP
     Table CommandLineParser::GetCommandsTable()
     {
         Table commandsTable;
-        commandsTable.SetBorders("", "", "*", "*");
+        commandsTable.SetBorders("*", "", "*", "");
 
         commandsTable.AddRow(cols[kSECTION] + "-----Commands-----" + cols[kRESET]);
         for (tModeToParser::iterator it = mModeToCommandLineParser.begin(); it != mModeToCommandLineParser.end(); it++)
@@ -1426,7 +1434,7 @@ namespace CLP
 
         Table descriptionTable;
         Table table;
-        descriptionTable.SetBorders("*", "", "*", "*");
+        descriptionTable.SetBorders("*", "*", "*", "");
 
         descriptionTable.AddRow("Application: " + cols[kAPP] + appName + cols[kRESET]);
 
@@ -1458,7 +1466,7 @@ namespace CLP
         }
 
         Table helpTable;
-        helpTable.SetBorders("", "*", "*", "*");
+        helpTable.SetBorders("*", "", "*", "*");
         helpTable.AddRow(cols[kSECTION] + "-------Help-------" + cols[kRESET]);
         helpTable.AddRow("Add \'?\' or \'??\' anywhere on command line for command help.");
 

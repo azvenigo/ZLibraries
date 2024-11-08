@@ -263,8 +263,6 @@ int main(int argc, char* argv[])
     parser.RegisterParam(ParamDesc("files",        &nFilesPerFolder,    CLP::kNamed,       "number of files in each folder. default is 1"));
 
     parser.RegisterParam(ParamDesc("skipexisting", &bSkipExistingFiles, CLP::kNamed ,       "skips overwriting destination file (even with different values or size) if it already exists."));
-//    parser.RegisterParam(ParamDesc("verbose",      &bVerbose,           CLP::kNamed,       "hear all the gritty details about everthing that's happening. (Can slow down operation due to command line output.)"));
-
 
     bool bParseSuccess = parser.Parse(argc, argv);
     if (!bParseSuccess)

@@ -63,6 +63,5 @@ add_subdirectory(DupeScanner)
 add_subdirectory(BinTool)
 add_subdirectory(ZZip)
 add_subdirectory(ZPackager)
-add_subdirectory(ZWinFile)
 
 ################################################################################
