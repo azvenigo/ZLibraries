@@ -74,7 +74,7 @@ namespace LOG
 #define LVL_DEFAULT 1
 #define LVL_DIAG_BASIC 2
 #define LVL_DIAG_FULL 3
-extern int64_t gnVerbosityLevel;
+    extern int64_t gnVerbosityLevel;
 
 #define OUT_ALL(statement)      { if (LOG::gnVerbosityLevel > LVL_SILENT) statement;}
 #define OUT_DEFAULT(statement)  { if (LOG::gnVerbosityLevel >= LVL_DEFAULT) statement; }
@@ -130,7 +130,7 @@ inline void DumpMemoryToCout(uint8_t* pBuf, uint32_t nBytes, uint64_t nBaseMemor
     std::string sAscii;
     while (pWalker < pBuf + nBytes)
     {
-        if (nBytesOnLine % nColumns == 0)    
+        if (nBytesOnLine % nColumns == 0)
         {
             // if we've reached a line end and we've accumulated ascii text
             if (!sAscii.empty())
@@ -196,7 +196,7 @@ inline std::string StripAnsiSequences(const std::string& s)
     std::string result;
     size_t pos = 0;
 
-    while (pos < s.size()) 
+    while (pos < s.size())
     {
         // If we find the start of an ANSI escape sequence
         char c = s[pos];
@@ -209,13 +209,13 @@ inline std::string StripAnsiSequences(const std::string& s)
                 c != 'J' && c != 'K' && c != 'L' &&
                 c != 'M' && c != 'P' && c != 'S' &&
                 c != 'T' && c != 'X' && c != 'f' &&
-                c != 'm' && c != 's' && c != 'u')) 
+                c != 'm' && c != 's' && c != 'u'))
             {
                 pos++;
             }
             pos++; // Skip the final character that ends the ANSI sequence (e.g., 'm', 'A', etc.)
         }
-        else 
+        else
         {
             result += c;
             pos++;
@@ -224,6 +224,14 @@ inline std::string StripAnsiSequences(const std::string& s)
 
     return result;
 }
+
+inline std::string ColToAnsi(uint8_t r, uint8_t g, uint8_t b, uint8_t bg_r, uint8_t bg_g, uint8_t bg_b)
+{
+    std::string s;
+    s += "\033[38;2;" + std::to_string(r) + ";" + std::to_string(g) + ";" + std::to_string(b) + "m";
+    s += "\033[48;2;" + std::to_string(bg_r) + ";" + std::to_string(bg_g) + ";" + std::to_string(bg_b) + "m"; //background color
+    return s;
+};
 
 inline std::string ColToAnsi(uint8_t r, uint8_t g, uint8_t b)
 {
@@ -237,6 +245,16 @@ inline std::string ColToAnsi(uint32_t col)
     return ColToAnsi((col & 0x00ff0000) >> 16, (col & 0x0000ff00) >> 8, (col & 0x000000ff));
 }
 
+inline std::string ColToAnsi(uint64_t col)
+{
+    return ColToAnsi(
+        (uint8_t)((col & 0x0000000000ff0000) >> 16), 
+        (uint8_t)((col & 0x000000000000ff00) >>  8), 
+        (uint8_t)((col & 0x00000000000000ff)      ),
+        (uint8_t)((col & 0x00ff000000000000) >> 48), 
+        (uint8_t)((col & 0x0000ff0000000000) >> 40), 
+        (uint8_t)((col & 0x000000ff00000000) >> 32) );
+}
 
 
 
@@ -286,21 +304,29 @@ public:
     enum eSpacing : uint8_t
     {
         TIGHT = 0,      // minimum width for content
-        EVEN  = 1,      // average width for available width
-        MAX   = 2       // maximum width available
+        EVEN = 1,      // average width for available width
+        MAX = 2       // maximum width available
     };
 
     struct Style
     {
         Style(std::string _color = COL_RESET, uint8_t _alignment = LEFT, uint8_t _spacing = TIGHT, uint8_t _padding = 1) : color(_color), alignment(_alignment), spacing(_spacing), padding(_padding) {}
 
-        std::string color       = COL_RESET;
-        uint8_t     alignment   = LEFT;
-        uint8_t     spacing     = TIGHT;
-        uint8_t     padding     = 1;
+        std::string color = COL_RESET;
+        uint8_t     alignment = LEFT;
+        uint8_t     spacing = TIGHT;
+        uint8_t     padding = 1;
     };
 
-    typedef std::optional<Style> tOptionalStyle;
+    // Some helpful defaults
+    static const Style kLeftAlignedStyle;
+    static const Style kRightAlignedStyle;
+    static const Style kCenteredStyle;
+
+
+
+    typedef std::optional<Style>        tOptionalStyle;
+    typedef std::vector<tOptionalStyle> tOptionalStyleArray;
 
     struct Cell
     {
@@ -320,14 +346,14 @@ public:
 
     std::string borders[5] =
     {
-        COL_RESET "*",  // LEFT
-        COL_RESET "*",  // TOP
-        COL_RESET "*",  // RIGHT
-        COL_RESET "*"   // BOTTOM
-        COL_RESET " "   // COLUMN SEPARATOR
+        "*",  // LEFT
+        "*",  // TOP
+        "*",  // RIGHT
+        "*",  // BOTTOM
+        " "   // COLUMN SEPARATOR
     };
 
-    typedef std::map<size_t, std::vector<tOptionalStyle>> tColCountToStyles;
+    typedef std::map<size_t, tOptionalStyleArray> tColCountToStyles;
     typedef std::map<size_t, std::vector<size_t>> tColCountToColWidth;
     typedef std::map<size_t, tOptionalStyle> tRowToStyleMap;
 
@@ -339,11 +365,14 @@ public:
     // 3) col style
     // 4) default style
 
-    bool SetColStyle(size_t col_count, size_t col_num, const Style& style); 
+    bool SetColStyle(size_t col_count, size_t col_num, const Style& style);
+    bool SetColStyles(tOptionalStyleArray styles);  // helper for easy setting styles
     bool SetRowStyle(size_t row, const Style& style);
     bool SetCellStyle(size_t col, size_t row, const Style& style);
 
     Style GetStyle(size_t col, size_t row);
+
+
 
     // Accessors
     Cell GetCell(size_t col, size_t row);
@@ -361,7 +390,7 @@ public:
         ToCellList(columns, arg, more...);
 
         mRows.push_back(columns);
-    }    
+    }
 
     template <typename T, typename...Types>
     void AddRow(const Style& style, T arg, Types...more)
@@ -389,13 +418,13 @@ public:
 
     // Variadic template function to find the minimum table width
     template <typename... Tables>
-    size_t GetMinWidthForTables(size_t minW, Tables&... tables) 
+    size_t GetMinWidthForTables(size_t minW, Tables&... tables)
     {
         return std::max<size_t>({ minW, tables.GetTableMinWidth()... });
     }
 
     template <typename... Tables>
-    void AlignWidth(size_t minW, Tables&... tables) 
+    void AlignWidth(size_t minW, Tables&... tables)
     {
         size_t nMinTableWidth = GetMinWidthForTables(minW, tables...);
         ((tables.renderWidth = nMinTableWidth), ...);
