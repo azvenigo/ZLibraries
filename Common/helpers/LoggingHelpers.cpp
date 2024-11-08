@@ -1,6 +1,12 @@
 #include "LoggingHelpers.h"
 int64_t LOG::gnVerbosityLevel = 1;
 
+const Table::Style Table::kLeftAlignedStyle = Table::Style(COL_RESET, LEFT, EVEN);
+const Table::Style Table::kRightAlignedStyle = Table::Style(COL_RESET, RIGHT, EVEN);
+const Table::Style Table::kCenteredStyle = Table::Style(COL_RESET, CENTER, EVEN);
+
+
+
 using namespace std;
 
 #define PAD(n) string(n, ' ')
@@ -20,6 +26,22 @@ void Table::SetBorders(const std::string& _L, const std::string& _T, const std::
     borders[CENTER] = _C;
 }
 
+bool Table::SetColStyles(tOptionalStyleArray styles)
+{
+    size_t col_count = styles.size();
+    if (colCountToColStyles[col_count].empty())
+    {
+        colCountToColStyles[col_count].resize(col_count);
+    }
+
+    for (size_t col_num = 0; col_num < col_count; col_num++)
+    {
+        colCountToColStyles[col_count][col_num] = styles[col_num];
+    }
+    return true;
+}
+
+
 bool Table::SetColStyle(size_t col_count, size_t col_num, const Style& style)
 {
     if (col_num > col_count)
@@ -33,7 +55,7 @@ bool Table::SetColStyle(size_t col_count, size_t col_num, const Style& style)
     {
         colCountToColStyles[col_count].resize(col_count);
     }
-    
+
     colCountToColStyles[col_count][col_num] = style;
     return true;
 }
@@ -95,7 +117,7 @@ bool Table::SetCellStyle(size_t col, size_t row, const Style& style)
 
 // Table manimpulation
 void Table::Clear()
-{ 
+{
     mRows.clear();
 
     bLayoutNeedsUpdating = true;
@@ -157,12 +179,12 @@ size_t Table::Cell::Width(tOptionalStyle _style) const
     size_t w = VisLength(s);
 
     if (use_style.has_value())
-        w += use_style.value().padding*2;
+        w += use_style.value().padding * 2;
 
     return w;
 }
 
-std::string Substring(const std::string& str, size_t len) 
+std::string Substring(const std::string& str, size_t len)
 {
     return str.substr(0, std::min(len, str.size()));
 }
@@ -198,7 +220,7 @@ string Table::Cell::StyledOut(size_t width, tOptionalStyle _style)
     {
         if (s.length() > width)
             return Substring(s, width); // however many will fit
-        
+
         return s + PAD(width - s.length()); // pad out however many remaining spaces
     }
 
@@ -289,7 +311,7 @@ void Table::ComputeColumns()
 }
 
 
-size_t Table::GetTableMinWidth() 
+size_t Table::GetTableMinWidth()
 {
     ComputeColumns();
     size_t sepLen = VisLength(borders[Table::CENTER]);
@@ -299,7 +321,7 @@ size_t Table::GetTableMinWidth()
     size_t minWidth = 0;
     for (const auto& cols : colCountToColWidths)
     {
-        size_t colCountWidth = sepLen*(cols.first-1); // start width computation by taking account separators for all but last column
+        size_t colCountWidth = sepLen * (cols.first - 1); // start width computation by taking account separators for all but last column
         for (const auto& col : cols.second)
         {
             colCountWidth += col;
@@ -398,7 +420,7 @@ ostream& operator <<(ostream& os, Table& tableOut)
                     if (style.spacing == Table::TIGHT)
                         nDrawWidth = nColWidth;
                     else if (style.spacing == Table::EVEN)
-                        nDrawWidth = renderWidth / cols;
+                        nDrawWidth = std::max<size_t>(renderWidth / cols, nColWidth);
                 }
 
                 os << tableOut.GetCell(col_num, row_num).StyledOut(nDrawWidth, style);
@@ -429,9 +451,9 @@ ostream& operator <<(ostream& os, Table& tableOut)
     return os;
 }
 /*
-TableOutput TableOutput::Transpose()
+Table Table::Transpose()
 {
-    TableOutput transposedTable;
+    Table transposedTable;
 
     size_t maxCols = 0;
     for (const auto& row : mRows)
