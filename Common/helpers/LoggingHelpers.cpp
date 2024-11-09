@@ -286,7 +286,7 @@ void Table::ComputeColumns()
     if (!bLayoutNeedsUpdating)
         return;
 
-    colCountToColWidths.clear();
+    colCountToMinColWidths.clear();
 
     size_t row_num = 0;
     for (const auto& row : mRows)
@@ -296,11 +296,11 @@ void Table::ComputeColumns()
 
         for (const auto& cell : row)
         {
-            if (colCountToColWidths[cols].size() < cols)    // make sure there are enough entries for each column
-                colCountToColWidths[cols].resize(cols);
+            if (colCountToMinColWidths[cols].size() < cols)    // make sure there are enough entries for each column
+                colCountToMinColWidths[cols].resize(cols);
 
             tOptionalStyle style = GetStyle(col_num, row_num);
-            colCountToColWidths[cols][col_num] = std::max<size_t>(colCountToColWidths[cols][col_num], cell.Width(style));
+            colCountToMinColWidths[cols][col_num] = std::max<size_t>(colCountToMinColWidths[cols][col_num], cell.Width(style));
 
             col_num++;
         }
@@ -319,7 +319,7 @@ size_t Table::GetTableMinWidth()
     size_t rightBorderLen = VisLength(borders[Table::RIGHT]);
 
     size_t minWidth = 0;
-    for (const auto& cols : colCountToColWidths)
+    for (const auto& cols : colCountToMinColWidths)
     {
         size_t colCountWidth = sepLen * (cols.first - 1); // start width computation by taking account separators for all but last column
         for (const auto& col : cols.second)
@@ -333,6 +333,28 @@ size_t Table::GetTableMinWidth()
 
     return minWidth;
 }
+
+size_t Table::GetTableMinWidthForColCount(size_t col_count)
+{
+    ComputeColumns();
+    size_t sepLen = VisLength(borders[Table::CENTER]);
+    size_t leftBorderLen = VisLength(borders[Table::LEFT]);
+    size_t rightBorderLen = VisLength(borders[Table::RIGHT]);
+    size_t minWidth = 0;
+
+    const auto& cols = colCountToMinColWidths[col_count];
+    size_t colCountWidth = sepLen * (col_count - 1); // start width computation by taking account separators for all but last column
+    for (const auto& col : cols)
+    {
+        colCountWidth += col;
+    }
+    minWidth = std::max<size_t>(minWidth, colCountWidth);
+
+    minWidth += leftBorderLen + rightBorderLen; // account for left and right borders
+
+    return minWidth;
+}
+
 
 
 Table::operator string()
@@ -350,12 +372,22 @@ Table::operator string()
 
 string RepeatString(const string& s, int64_t w)
 {
+    int64_t repeatedW = w;
     string sOut;
     size_t visLen = VisLength(s);
-    while (w > 0)
+    while (repeatedW > 0)
     {
-        sOut += s;
-        w -= visLen;
+        sOut +=  s;
+        repeatedW -= visLen;
+    }
+
+    if (repeatedW < 0)
+    {
+        // for multi-char repeated strings, trim back until the visible width doesn't exceed w
+        while ((int64_t)StripAnsiSequences(sOut).length() > w)
+        {
+            sOut = sOut.substr(0, sOut.length() - 1);
+        }
     }
 
     return sOut;
@@ -390,6 +422,8 @@ ostream& operator <<(ostream& os, Table& tableOut)
         size_t cursor = 0;
         size_t cols = row.size();
 
+        size_t tableMinWidthForColCount = tableOut.GetTableMinWidthForColCount(cols);
+
         string separator = tableOut.borders[Table::CENTER];
 
         // Draw left border
@@ -401,8 +435,8 @@ ostream& operator <<(ostream& os, Table& tableOut)
         {
             bool bLastColumnInRow = (col_num == cols - 1);
 
-            size_t nColWidth = tableOut.colCountToColWidths[cols][col_num];
-            size_t nDrawWidth = nColWidth;
+            size_t nMinColWidth = tableOut.colCountToMinColWidths[cols][col_num];
+            size_t nDrawWidth = nMinColWidth;
 
             size_t nEndDraw = renderWidth - VisLength(tableOut.borders[Table::RIGHT]);
 
@@ -418,9 +452,13 @@ ostream& operator <<(ostream& os, Table& tableOut)
                 else
                 {
                     if (style.spacing == Table::TIGHT)
-                        nDrawWidth = nColWidth;
+                        nDrawWidth = nMinColWidth;
                     else if (style.spacing == Table::EVEN)
-                        nDrawWidth = std::max<size_t>(renderWidth / cols, nColWidth);
+                    {
+//                        size_t cellWidth = tableOut.GetCell(col_num, row_num).Width();
+                        size_t cellWidth = nMinColWidth;
+                        nDrawWidth = std::max<size_t>((cellWidth * renderWidth) / tableMinWidthForColCount, nMinColWidth);
+                    }
                 }
 
                 os << tableOut.GetCell(col_num, row_num).StyledOut(nDrawWidth, style);

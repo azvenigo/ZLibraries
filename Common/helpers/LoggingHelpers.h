@@ -199,17 +199,16 @@ inline std::string StripAnsiSequences(const std::string& s)
     while (pos < s.size())
     {
         // If we find the start of an ANSI escape sequence
-        char c = s[pos];
-        if (c == '\x1b' && pos + 1 < s.size() && s[pos + 1] == '[') {
+        if (s[pos] == '\x1b' && pos + 1 < s.size() && s[pos + 1] == '[') {
             // Skip the ANSI sequence by advancing pos
             while (pos < s.size() && (
-                c != 'm' && c != 'A' && c != 'B' &&
-                c != 'C' && c != 'D' && c != 'E' &&
-                c != 'F' && c != 'G' && c != 'H' &&
-                c != 'J' && c != 'K' && c != 'L' &&
-                c != 'M' && c != 'P' && c != 'S' &&
-                c != 'T' && c != 'X' && c != 'f' &&
-                c != 'm' && c != 's' && c != 'u'))
+                s[pos] != 'm' && s[pos] != 'A' && s[pos] != 'B' &&
+                s[pos] != 'C' && s[pos] != 'D' && s[pos] != 'E' &&
+                s[pos] != 'F' && s[pos] != 'G' && s[pos] != 'H' &&
+                s[pos] != 'J' && s[pos] != 'K' && s[pos] != 'L' &&
+                s[pos] != 'M' && s[pos] != 'P' && s[pos] != 'S' &&
+                s[pos] != 'T' && s[pos] != 'X' && s[pos] != 'f' &&
+                s[pos] != 'm' && s[pos] != 's' && s[pos] != 'u'))
             {
                 pos++;
             }
@@ -217,7 +216,7 @@ inline std::string StripAnsiSequences(const std::string& s)
         }
         else
         {
-            result += c;
+            result += s[pos];
             pos++;
         }
     }
@@ -378,6 +377,7 @@ public:
     Cell GetCell(size_t col, size_t row);
     size_t GetRowCount() const;
     size_t GetTableMinWidth();    // minimum width for all cells to be fully visible
+    size_t GetTableMinWidthForColCount(size_t col_count);   // minimum width for rendering all rows with this column count
 
 
     // Table manipulation
@@ -473,5 +473,5 @@ protected:
 
     tColCountToStyles   colCountToColStyles; // an array of column styles for each column count
     tRowToStyleMap      rowStyles;
-    tColCountToColWidth colCountToColWidths;
+    tColCountToColWidth colCountToMinColWidths;
 };
