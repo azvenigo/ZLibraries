@@ -311,6 +311,8 @@ public:
     {
         Style(std::string _color = COL_RESET, uint8_t _alignment = LEFT, uint8_t _spacing = TIGHT, uint8_t _padding = 1) : color(_color), alignment(_alignment), spacing(_spacing), padding(_padding) {}
 
+        friend std::ostream& operator <<(std::ostream& os, Style& style);
+
         std::string color = COL_RESET;
         uint8_t     alignment = LEFT;
         uint8_t     spacing = TIGHT;

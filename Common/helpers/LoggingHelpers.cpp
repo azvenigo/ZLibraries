@@ -11,6 +11,18 @@ using namespace std;
 
 #define PAD(n) string(n, ' ')
 
+
+ostream& operator <<(std::ostream& os, Table::Style& style)
+{
+    os << style.color;
+    if (style.alignment == Table::LEFT)
+        os << std::left;
+    else if (style.alignment == Table::RIGHT)
+        os << std::right;
+
+    return os;
+}
+
 Table::Table()
 {
 }

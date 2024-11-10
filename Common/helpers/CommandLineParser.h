@@ -128,31 +128,29 @@ namespace CLP
     const static uint32_t kNoExistingPath       = 64;   // if set, must not have existing file/folder at this location
 
 
-    // decorations
-    const static uint32_t kRESET            = 0;
-    const static uint32_t kAPP              = 1;
-    const static uint32_t kSECTION          = 2;
-    const static uint32_t kPARAM            = 3;
-    const static uint32_t kERROR            = 4;
-
-    const static uint32_t kMAX_CATEGORIES   = 5;
+// decorations
+    static Table::Style ResetStyle    = Table::Style();
+    static Table::Style AppStyle      = Table::Style(COL_YELLOW);
+    static Table::Style SectionStyle  = Table::Style(COL_CYAN);
+    static Table::Style ParamStyle    = Table::Style(COL_YELLOW);
+    static Table::Style ErrorStyle    = Table::Style(COL_RED);
 
     // array of colors
-    extern std::string     cols[kMAX_CATEGORIES];
 
     [[maybe_unused]] static void ResetCols()            // reset colored output
     {
-        cols[kRESET]    = COL_RESET;
-        cols[kAPP]      = COL_YELLOW;
-        cols[kSECTION]  = COL_CYAN;
-        cols[kPARAM]    = COL_YELLOW;
-        cols[kERROR]    = COL_RED;
+        AppStyle        = Table::Style(COL_YELLOW);
+        SectionStyle    = Table::Style(COL_CYAN);
+        ParamStyle      = Table::Style(COL_YELLOW);
+        ErrorStyle      = Table::Style(COL_RED);
     };
 
     [[maybe_unused]] static void DisableCols()          // disable colored output
     {
-        for (uint32_t i = 0; i < kMAX_CATEGORIES; i++)
-            cols[i] = "";
+        AppStyle        = Table::Style(COL_RESET);
+        SectionStyle    = Table::Style(COL_RESET);
+        ParamStyle      = Table::Style(COL_RESET);
+        ErrorStyle      = Table::Style(COL_RESET);
     };
 
 
