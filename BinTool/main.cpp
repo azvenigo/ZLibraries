@@ -432,29 +432,34 @@ bool Diff(const std::string& sFile1, const std::string& sFile2, bool bVerbose)
 
 int main(int argc, char* argv[])
 {
-
-/*    Table table;
-    table.SetBorders(COL_RED "L", COL_RED "T", COL_RED "R", COL_RED "B", "|");
-    table.defaultStyle = Table::Style(COL_GREEN, Table::RIGHT, Table::EVEN, 1);
+/*
+    Table table;
+    table.SetBorders(COL_BLACK COL_BG_GREEN "<" COL_RED "=", COL_BLACK COL_BG_GREEN "^", COL_BLACK COL_BG_GREEN "=>", COL_BLACK COL_BG_GREEN "\\\\" COL_BG_CYAN "---" COL_BG_GREEN "//", COL_BLACK COL_BG_GREEN "|");
+    table.defaultStyle = Table::Style(COL_BG_GREEN, Table::RIGHT, Table::EVEN, 0);
     Table::Style sectionStyle;
     sectionStyle.alignment = Table::CENTER;
     sectionStyle.color = COL_BG_CYAN COL_YELLOW;
 
     Table::Style rightStyle;
     rightStyle.alignment = Table::RIGHT;
-    rightStyle.spacing = Table::TIGHT;
-    rightStyle.padding = 1;
+    rightStyle.spacing = Table::EVEN;
+    rightStyle.padding = 0;
     
-//    table.AddRow(sectionStyle, "This is a section");
+    table.AddRow(sectionStyle, "This is a section");
 //    table.AddRow("a name", "another cell");
-    table.AddRow(rightStyle, 1.345, 0, 543, "wow");
-    table.renderWidth = 0;
+    table.AddRow(1.345, 0, 543, "wow");
+    table.AddRow(rightStyle, 345, 1/3.0, 43, "wowie");
+    table.AddRow("");
+    table.AddRow(sectionStyle, "This is a section");
+    table.AddRow(Table::Style(ColToAnsi(0, 0, 0, 20, 255, 80), Table::CENTER, Table::EVEN, 1), "123", "12345678901234567890", "123", "1", "1");
+    table.AddRow(Table::Style(ColToAnsi(0, 0, 0, 20, 255, 20), Table::CENTER, Table::EVEN, 1), "12345", "1234567890", "12345", "1", "1234");
+    table.renderWidth = 16;
     std::cout << table;
 
 
 
+    
     */
-
 
 
 
