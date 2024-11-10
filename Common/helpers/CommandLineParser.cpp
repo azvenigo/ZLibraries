@@ -19,9 +19,9 @@
 
 #ifdef ENABLE_CLE
 #include "CommandLineEditor.h"
-    #ifdef _DEBUG
-    #include <conio.h> 
-    #endif
+#ifdef _DEBUG
+#include <conio.h> 
+#endif
 #endif // ENABLE_CLE
 
 #endif // _WIN64
@@ -143,39 +143,39 @@ namespace CLP
             {
                 switch (mValueType)
                 {
-                    case ParamDesc::kString: 
-                    {
-                        string sValue = *(string*)mpValue;
-                        return mAllowedStrings.find(sValue) != mAllowedStrings.end();
-                    }
-                    case ParamDesc::kInt64:
-                    {
-                        int64_t nValue = *(int64_t*)mpValue;
-                        if (mnMinInt.has_value() && nValue < mnMinInt)
-                            return false;
+                case ParamDesc::kString:
+                {
+                    string sValue = *(string*)mpValue;
+                    return SH::InContainer(sValue, mAllowedStrings, IsCaseSensitive());
+                }
+                case ParamDesc::kInt64:
+                {
+                    int64_t nValue = *(int64_t*)mpValue;
+                    if (mnMinInt.has_value() && nValue < mnMinInt)
+                        return false;
 
-                        if (mnMaxInt.has_value() && nValue > mnMaxInt)
-                            return false;
+                    if (mnMaxInt.has_value() && nValue > mnMaxInt)
+                        return false;
 
-                        return true;
-                    }
-                    case ParamDesc::kFloat:
-                    {
-                        float fValue = *(float*)mpValue;
-                        if (mfMinFloat.has_value() && fValue < mfMinFloat)
-                            return false;
+                    return true;
+                }
+                case ParamDesc::kFloat:
+                {
+                    float fValue = *(float*)mpValue;
+                    if (mfMinFloat.has_value() && fValue < mfMinFloat)
+                        return false;
 
-                        if (mfMaxFloat.has_value() && fValue > mfMaxFloat)
-                            return false;
+                    if (mfMaxFloat.has_value() && fValue > mfMaxFloat)
+                        return false;
 
-                        return true;
-                    }
-                    case ParamDesc::kBool:
-                    {
-                        return true;
-                    }
-                    default:
-                        break;
+                    return true;
+                }
+                case ParamDesc::kBool:
+                {
+                    return true;
+                }
+                default:
+                    break;
                 }
             }
 
@@ -220,7 +220,9 @@ namespace CLP
         {
             switch (mValueType)
             {
-                case ParamDesc::kString:
+            case ParamDesc::kString:
+            {
+                if (!mAllowedStrings.empty() && !SH::InContainer(sValue, mAllowedStrings, IsCaseSensitive()))
                 {
                     if (!mAllowedStrings.empty() && mAllowedStrings.find(sValue) == mAllowedStrings.end())
                     {
@@ -269,20 +271,59 @@ namespace CLP
                         return false;
                     }
 
-
-                    if (fValue >= mfMaxFloat && fValue <= mfMinFloat)
-                        return true;
-                    sFailMessage = "Error: Allowed range:(" + SH::FromDouble(mfMinFloat.value()) + "-" + SH::FromDouble(mfMaxFloat.value()) + ")";
+                return true;
+            }
+            case ParamDesc::kInt64:
+            {
+                int64_t nValue = SH::ToInt(sValue);
+                if (mnMinInt.has_value() && nValue < mnMinInt)
+                {
+                    sFailMessage = "Error: value:" + SH::FromInt(nValue) + " < min:" + GetMinString();
                     if (bOutputError)
                         cerr << CLP::ErrorStyle << sFailMessage << CLP::ResetStyle << "\n";
                     return false;
                 }
-                case ParamDesc::kBool:
+                else if (mnMaxInt.has_value() && nValue > mnMaxInt)
                 {
-                    return true;
+                    sFailMessage = "Error: value:" + SH::FromInt(nValue) + " > max:" + GetMaxString();
+                    if (bOutputError)
+                        cerr << cols[kERROR] << sFailMessage << cols[kRESET] << "\n";
+                    return false;
                 }
-                default:
-                    break;
+                return true;
+            }
+            case ParamDesc::kFloat:
+            {
+                float fValue = (float)SH::ToDouble(sValue);
+                if (mfMinFloat.has_value() && fValue < mfMinFloat)
+                {
+                    sFailMessage = "Error: value:" + SH::FromDouble(fValue) + " < min:" + GetMinString();
+                    if (bOutputError)
+                        cerr << cols[kERROR] << sFailMessage << cols[kRESET] << "\n";
+                    return false;
+                }
+                else if (mfMaxFloat.has_value() && fValue > mfMaxFloat)
+                {
+                    sFailMessage = "Error: value:" + SH::FromDouble(fValue) + " > max:" + GetMaxString();
+                    if (bOutputError)
+                        cerr << cols[kERROR] << sFailMessage << cols[kRESET] << "\n";
+                    return false;
+                }
+
+
+                if (fValue >= mfMaxFloat && fValue <= mfMinFloat)
+                    return true;
+                sFailMessage = "Error: Allowed range:(" + GetMinString() + "-" + GetMaxString() + ")";
+                if (bOutputError)
+                    cerr << cols[kERROR] << sFailMessage << cols[kRESET] << "\n";
+                return false;
+            }
+            case ParamDesc::kBool:
+            {
+                return true;
+            }
+            default:
+                break;
             }
 
             return false;
@@ -291,6 +332,27 @@ namespace CLP
         return true;    // not range restricted and optional
     }
 
+
+
+    std::string ParamDesc::GetMinString()
+    {
+        if (mValueType == ParamDesc::kInt64 && mnMinInt.has_value())
+            return std::to_string(mnMinInt.value());
+        if (mValueType == ParamDesc::kFloat && mfMinFloat.has_value())
+            return SH::FromDouble(mfMinFloat.value(), 2);
+
+        return "no min";
+    }
+
+    std::string ParamDesc::GetMaxString()
+    {
+        if (mValueType == ParamDesc::kInt64 && mnMaxInt.has_value())
+                return std::to_string(mnMaxInt.value());
+        if (mValueType == ParamDesc::kFloat && mfMaxFloat.has_value())
+            return SH::FromDouble(mfMaxFloat.value(), 2);
+
+        return "no max";
+    }
 
 
     void ParamDesc::GetExample(std::string& sParameter, std::string& sType, std::string& sDefault, std::string& sUsage)
@@ -318,7 +380,7 @@ namespace CLP
             {
                 sParameter += ":";
                 if (IsRangeRestricted())
-                    sType = "(" + std::to_string(mnMinInt.value()) + "-" + std::to_string(mnMaxInt.value()) + ")";
+                    sType = "(" + GetMinString() + "-" + GetMaxString() + ")";
                 else
                     sType = "#";
             }
@@ -327,7 +389,7 @@ namespace CLP
             {
                 sParameter += ":";
                 if (IsRangeRestricted())
-                    sType = "(" + SH::FromDouble(mfMinFloat.value(), 2) + "-" + SH::FromDouble(mfMaxFloat.value(), 2) + ")";
+                    sType = "(" + GetMinString() + "-" + GetMaxString() + ")";
                 else
                     sType = "#.#";
             }
@@ -354,7 +416,7 @@ namespace CLP
             case ParamDesc::kInt64:
             {
                 if (IsRangeRestricted())
-                    sType = "(" + std::to_string(mnMinInt.value()) + "-" + std::to_string(mnMaxInt.value()) + ")";
+                    sType = "(" + GetMinString() + "-" + GetMaxString() + ")";
                 else
                     sType = "#";
             }
@@ -362,7 +424,7 @@ namespace CLP
             case ParamDesc::kFloat:
             {
                 if (IsRangeRestricted())
-                    sType = "(" + SH::FromDouble(mfMinFloat.value(), 2) + "-" + SH::FromDouble(mfMaxFloat.value(), 2) + ")";
+                    sType = "(" + GetMinString() + "-" + GetMaxString() + ")";
                 else
                     sType = "#.#";
             }
@@ -530,18 +592,18 @@ namespace CLP
 
             switch (pDesc->mValueType)
             {
-                case ParamDesc::kBool:
-                    *((bool*)pDesc->mpValue) = SH::ToBool(sValue);    // set the registered bool
-                    break;
-                case ParamDesc::kInt64:
-                    *((int64_t*)pDesc->mpValue) = SH::ToInt(sValue);    // set the registered int
-                    break;
-                case ParamDesc::kFloat:
-                    *((float*)pDesc->mpValue) = (float)SH::ToDouble(sValue);    // set the registered float
-                    break;
-                default:    // ParamDesc::kString
-                    *((string*)pDesc->mpValue) = sValue;     // set the registered string
-                    break;
+            case ParamDesc::kBool:
+                *((bool*)pDesc->mpValue) = SH::ToBool(sValue);    // set the registered bool
+                break;
+            case ParamDesc::kInt64:
+                *((int64_t*)pDesc->mpValue) = SH::ToInt(sValue);    // set the registered int
+                break;
+            case ParamDesc::kFloat:
+                *((float*)pDesc->mpValue) = (float)SH::ToDouble(sValue);    // set the registered float
+                break;
+            default:    // ParamDesc::kString
+                *((string*)pDesc->mpValue) = sValue;     // set the registered string
+                break;
             }
             return true;
         }
@@ -567,17 +629,17 @@ namespace CLP
 
             switch (pPositionalDesc->mValueType)
             {
-                case ParamDesc::kBool:
-                    *((bool*)pPositionalDesc->mpValue) = SH::ToBool(sArg);    // set the registered bool
+            case ParamDesc::kBool:
+                *((bool*)pPositionalDesc->mpValue) = SH::ToBool(sArg);    // set the registered bool
                 break;
-                case ParamDesc::kInt64:
-                    *((int64_t*)pPositionalDesc->mpValue) =SH::ToInt(sArg);
+            case ParamDesc::kInt64:
+                *((int64_t*)pPositionalDesc->mpValue) = SH::ToInt(sArg);
                 break;
-                case ParamDesc::kFloat:
-                    *((float*)pPositionalDesc->mpValue) = (float)SH::ToDouble(sArg);
+            case ParamDesc::kFloat:
+                *((float*)pPositionalDesc->mpValue) = (float)SH::ToDouble(sArg);
                 break;
-                default:    // ParamDesc::kString
-                    *((string*)pPositionalDesc->mpValue) = sArg;     // set the registered string
+            default:    // ParamDesc::kString
+                *((string*)pPositionalDesc->mpValue) = sArg;     // set the registered string
             }
             return true;
         }
@@ -665,7 +727,7 @@ namespace CLP
         string sParamsExample;
         for (auto& desc : mGeneralCommandLineParser.mParameterDescriptors)
         {
-            if (desc.IsPositional() /*&& desc.IsRequired()*/)
+            if (desc.IsPositional() && desc.IsRequired())
                 sParamsExample += " " + desc.msName;
         }
         for (auto& desc : mGeneralCommandLineParser.mParameterDescriptors)
@@ -679,7 +741,7 @@ namespace CLP
             sCommandLineExample += " " + sMode + sParamsExample;
             for (auto& desc : mModeToCommandLineParser[sMode].mParameterDescriptors)
             {
-                if (desc.IsPositional() /*&& desc.IsRequired()*/)
+                if (desc.IsPositional() && desc.IsRequired())
                     sCommandLineExample += " " + desc.msName;
             }
             for (auto& desc : mGeneralCommandLineParser.mParameterDescriptors)
@@ -731,7 +793,7 @@ namespace CLP
             string sUsage;
 
             desc.GetExample(sName, sType, sDefault, sUsage);
-             
+
             if (desc.IsOptional())
                 optionalParamTable.AddRow(sName, sType, sDefault, sUsage);
             else
@@ -797,7 +859,7 @@ namespace CLP
     {
         size_t nCount = 0;
         if (!msMode.empty())
-            nCount = mModeToCommandLineParser[msMode].GetOptionalParameterCount(); 
+            nCount = mModeToCommandLineParser[msMode].GetOptionalParameterCount();
 
         nCount += mGeneralCommandLineParser.GetOptionalParameterCount();
 
@@ -955,10 +1017,10 @@ namespace CLP
 
                 if (nErrors > 0 || !mModeToCommandLineParser[msMode].CheckAllRequirementsMet() || !mGeneralCommandLineParser.CheckAllRequirementsMet())
                 {
-//                    mModeToCommandLineParser[msMode].ShowFoundParameters();
-//                    mGeneralCommandLineParser.ShowFoundParameters();
+                    //                    mModeToCommandLineParser[msMode].ShowFoundParameters();
+                    //                    mGeneralCommandLineParser.ShowFoundParameters();
 
-//                    cout << "\n\"" << cols[kERROR] << "Error:" << appName << " " << cols[kPARAM] << msMode << " -?" << cols[kRESET] << "\" - to see usage.\n";
+                    //                    cout << "\n\"" << cols[kERROR] << "Error:" << appName << " " << cols[kPARAM] << msMode << " -?" << cols[kRESET] << "\" - to see usage.\n";
                     return kErrorAbort;
                 }
 
@@ -985,9 +1047,9 @@ namespace CLP
 
                 if (nErrors > 0 || !mGeneralCommandLineParser.CheckAllRequirementsMet())
                 {
-//                    mGeneralCommandLineParser.ShowFoundParameters();
+                    //                    mGeneralCommandLineParser.ShowFoundParameters();
 
-//                    cout << "\n\"" << cols[kERROR] << "Error:" << appName << " " << cols[kPARAM] << " -?" << cols[kRESET] << "\" - to see usage.\n";
+                    //                    cout << "\n\"" << cols[kERROR] << "Error:" << appName << " " << cols[kPARAM] << " -?" << cols[kRESET] << "\" - to see usage.\n";
                     return kErrorAbort;
                 }
 
@@ -1000,14 +1062,14 @@ namespace CLP
     }
 
 
-    void string_to_argc_argv(const std::string& input, int& argc, std::vector<std::string>& argv) 
+    void string_to_argc_argv(const std::string& input, int& argc, std::vector<std::string>& argv)
     {
         std::istringstream iss(input);
         std::string token;
 
         argc = 0;
         argv.clear();
-        while (iss >> token) 
+        while (iss >> token)
         {
             argv.push_back(token);
             argc++;
@@ -1126,7 +1188,7 @@ namespace CLP
         appName = fs::path(appPath).filename().string();
         appPath = fs::path(appPath).parent_path().string();
 
-        tStringArray argArray(ToArray(argc-1, argv+1));
+        tStringArray argArray(ToArray(argc - 1, argv + 1));
         bool bSuccess = false;
         while (1)
         {
@@ -1156,7 +1218,7 @@ namespace CLP
                 cout << usageTable;
 
 
-//                cout << "\n\"" << cols[kAPP] << appName << " " << cols[kPARAM] << msMode << " ?" << cols[kRESET] << "\" - to see usage.\n";
+                //                cout << "\n\"" << cols[kAPP] << appName << " " << cols[kPARAM] << msMode << " ?" << cols[kRESET] << "\" - to see usage.\n";
                 bSuccess = false;
                 break;
             }
@@ -1164,8 +1226,8 @@ namespace CLP
             {
                 bool bHelp = ContainsArgument("?", argArray);
                 bool bDetailedHelp = ContainsArgument("??", argArray);
-//                cout << GetHelpString(GetFirstPositionalArgument(argArray), bDetailedHelp);
-                if (bHelp|bDetailedHelp)
+                //                cout << GetHelpString(GetFirstPositionalArgument(argArray), bDetailedHelp);
+                if (bHelp | bDetailedHelp)
                 {
                     Table clpHelp = GetCLPHelp(bDetailedHelp);
                     Table keyTable = GetKeyTable();
@@ -1204,7 +1266,7 @@ namespace CLP
                         break;
                     }
                 }
-                
+
 
                 string result = editor.Edit(ToString(argArray));
                 if (result.empty())
@@ -1217,7 +1279,7 @@ namespace CLP
 #endif
         }
 
-//        PAUSE_FOR_KEY
+        //        PAUSE_FOR_KEY
         return bSuccess;
     }
 
@@ -1488,7 +1550,7 @@ namespace CLP
 #ifdef _WIN64
         CONSOLE_SCREEN_BUFFER_INFO screenInfo;
         if (GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &screenInfo))
-            nMinWidth = screenInfo.dwSize.X-1;
+            nMinWidth = screenInfo.dwSize.X - 1;
 #endif
 
         descriptionTable.AlignWidth(nMinWidth, descriptionTable, commandsTable, helpTable);

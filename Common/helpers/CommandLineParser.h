@@ -194,6 +194,8 @@ namespace CLP
 
         void        GetExample(std::string& sParameter, std::string& sType, std::string& sDefault, std::string& sUsage);
         std::string ValueToString();
+        std::string GetMinString();
+        std::string GetMaxString();
 
         enum eParamValueType
         {
