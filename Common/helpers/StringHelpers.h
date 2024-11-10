@@ -137,6 +137,7 @@ namespace SH
     size_t          FindMatching(const std::string& s, size_t i);   // given a character in s at i, find the accomanying closure. for example '"' -> '"' or '{' -> '}'  Different pairs (excluding the closure token for current) inside the enclosure are skipped
     bool            ContainsWhitespace(const std::string& s, bool bSkipQuotes = false);   // if bSkipQuotes, it ignores whitespaces in enslosures
 
+    std::string     convertToASCII(const std::string& input);
     bool            Load(const std::string& filename, std::string& s);
     bool            Save(const std::string& filename, const std::string& s);
 

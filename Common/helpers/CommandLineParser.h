@@ -128,31 +128,29 @@ namespace CLP
     const static uint32_t kNoExistingPath       = 64;   // if set, must not have existing file/folder at this location
 
 
-    // decorations
-    const static uint32_t kRESET            = 0;
-    const static uint32_t kAPP              = 1;
-    const static uint32_t kSECTION          = 2;
-    const static uint32_t kPARAM            = 3;
-    const static uint32_t kERROR            = 4;
-
-    const static uint32_t kMAX_CATEGORIES   = 5;
+// decorations
+    static Table::Style ResetStyle    = Table::Style();
+    static Table::Style AppStyle      = Table::Style(COL_YELLOW);
+    static Table::Style SectionStyle  = Table::Style(COL_CYAN);
+    static Table::Style ParamStyle    = Table::Style(COL_YELLOW);
+    static Table::Style ErrorStyle    = Table::Style(COL_RED);
 
     // array of colors
-    extern std::string     cols[kMAX_CATEGORIES];
 
     [[maybe_unused]] static void ResetCols()            // reset colored output
     {
-        cols[kRESET]    = COL_RESET;
-        cols[kAPP]      = COL_YELLOW;
-        cols[kSECTION]  = COL_CYAN;
-        cols[kPARAM]    = COL_YELLOW;
-        cols[kERROR]    = COL_RED;
+        AppStyle        = Table::Style(COL_YELLOW);
+        SectionStyle    = Table::Style(COL_CYAN);
+        ParamStyle      = Table::Style(COL_YELLOW);
+        ErrorStyle      = Table::Style(COL_RED);
     };
 
     [[maybe_unused]] static void DisableCols()          // disable colored output
     {
-        for (uint32_t i = 0; i < kMAX_CATEGORIES; i++)
-            cols[i] = "";
+        AppStyle        = Table::Style(COL_RESET);
+        SectionStyle    = Table::Style(COL_RESET);
+        ParamStyle      = Table::Style(COL_RESET);
+        ErrorStyle      = Table::Style(COL_RESET);
     };
 
 
@@ -261,7 +259,7 @@ namespace CLP
         size_t  GetNumPositionalParamsHandled();
 
         void    ShowFoundParameters();
-        void    GetModeUsageTables(std::string sMode, TableOutput& modeDescriptionTable, TableOutput& requiredParamTable, TableOutput& optionalParamTable, TableOutput& additionalInfoTable);
+        void    GetModeUsageTables(std::string sMode, Table& modeDescriptionTable, Table& requiredParamTable, Table& optionalParamTable, Table& additionalInfoTable);
 
     protected:
         bool    CanHandleArgument(const std::string& sArg); // returns true if the key for this argument is registered
@@ -300,9 +298,9 @@ namespace CLP
         // Registration Functions
         void            RegisterAppDescription(const std::string& sDescription);
         bool            Parse(int argc, char* argv[], bool bEditOnParseFail = true);
-        TableOutput     GetCLPHelp(bool bDetailed = false);
-        TableOutput     GetCommandsTable();
-        TableOutput     GetKeyTable();
+        Table           GetCLPHelp(bool bDetailed = false);
+        Table           GetCommandsTable();
+        Table           GetKeyTable();
         std::string     GetGeneralHelpString();
         std::string     GetModeHelpString(const std::string& sMode = "", bool bDetailed = false);
         void            GetCommandLineExample(const std::string& sMode, std::string& sCommandLineExample);

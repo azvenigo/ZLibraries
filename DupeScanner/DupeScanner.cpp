@@ -15,7 +15,6 @@ using namespace CLP;
 
 std::string sSourcePath;
 std::string sScanPath;
-bool gbVerbose = false;
 uint32_t kDefaultBlockSize = 32*1024;
 int64_t nThreads = std::thread::hardware_concurrency();
 int64_t nBlockSize = kDefaultBlockSize;
@@ -33,13 +32,11 @@ int main(int argc, char* argv[])
     parser.RegisterParam("diff", ParamDesc("SEARCH_PATH", &sScanPath, CLP::kPositional | CLP::kRequired | CLP::kExistingPath, "File/folder to scan at byte granularity."));
     parser.RegisterParam("diff", ParamDesc("threads", &nThreads, CLP::kNamed, "Number of threads to spawn.", 1, 256));
     parser.RegisterParam("diff", ParamDesc("blocksize", &nBlockSize, CLP::kNamed, "Granularity of blocks to use for scanning.", 16, /*1024 * 1024 * 1024*/32 * 1024 * 1024));
-    parser.RegisterParam("diff", ParamDesc("verbose", &gbVerbose, CLP::kNamed , "Detailed output."));
 
     parser.RegisterMode("find_dupes", "Self-search for blocks of data that exist multiple times in the data.");
     parser.RegisterParam("find_dupes", ParamDesc("PATH", &sSourcePath, CLP::kPositional | CLP::kRequired | CLP::kExistingPath, "File/folder to index by blocks."));
     parser.RegisterParam("find_dupes", ParamDesc("threads", &nThreads, CLP::kNamed , "Number of threads to spawn.", 1, 256));
     parser.RegisterParam("find_dupes", ParamDesc("blocksize", &nBlockSize, CLP::kNamed , "Granularity of blocks to use for scanning.", 16, /*1024 * 1024 * 1024*/32 * 1024 * 1024));
-    parser.RegisterParam("find_dupes", ParamDesc("verbose", &gbVerbose, CLP::kNamed , "Detailed output."));
 
     parser.RegisterAppDescription("Searches for blocks of data.\nPaths can be individual files or folders where all files are scanned at that path recursively.\nIf blocksize is >= the size of the source file, the entirety of the source file is searched for. ");
     if (!parser.Parse(argc, argv))
@@ -72,7 +69,7 @@ int main(int argc, char* argv[])
 
     BlockScanner* pScanner = new BlockScanner();
 
-    if (!pScanner->Scan(sSourcePath, sScanPath, nBlockSize, nThreads, gbVerbose))
+    if (!pScanner->Scan(sSourcePath, sScanPath, nBlockSize, nThreads))
         return -1;
 
     delete pScanner;

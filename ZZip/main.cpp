@@ -38,7 +38,6 @@ bool                gbSkipCRC		= false;                    // Whether to bypass 
 int64_t            gNumThreads		= std::thread::hardware_concurrency();;	                    // Multithreaded sync/extraction
 string              gsOutputFormat;
 eToStringFormat     gOutputFormat	= kTabs;                    // For lists or diff operations, output in various formats
-bool                gbVerbose       = false;                    // Diagnostics. Forces single threaded operation and spits out a lot of logging data.
 extern bool         gbSkipCertCheck;
 
 
@@ -89,9 +88,6 @@ int main(int argc, char* argv[])
 
     parser.RegisterParam(ParamDesc("threads", &gNumThreads, CLP::kNamed | CLP::kOptional, "Number of threads to use when updating or extracting. Defaults to number of CPU cores.", 1, 256));
     parser.RegisterParam(ParamDesc("skip_cert_check", &gbSkipCertCheck, CLP::kNamed | CLP::kOptional, "If true, bypasses certificate verification on secure connetion. (Careful!)"));
-
-    parser.RegisterParam(ParamDesc("verbose", &gbVerbose, CLP::kNamed | CLP::kOptional, "Noisy logging for diagnostic purposes. (Note: Single threaded and slow.)"));
-
 
     if (!parser.Parse(argc, argv))
         return -1;
@@ -152,8 +148,7 @@ int main(int argc, char* argv[])
     newJob.SetNumThreads((uint32_t) gNumThreads);
     newJob.SetOutputFormat(gOutputFormat);
     newJob.SetPattern(gsPattern);
-//    newJob.SetKillHoldingProcess(gbKill);
-    newJob.SetVerbose(gbVerbose);
+    newJob.SetVerbose(LOG::gnVerbosityLevel > LVL_DEFAULT);
 
     newJob.Run();
     newJob.Join();  // will output progress to cout until completed

@@ -1854,7 +1854,7 @@ namespace CLP
         else
         {
             // no commands entered
-            TableOutput commandsTable = pCLP->GetCommandsTable();
+            Table commandsTable = pCLP->GetCommandsTable();
             commandsTable.AlignWidth(ScreenW());
             string sCommands = commandsTable;
             DrawClippedAnsiText(drawArea.l, drawArea.t, sCommands, true, &drawArea);
@@ -2489,7 +2489,7 @@ namespace CLP
 
         Rect drawArea;
         helpWin.GetInnerArea(drawArea);
-        int64_t drawWidth = drawArea.r - drawArea.l-1;
+        int64_t drawWidth = drawArea.r - drawArea.l-2;
 
 
         if (pCLP)
@@ -2508,25 +2508,25 @@ namespace CLP
             }
         }
 
-        TableOutput additionalHelp;
-        additionalHelp.SetBorders('+', '+', '+', '+');
-        additionalHelp.SetSeparator(' ', 1);
-        additionalHelp.SetMinimumOutputWidth(drawWidth);
+        Table additionalHelp;
+        additionalHelp.defaultStyle.color = ColToAnsi(0xFF888888);
+        additionalHelp.SetBorders("+", "+", "+", "+");
+        additionalHelp.renderWidth = drawWidth;
 
-        additionalHelp.AddRow(cols[kSECTION] + "--Key Combo--", "--Action--");
+        additionalHelp.AddRow(SectionStyle, "--Key Combo--", "--Action--");
 
-        additionalHelp.AddRow(cols[kPARAM] + "[F1]", "General help or contextual help (if first parameter is recognized command.)" + cols[kRESET]);
+        additionalHelp.AddRow(ParamStyle, "[F1]", "General help or contextual help (if first parameter is recognized command.)");
 
-        additionalHelp.AddRow(cols[kPARAM] + "[TAB]", "Context specific popup" + cols[kRESET]);
+        additionalHelp.AddRow(ParamStyle, "[TAB]", "Context specific popup");
 
-        additionalHelp.AddRow(cols[kPARAM] + "[SHIFT-LEFT/RIGHT]", "Select characters" + cols[kRESET]);
-        additionalHelp.AddRow(cols[kPARAM] + "[SHIFT+CTRL-LEFT/RIGHT]", "Select words" + cols[kRESET]);
+        additionalHelp.AddRow(ParamStyle, "[SHIFT-LEFT/RIGHT]", "Select characters");
+        additionalHelp.AddRow(ParamStyle, "[SHIFT+CTRL-LEFT/RIGHT]", "Select words");
 
-        additionalHelp.AddRow(cols[kPARAM] + "[CTRL-A]", "Select All" + cols[kRESET]);
-        additionalHelp.AddRow(cols[kPARAM] + "[CTRL-C/V]", "Copy/Paste" + cols[kRESET]);
-        additionalHelp.AddRow(cols[kPARAM] + "[CTRL-Z]", "Undo" + cols[kRESET]);
+        additionalHelp.AddRow(ParamStyle, "[CTRL-A]", "Select All");
+        additionalHelp.AddRow(ParamStyle, "[CTRL-C/V]", "Copy/Paste");
+        additionalHelp.AddRow(ParamStyle, "[CTRL-Z]", "Undo");
 
-        additionalHelp.AddRow(cols[kPARAM] + "[UP]", "Command Line History (When cursor at top)" + cols[kRESET]);
+        additionalHelp.AddRow(ParamStyle, "[UP]", "Command Line History (When cursor at top)");
 
 
         additionalHelp.AlignWidth(drawWidth);
@@ -2539,6 +2539,7 @@ namespace CLP
         sText += "Parameters (positional and named) along with desciptions are enumerated above.\n";
 
         sText += "Path parameters bring up folder listing at that path. (TAB to go into the folder, BACKSPACE to go up a folder.)\n";
+        sText += "\n\n";
         sText += (string)additionalHelp;
 
         helpWin.mText = sText;
@@ -2743,7 +2744,7 @@ namespace CLP
         //RestoreConsoleState();
         if (rawCommandBuf.mbCanceled)
         {
-            cout << "Canceled editing.\n";
+            cout << COL_RESET "\n\nCanceled editing.\n";
             if (!rawCommandBuf.GetText().empty())
             {
                 cout << string(ScreenW(), '*');

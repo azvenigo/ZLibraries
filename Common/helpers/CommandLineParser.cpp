@@ -195,7 +195,7 @@ namespace CLP
             {
                 sFailMessage = "Error: path not found:" + sPath;
                 if (bOutputError)
-                    cerr << cols[kERROR] << sFailMessage << cols[kRESET] << "\n";
+                    cerr << CLP::ErrorStyle << sFailMessage << CLP::ResetStyle << "\n";
                 return false;
             }
         }
@@ -207,7 +207,7 @@ namespace CLP
             {
                 sFailMessage = "Error: " + sPath + " not exist";
                 if (bOutputError)
-                    cerr << cols[kERROR] << sFailMessage << cols[kRESET] << "\n";
+                    cerr << CLP::ErrorStyle << sFailMessage << CLP::ResetStyle << "\n";
                 return false;
             }
         }
@@ -224,11 +224,52 @@ namespace CLP
             {
                 if (!mAllowedStrings.empty() && !SH::InContainer(sValue, mAllowedStrings, IsCaseSensitive()))
                 {
-                    sFailMessage = "Error: Allowed values:{" + FromSet(mAllowedStrings) + "}";
-                    if (bOutputError)
-                        cerr << cols[kERROR] + sFailMessage + cols[kRESET] << "\n";
-                    return false;
+                    if (!mAllowedStrings.empty() && mAllowedStrings.find(sValue) == mAllowedStrings.end())
+                    {
+                        sFailMessage = "Error: Allowed values:{" + FromSet(mAllowedStrings) + "}";
+                        if (bOutputError)
+                            cerr << CLP::ErrorStyle << sFailMessage << CLP::ResetStyle << "\n";
+                        return false;
+                    }
+
+                    return true;
                 }
+                case ParamDesc::kInt64:
+                {
+                    int64_t nValue = SH::ToInt(sValue);
+                    if (mnMinInt.has_value() && nValue < mnMinInt)
+                    {
+                        sFailMessage = "Error: value:" + SH::FromInt(nValue) + " < min:" + SH::FromInt(mnMinInt.value());
+                        if (bOutputError)
+                            cerr << CLP::ErrorStyle << sFailMessage << CLP::ResetStyle << "\n";
+                        return false;
+                    }
+                    else if (mnMaxInt.has_value() && nValue > mnMaxInt)
+                    {
+                        sFailMessage = "Error: value:" + SH::FromInt(nValue) + " > max:" + SH::FromInt(mnMaxInt.value());
+                        if (bOutputError)
+                            cerr << CLP::ErrorStyle << sFailMessage << CLP::ResetStyle << "\n";
+                        return false;
+                    }
+                    return true;
+                }
+                case ParamDesc::kFloat:
+                {
+                    float fValue = (float)SH::ToDouble(sValue);
+                    if (mfMinFloat.has_value() && fValue < mfMinFloat)
+                    {
+                        sFailMessage = "Error: value:" + SH::FromDouble(fValue) + " < min:" + SH::FromDouble(mfMinFloat.value());
+                        if (bOutputError)
+                            cerr << CLP::ErrorStyle << sFailMessage << CLP::ResetStyle << "\n";
+                        return false;
+                    }
+                    else if (mfMaxFloat.has_value() && fValue > mfMaxFloat)
+                    {
+                        sFailMessage = "Error: value:" + SH::FromDouble(fValue) + " > max:" + SH::FromDouble(mfMaxFloat.value());
+                        if (bOutputError)
+                            cerr << CLP::ErrorStyle << sFailMessage << CLP::ResetStyle << "\n";
+                        return false;
+                    }
 
                 return true;
             }
@@ -239,7 +280,7 @@ namespace CLP
                 {
                     sFailMessage = "Error: value:" + SH::FromInt(nValue) + " < min:" + GetMinString();
                     if (bOutputError)
-                        cerr << cols[kERROR] << sFailMessage << cols[kRESET] << "\n";
+                        cerr << CLP::ErrorStyle << sFailMessage << CLP::ResetStyle << "\n";
                     return false;
                 }
                 else if (mnMaxInt.has_value() && nValue > mnMaxInt)
@@ -317,7 +358,7 @@ namespace CLP
     void ParamDesc::GetExample(std::string& sParameter, std::string& sType, std::string& sDefault, std::string& sUsage)
     {
         // for unrequired params, surround with brackets
-        sParameter = cols[kPARAM];
+        sParameter = CLP::ParamStyle.color;
         if (IsOptional())
             sParameter += "[";
 
@@ -400,7 +441,7 @@ namespace CLP
         if (IsOptional())
             sParameter += "]";
 
-        sParameter += cols[kRESET];
+        sParameter += CLP::ResetStyle.color;
 
         sUsage = msUsage;
     }
@@ -412,6 +453,14 @@ namespace CLP
             param.mnPosition = GetNumPositionalParamsRegistered();
         else
             param.mnPosition = -1;
+
+#ifdef _DEBUG
+        // check that app isn't trying to register a parameter that's already been registered (verbose is a frequent mistake)
+        for (const auto& registeredParam : mParameterDescriptors)
+        {
+            assert(registeredParam.msName != param.msName);            
+        }
+#endif
 
         mParameterDescriptors.emplace_back(param);
 
@@ -462,13 +511,13 @@ namespace CLP
         {
             if (p.mbFound)
             {
-                cout << "Parameter " << cols[kPARAM] << p.msName << cols[kRESET] << " = \"" << p.ValueToString() << "\"\n";
+                cout << "Parameter " << CLP::ParamStyle << p.msName << CLP::ResetStyle << " = \"" << p.ValueToString() << "\"\n";
             }
             else
             {
                 if (p.IsRequired())
                 {
-                    cerr << cols[kERROR] << "Error: " << cols[kRESET] << "Required parameter not set:" << cols[kPARAM] << p.msName << "\n" << cols[kRESET];
+                    cerr << CLP::ErrorStyle << "Error: " << CLP::ResetStyle << "Required parameter not set:" << CLP::ParamStyle << p.msName << "\n" << CLP::ResetStyle;
                 }
             }
         }
@@ -529,7 +578,7 @@ namespace CLP
             ParamDesc* pDesc = nullptr;
             if (!GetDescriptor(sKey, &pDesc))
             {
-                cerr << cols[kERROR] << "Error: " << cols[kRESET] << "Unknown parameter '" << cols[kERROR] << sKey << cols[kRESET] << "' for mode:" << cols[kPARAM] << msModeDescription << "\n" << cols[kRESET];
+                cerr << CLP::ErrorStyle << "Error: " << CLP::ResetStyle << "Unknown parameter '" << CLP::ErrorStyle << sKey << CLP::ResetStyle << "' for mode:" << CLP::ParamStyle << msModeDescription<< "\n" << CLP::ResetStyle;
                 return false;
             }
 
@@ -565,7 +614,7 @@ namespace CLP
             ParamDesc* pPositionalDesc = nullptr;
             if (!GetDescriptor(GetNumPositionalParamsHandled(), &pPositionalDesc))  // num handled is also the index of the next one
             {
-                cerr << cols[kERROR] << "Error: Too many parameters! Max is:" << GetNumPositionalParamsRegistered() << " parameter:" << sArg << "\n" << cols[kRESET];
+                cerr << CLP::ErrorStyle << "Error: Too many parameters! Max is:" << GetNumPositionalParamsRegistered() << " parameter:" << sArg << "\n" << CLP::ResetStyle;
                 return false;
             }
 
@@ -708,13 +757,13 @@ namespace CLP
     }
 
 
-    void CLModeParser::GetModeUsageTables(string sMode, TableOutput& modeDescriptionTable, TableOutput& requiredParamTable, TableOutput& optionalParamTable, TableOutput& additionalInfoTable)
+    void CLModeParser::GetModeUsageTables(string sMode, Table& modeDescriptionTable, Table& requiredParamTable, Table& optionalParamTable, Table& additionalInfoTable)
     {
         SH::makelower(sMode);
 
         if (!sMode.empty() && !msModeDescription.empty())
         {
-            modeDescriptionTable.AddRow(string("Help for command: ") + cols[kAPP] + sMode.c_str() + cols[kRESET]);
+            modeDescriptionTable.AddRow(string("Help for command: ") + CLP::AppStyle.color + sMode.c_str() + CLP::ResetStyle.color);
 
 
             modeDescriptionTable.AddRow(" ");
@@ -832,7 +881,7 @@ namespace CLP
         if (mModeToCommandLineParser.find(sMode) != mModeToCommandLineParser.end())
         {
             assert(false);
-            cerr << cols[kERROR] << "Mode already registered:" << sMode << "\n" << cols[kRESET];
+            cerr << CLP::ErrorStyle << "Mode already registered:" << sMode << "\n" << CLP::ResetStyle;
             return false;
         }
 
@@ -845,7 +894,7 @@ namespace CLP
         if (mModeToCommandLineParser.find(sMode) == mModeToCommandLineParser.end())
         {
             assert(false);
-            cerr << cols[kERROR] << "Unregistered mode:" << sMode << "\n" << cols[kRESET];
+            cerr << CLP::ErrorStyle << "Unregistered mode:" << sMode << "\n" << CLP::ResetStyle;
             return false;
         }
         return mModeToCommandLineParser[sMode].RegisterParam(param);
@@ -868,7 +917,7 @@ namespace CLP
         if (mModeToCommandLineParser.find(sMode) == mModeToCommandLineParser.end())
         {
             assert(false);
-            cerr << cols[kERROR] << "Unregistered mode:" << sMode << "\n" << cols[kRESET];
+            cerr << CLP::ErrorStyle << "Unregistered mode:" << sMode << "\n" << CLP::ResetStyle;
             return false;
         }
         return mModeToCommandLineParser[sMode].AddInfo(sInfo);
@@ -958,7 +1007,7 @@ namespace CLP
                     else
                     {
                         // case 1c
-                        cerr << cols[kERROR] << "Error:" + cols[kRESET] + " Unknown parameter '" << cols[kERROR] << sParam << cols[kRESET] << "'\n";
+                        cerr << CLP::ErrorStyle << "Error:" << CLP::ResetStyle << " Unknown parameter '" << CLP::ErrorStyle << sParam << CLP::ResetStyle << "'\n";
                         nErrors++;
                     }
                 }
@@ -991,7 +1040,7 @@ namespace CLP
                     }
                     else
                     {
-                        cerr << cols[kERROR] << "Error: Unknown parameter '" << sParam << "'\n" << cols[kRESET];
+                        cerr << CLP::ErrorStyle << "Error: Unknown parameter '" << sParam << "'\n" << CLP::ResetStyle;
                         nErrors++;
                     }
                 }
@@ -1162,9 +1211,9 @@ namespace CLP
                 mGeneralCommandLineParser.ShowFoundParameters();
 
                 string sCommandLineExample;
-                TableOutput usageTable;
+                Table usageTable;
                 GetCommandLineExample(msMode, sCommandLineExample);
-                usageTable.AddRow(cols[kSECTION] + "--------Usage---------" + cols[kRESET]);
+                usageTable.AddRow(CLP::SectionStyle, "--------Usage---------");
                 usageTable.AddRow(sCommandLineExample);
                 cout << usageTable;
 
@@ -1180,8 +1229,8 @@ namespace CLP
                 //                cout << GetHelpString(GetFirstPositionalArgument(argArray), bDetailedHelp);
                 if (bHelp | bDetailedHelp)
                 {
-                    TableOutput clpHelp = GetCLPHelp(bDetailedHelp);
-                    TableOutput keyTable = GetKeyTable();
+                    Table clpHelp = GetCLPHelp(bDetailedHelp);
+                    Table keyTable = GetKeyTable();
                     if (bDetailedHelp)
                     {
                         clpHelp.AlignWidth(80, clpHelp, keyTable);
@@ -1255,20 +1304,19 @@ namespace CLP
 
     string CommandLineParser::GetModeHelpString(const std::string& sMode, bool bDetailed)
     {
-        TableOutput usageTable;
-        TableOutput descriptionTable;
-        TableOutput requiredParamTable;
-        TableOutput optionalParamTable;
-        TableOutput additionalInfoTable;
+        Table usageTable;
+        Table descriptionTable;
+        Table requiredParamTable;
+        Table optionalParamTable;
+        Table additionalInfoTable;
+
+        Table::Style sectionStyle(CLP::SectionStyle);
 
         bool bHasRequiredParameters = false;
         bool bHasOptionalParameters = false;
         bool bHasAdditionalInfo = false;
 
-        descriptionTable.SetBorders('*', '-', '*', '*');
-        descriptionTable.SetSeparator(' ', 1);
-
-
+        descriptionTable.SetBorders("*", "*", "*", "-");
         string sCommandLineExample;
 
         if (IsRegisteredMode(sMode))
@@ -1280,26 +1328,23 @@ namespace CLP
             if (bHasAdditionalInfo)
             {
                 additionalInfoTable.AddRow(" ");
-                additionalInfoTable.AddRow(cols[kSECTION] + "---Additional Info----" + cols[kRESET]);
+                additionalInfoTable.AddRow(sectionStyle, "---Additional Info----");
 
-                additionalInfoTable.SetSeparator(' ', 1);
-                additionalInfoTable.SetBorders(0, '-', '*', '*');
+                additionalInfoTable.SetBorders("*", "", "*", "-");
             }
 
             if (bHasRequiredParameters)
             {
                 requiredParamTable.AddRow(" ");
-                requiredParamTable.AddRow(cols[kSECTION] + "-------Required------", "---Type---", "---Default---", "---Description---" + cols[kRESET]);
-                requiredParamTable.SetBorders(0, 0, '*', '*');
-                requiredParamTable.SetSeparator(' ', 1);
+                requiredParamTable.AddRow(sectionStyle, "-------Required------", "---Type---", "---Default---", "---Description---");
+                requiredParamTable.SetBorders("*", "", "*", "");
             }
 
             if (bHasOptionalParameters)
             {
                 optionalParamTable.AddRow(" ");
-                optionalParamTable.AddRow(cols[kSECTION] + "------[Options]------", "---Type---", "---Default---", "---Description---" + cols[kRESET]);
-                optionalParamTable.SetBorders(0, 0, '*', '*');
-                optionalParamTable.SetSeparator(' ', 1);
+                optionalParamTable.AddRow(sectionStyle, "------[Options]------", "---Type---", "---Default---", "---Description---");
+                optionalParamTable.SetBorders("*", "", "*", "");
             }
 
 
@@ -1321,26 +1366,23 @@ namespace CLP
             if (bHasAdditionalInfo)
             {
                 additionalInfoTable.AddRow(" ");
-                additionalInfoTable.AddRow(cols[kSECTION] + "---Additional Info----" + cols[kRESET]);
+                additionalInfoTable.AddRow(sectionStyle, "---Additional Info----");
 
-                additionalInfoTable.SetSeparator(' ', 1);
-                additionalInfoTable.SetBorders(0, '-', '*', '*');
+                additionalInfoTable.SetBorders("*", "-", "*", "");
             }
 
             if (bHasRequiredParameters)
             {
                 requiredParamTable.AddRow(" ");
-                requiredParamTable.AddRow(cols[kSECTION] + "-------Required------", "---Type---", "---Default---", "---Description---" + cols[kRESET]);
-                requiredParamTable.SetBorders(0, 0, '*', '*');
-                requiredParamTable.SetSeparator(' ', 1);
+                requiredParamTable.AddRow(sectionStyle, "-------Required------", "---Type---", "---Default---", "---Description---");
+                requiredParamTable.SetBorders("*", "", "*", "");
             }
 
             if (bHasOptionalParameters)
             {
                 optionalParamTable.AddRow(" ");
-                optionalParamTable.AddRow(cols[kSECTION] + "------[Options]------", "---Type---", "---Default---", "---Description---" + cols[kRESET]);
-                optionalParamTable.SetBorders(0, 0, '*', '*');
-                optionalParamTable.SetSeparator(' ', 1);
+                optionalParamTable.AddRow(sectionStyle, "------[Options]------", "---Type---", "---Default---", "---Description---");
+                optionalParamTable.SetBorders("*", "", "*", "");
             }
 
             GetCommandLineExample("", sCommandLineExample);
@@ -1348,41 +1390,25 @@ namespace CLP
         }
 
         if (bHasOptionalParameters)
-            sCommandLineExample += cols[kPARAM] + " [Options]" + cols[kRESET];
+            sCommandLineExample += CLP::ParamStyle.color + " [Options]" + CLP::ResetStyle.color;
 
-        usageTable.AddRow(cols[kSECTION] + "--------Usage---------" + cols[kRESET]);
+        usageTable.AddRow(sectionStyle, "--------Usage---------");
         usageTable.AddRow(sCommandLineExample);
-        usageTable.SetSeparator(' ', 1);
-        usageTable.SetBorders('-', '*', '*', '*');
+        usageTable.SetBorders("*", "-", "*", "*");
 
 
-        TableOutput GeneralHelpTable = GetCLPHelp(bDetailed);
+        Table GeneralHelpTable = GetCLPHelp(bDetailed);
 
 
         size_t nMinWidth = 80;
 #ifdef _WIN64
         CONSOLE_SCREEN_BUFFER_INFO screenInfo;
         if (GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &screenInfo))
-            nMinWidth = screenInfo.dwSize.X - 1;
+            nMinWidth = screenInfo.dwSize.X-4;
 #endif
 
 
-        /*        size_t nMinTableWidth = std::max({ (size_t)nMinWidth,
-                                                    descriptionTable.GetTableWidth(),
-                                                    requiredParamTable.GetTableWidth(),
-                                                    optionalParamTable.GetTableWidth(),
-                                                    usageTable.GetTableWidth(),
-                                                    GeneralHelpTable.GetTableWidth(),
-                                                    additionalInfoTable.GetTableWidth()});
-
-                GeneralHelpTable.SetMinimumOutputWidth(nMinTableWidth);
-                requiredParamTable.SetMinimumOutputWidth(nMinTableWidth);
-                optionalParamTable.SetMinimumOutputWidth(nMinTableWidth);
-                descriptionTable.SetMinimumOutputWidth(nMinTableWidth);
-                additionalInfoTable.SetMinimumOutputWidth(nMinTableWidth);
-                usageTable.SetMinimumOutputWidth(nMinTableWidth);*/
-
-        GeneralHelpTable.AlignWidth(nMinWidth, GeneralHelpTable, requiredParamTable, optionalParamTable, descriptionTable, additionalInfoTable, usageTable);
+        GeneralHelpTable.AlignWidth(0, GeneralHelpTable, requiredParamTable, optionalParamTable, descriptionTable, additionalInfoTable, usageTable);
 
 
         // Now default/global
@@ -1402,16 +1428,16 @@ namespace CLP
         return ss.str();
     }
 
-    TableOutput CommandLineParser::GetCLPHelp([[maybe_unused]] bool bDetailed)
+    Table CommandLineParser::GetCLPHelp([[maybe_unused]] bool bDetailed)
     {
-        TableOutput descriptionTable;
-        descriptionTable.SetSeparator(' ', 1);
-        descriptionTable.SetBorders('*', '*', '*', '*');
+        Table descriptionTable;
+        descriptionTable.SetBorders("*", "*", "*", "*");
+        Table::Style sectionStyle(CLP::SectionStyle);
 
-        descriptionTable.AddRow(cols[kSECTION] + CLP::appName + cols[kRESET]);
+        descriptionTable.AddRow(sectionStyle, CLP::appName);
         descriptionTable.AddRow(" ");
 
-        descriptionTable.AddRow(cols[kSECTION] + "----GENERAL HELP----" + cols[kRESET]);
+        descriptionTable.AddRow(sectionStyle, "----GENERAL HELP----");
         descriptionTable.AddRow("Generally the application is given a COMMAND followed by parameters.");
         descriptionTable.AddRow("Run the application with no parameters to get a list of available commands.");
         descriptionTable.AddRow("Parameters can be positional (1st, 2nd, 3rd, etc.) or named key:value pairs.");
@@ -1421,39 +1447,36 @@ namespace CLP
         return descriptionTable;
     }
 
-    TableOutput CommandLineParser::GetCommandsTable()
+    Table CommandLineParser::GetCommandsTable()
     {
-        TableOutput commandsTable;
-        commandsTable.SetBorders(0, 0, '*', '*');
-        commandsTable.SetSeparator(' ', 1);
+        Table commandsTable;
+        commandsTable.SetBorders("*", "", "*", "");
 
-        commandsTable.AddRow(cols[kSECTION] + "-----Commands-----" + cols[kRESET]);
+        commandsTable.AddRow(SectionStyle, "-----Commands-----");
         for (tModeToParser::iterator it = mModeToCommandLineParser.begin(); it != mModeToCommandLineParser.end(); it++)
         {
             string sCommand = (*it).first;
             string sModeDescription = ((*it).second).GetModeDescription();
             if (!sCommand.empty())
-                commandsTable.AddRow(cols[kPARAM] + sCommand + cols[kRESET], sModeDescription);
+                commandsTable.AddRow(ParamStyle, sCommand, sModeDescription);
         }
         return commandsTable;
     }
 
 
-    TableOutput CommandLineParser::GetKeyTable()
+    Table CommandLineParser::GetKeyTable()
     {
-        TableOutput table;
-        table.SetSeparator(' ', 1);
-        table.SetBorders('*', '*', '*', '*');
+        Table table;
 
-        table.AddRow(cols[kSECTION] + "--------KEYS---------" + cols[kRESET]);
-        table.AddRow(cols[kPARAM] + "         [] " + cols[kRESET], "Optional");
-        table.AddRow(cols[kPARAM] + "          - " + cols[kRESET], "Named '-key:value' pair. (examples: -size:1KB  -verbose:3)");
-        table.AddRow(cols[kPARAM] + "            " + cols[kRESET], "Can be anywhere on command line, in any order.");
-        table.AddRow(cols[kPARAM] + "          # " + cols[kRESET], "NUMBER");
-        table.AddRow(cols[kPARAM] + "            " + cols[kRESET], "Can be hex (0x05) or decimal or floating point.");
-        table.AddRow(cols[kPARAM] + "            " + cols[kRESET], "Can include commas (1,000)");
-        table.AddRow(cols[kPARAM] + "            " + cols[kRESET], "Can include scale labels (10k, 64KiB, etc.)");
-        table.AddRow(cols[kPARAM] + "        BOOL" + cols[kRESET], "Boolean value can be 1/0, t/f, y/n, yes/no. Presence of the flag means true.");
+        table.AddRow(SectionStyle, "--------KEYS---------");
+        table.AddRow(ParamStyle, "         [] ", "Optional" );
+        table.AddRow(ParamStyle, "          - ", "Named '-key:value' pair. (examples: -size:1KB  -verbose:3)");
+        table.AddRow(ParamStyle, "            ", "Can be anywhere on command line, in any order.");
+        table.AddRow(ParamStyle, "          # ", "NUMBER");
+        table.AddRow(ParamStyle, "            ", "Can be hex (0x05) or decimal or floating point.");
+        table.AddRow(ParamStyle, "            ", "Can include commas (1,000)");
+        table.AddRow(ParamStyle, "            ", "Can include scale labels (10k, 64KiB, etc.)");
+        table.AddRow(ParamStyle, "        BOOL", "Boolean value can be 1/0, t/f, y/n, yes/no. Presence of the flag means true.");
 
         return table;
     }
@@ -1475,25 +1498,25 @@ namespace CLP
     {
         // First output Application name
 
-        TableOutput descriptionTable;
-        descriptionTable.SetBorders('*', 0, '*', '*');
-        descriptionTable.SetSeparator(' ', 1);
+        Table descriptionTable;
+        Table table;
+        descriptionTable.SetBorders("*", "*", "*", "");
 
-        descriptionTable.AddRow("Application: " + cols[kAPP] + appName + cols[kRESET]);
+        descriptionTable.AddRow("Application: " + CLP::AppStyle.color + appName + CLP::ResetStyle.color);
 
         descriptionTable.AddRow(" ");
-        descriptionTable.AddRow(cols[kSECTION] + "--App Description--" + cols[kRESET]);
+        descriptionTable.AddRow(CLP::SectionStyle, "--App Description--");
         descriptionTable.AddMultilineRow(msAppDescription);
         descriptionTable.AddRow(" ");
 
-        TableOutput commandsTable;
+        Table commandsTable;
 
-        descriptionTable.AddRow(cols[kSECTION] + "------Usage-------" + cols[kRESET]);
+        descriptionTable.AddRow(CLP::SectionStyle, "------Usage-------");
 
         if (IsMultiMode())
         {
 
-            string sUsageExample(cols[kAPP] + appName + cols[kPARAM] + " COMMAND PARAMS" + cols[kRESET]);
+            string sUsageExample(CLP::AppStyle.color + appName + CLP::ParamStyle.color + " COMMAND PARAMS" + CLP::ResetStyle.color);
 
             descriptionTable.AddRow(sUsageExample);
             descriptionTable.AddRow(' ');
@@ -1503,21 +1526,20 @@ namespace CLP
         }
         else
         {
-            string sUsageExample(cols[kAPP] + appName + cols[kPARAM] + " PARAMS" + cols[kRESET]);
+            string sUsageExample(CLP::AppStyle.color + appName + CLP::ParamStyle.color + " PARAMS" + CLP::ResetStyle.color);
             descriptionTable.AddRow(sUsageExample);
             descriptionTable.AddRow(' ');
         }
 
-        TableOutput helpTable;
-        helpTable.SetBorders(0, '*', '*', '*');
-        helpTable.SetSeparator(' ', 1);
-        helpTable.AddRow(cols[kSECTION] + "-------Help-------" + cols[kRESET]);
+        Table helpTable;
+        helpTable.SetBorders("*", "", "*", "*");
+        helpTable.AddRow(CLP::SectionStyle, "-------Help-------");
         helpTable.AddRow("Add \'?\' or \'??\' anywhere on command line for command help.");
 
         string sExampleCommand;
         if (IsMultiMode())
             sExampleCommand = (*mModeToCommandLineParser.begin()).first;
-        helpTable.AddRow("For example: " + cols[kAPP] + appName + " " + cols[kPARAM] + sExampleCommand + " ?" + cols[kRESET]);
+        helpTable.AddRow("For example: " + CLP::AppStyle.color + appName + " " + CLP::ParamStyle.color + sExampleCommand + " ?" + CLP::ResetStyle.color);
 #ifdef ENABLE_CLE
         helpTable.AddRow(" ");
         helpTable.AddRow("Add '!' anywhere on command line for interactive command line editing.");
@@ -1541,15 +1563,4 @@ namespace CLP
 
         return ss.str();
     }
-
-    std::string     cols[kMAX_CATEGORIES] =
-    {
-        COL_RESET,      // RESET    default
-        COL_YELLOW,     // APP      default
-        COL_CYAN,       // SECTION  default
-        COL_YELLOW,     // PARAM    default
-        COL_RED,        // ERROR    default
-    };
-
-
 }; // namespace CLP

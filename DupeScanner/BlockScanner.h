@@ -198,7 +198,7 @@ public:
     BlockScanner();
     ~BlockScanner();
 
-    bool			        Scan(string sourcePath, string searchPath, uint64_t nBlockSize, int64_t nThreads=16, bool bVerbose = false);
+    bool			        Scan(string sourcePath, string searchPath, uint64_t nBlockSize, int64_t nThreads=16);
     void			        Cancel();								// Signals the thread to terminate and returns when thread has terminated
 
     const char*             UniquePath(const string& sPath);
@@ -258,6 +258,5 @@ private:
 
     SharedMemPool*          mpSharedMemPool;
 
-    bool                    mbVerbose;
     bool		            mbCancel;
 };

@@ -36,7 +36,6 @@ BlockScanner::BlockScanner()
 {
     mnStatus = kNone;
     mbCancel = false;
-    mbVerbose = false;
     mbSelfScan = false;
 
     mTotalSHAHashesChecked = 0;
@@ -101,14 +100,13 @@ BlockScanner::~BlockScanner()
 
 
 
-bool BlockScanner::Scan(string sourcePath, string scanPath, uint64_t nBlockSize, int64_t nThreads, bool bVerbose)
+bool BlockScanner::Scan(string sourcePath, string scanPath, uint64_t nBlockSize, int64_t nThreads)
 {
     mSourcePath = sourcePath;
     mSearchPath = scanPath;
     mnStatus = BlockScanner::kScanning;
     mnBlockSize = nBlockSize;
     mThreads = nThreads;
-    mbVerbose = bVerbose;
 
     mbSelfScan = scanPath.empty();
     if (mbSelfScan)
@@ -275,7 +273,7 @@ bool BlockScanner::Scan(string sourcePath, string scanPath, uint64_t nBlockSize,
             }
 
             int64_t nTime = GetUSSinceEpoch();
-            if (mbVerbose && nTime - nReportTime > kReportCadence)
+            if (LOG::gnVerbosityLevel > LVL_DEFAULT && nTime - nReportTime > kReportCadence)
             {
                 cout << "Searching: " << nTotalDataSearched / (1024 * 1024) << "/" << mnSearchDataSize / (1024 * 1024) << "MiB (" << std::fixed << std::setprecision(2) << (double)nTotalDataSearched * 100.0 / (double)mnSearchDataSize << "%)\n";
                 nReportTime = nTime;
@@ -356,7 +354,7 @@ void BlockScanner::ComputeMetadata()
         mnSourceDataSize = std::filesystem::file_size(mSourcePath);
     }
 
-    if (mbVerbose)
+    if (LOG::gnVerbosityLevel > LVL_DEFAULT)
     {
         cout << "Source file count:" << pathList.size() << "\n";
         cout << "Source data size:" << mnSourceDataSize << "\n";
@@ -430,7 +428,7 @@ void BlockScanner::ComputeMetadata()
                 }
 
                 int64_t nTime = GetUSSinceEpoch();
-                if (mbVerbose && nTime - nReportTime > kReportCadence)
+                if (LOG::gnVerbosityLevel > LVL_DEFAULT && nTime - nReportTime > kReportCadence)
                 {
                     cout << "Indexing: " << nTotalScanned / (1024 * 1024) << "/" << mnSourceDataSize / (1024 * 1024) << "MiB (" << std::fixed << std::setprecision(2) << (double)nTotalScanned * 100.0 / (double)mnSourceDataSize << "%)\n";
                     nReportTime = nTime;
@@ -454,7 +452,7 @@ void BlockScanner::ComputeMetadata()
 
 //#define DEBUG_HASHING
 #ifdef DEBUG_HASHING
-    if (mbVerbose)
+    if (LOG::gnVerbosityLevel > LVL_DEFAULT)
     {
         for (int i = 0; i < 256; i++)
         {
@@ -730,8 +728,9 @@ void BlockScanner::DumpReport()
 
     list<sMatchResult> fullFileMatches;
     list<sMatchResult> partialMatches;
-    TableOutput table;
-    table.SetSeparator(',', 10);
+    Table table;
+    table.SetBorders("*", "*", "*", "*", ",");
+    table.defaultStyle = Table::Style(COL_RESET, Table::LEFT, Table::TIGHT, 10);
 
     if (mResults.size() > 0)
     {
@@ -758,7 +757,7 @@ void BlockScanner::DumpReport()
             result = nextResult;
         }
 
-        if (mbVerbose)
+        if (LOG::gnVerbosityLevel > LVL_DEFAULT)
         {
             if (fullFileMatches.size() > 0)
             {
@@ -788,11 +787,10 @@ void BlockScanner::DumpReport()
     }
 
 
+    
 
-
-    table.SetSeparator(':', 2);
-    table.SetBorders('*', '*', '*', '*');
-    table.SetAlignment({ 0, 1 });
+    table.SetBorders("*", "*", "*", "*", ":");
+    table.defaultStyle = Table::Style(COL_GREEN, Table::RIGHT, Table::TIGHT, 1);
 
     cout << "\n*Summary*\n";
     table.AddRow("Source bytes", (uint64_t)mnSourceDataSize);
@@ -815,7 +813,7 @@ void BlockScanner::DumpReport()
 
     cout << table;
 
-    if (mbVerbose)
+    if (LOG::gnVerbosityLevel > LVL_DEFAULT)
     {
         cout << "\n*Debug Metrics*\n";
         cout << std::left << std::setw(24) << "SHA Hashes Checked:" << mTotalSHAHashesChecked << "\n";
