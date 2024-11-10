@@ -234,44 +234,6 @@ namespace CLP
 
                     return true;
                 }
-                case ParamDesc::kInt64:
-                {
-                    int64_t nValue = SH::ToInt(sValue);
-                    if (mnMinInt.has_value() && nValue < mnMinInt)
-                    {
-                        sFailMessage = "Error: value:" + SH::FromInt(nValue) + " < min:" + SH::FromInt(mnMinInt.value());
-                        if (bOutputError)
-                            cerr << CLP::ErrorStyle << sFailMessage << CLP::ResetStyle << "\n";
-                        return false;
-                    }
-                    else if (mnMaxInt.has_value() && nValue > mnMaxInt)
-                    {
-                        sFailMessage = "Error: value:" + SH::FromInt(nValue) + " > max:" + SH::FromInt(mnMaxInt.value());
-                        if (bOutputError)
-                            cerr << CLP::ErrorStyle << sFailMessage << CLP::ResetStyle << "\n";
-                        return false;
-                    }
-                    return true;
-                }
-                case ParamDesc::kFloat:
-                {
-                    float fValue = (float)SH::ToDouble(sValue);
-                    if (mfMinFloat.has_value() && fValue < mfMinFloat)
-                    {
-                        sFailMessage = "Error: value:" + SH::FromDouble(fValue) + " < min:" + SH::FromDouble(mfMinFloat.value());
-                        if (bOutputError)
-                            cerr << CLP::ErrorStyle << sFailMessage << CLP::ResetStyle << "\n";
-                        return false;
-                    }
-                    else if (mfMaxFloat.has_value() && fValue > mfMaxFloat)
-                    {
-                        sFailMessage = "Error: value:" + SH::FromDouble(fValue) + " > max:" + SH::FromDouble(mfMaxFloat.value());
-                        if (bOutputError)
-                            cerr << CLP::ErrorStyle << sFailMessage << CLP::ResetStyle << "\n";
-                        return false;
-                    }
-
-                return true;
             }
             case ParamDesc::kInt64:
             {
@@ -287,7 +249,7 @@ namespace CLP
                 {
                     sFailMessage = "Error: value:" + SH::FromInt(nValue) + " > max:" + GetMaxString();
                     if (bOutputError)
-                        cerr << cols[kERROR] << sFailMessage << cols[kRESET] << "\n";
+                        cerr << CLP::ErrorStyle << sFailMessage << CLP::ResetStyle << "\n";
                     return false;
                 }
                 return true;
@@ -299,24 +261,18 @@ namespace CLP
                 {
                     sFailMessage = "Error: value:" + SH::FromDouble(fValue) + " < min:" + GetMinString();
                     if (bOutputError)
-                        cerr << cols[kERROR] << sFailMessage << cols[kRESET] << "\n";
+                        cerr << CLP::ErrorStyle << sFailMessage << CLP::ResetStyle << "\n";
                     return false;
                 }
                 else if (mfMaxFloat.has_value() && fValue > mfMaxFloat)
                 {
                     sFailMessage = "Error: value:" + SH::FromDouble(fValue) + " > max:" + GetMaxString();
                     if (bOutputError)
-                        cerr << cols[kERROR] << sFailMessage << cols[kRESET] << "\n";
+                        cerr << CLP::ErrorStyle << sFailMessage << CLP::ResetStyle << "\n";
                     return false;
                 }
 
-
-                if (fValue >= mfMaxFloat && fValue <= mfMinFloat)
-                    return true;
-                sFailMessage = "Error: Allowed range:(" + GetMinString() + "-" + GetMaxString() + ")";
-                if (bOutputError)
-                    cerr << cols[kERROR] << sFailMessage << cols[kRESET] << "\n";
-                return false;
+                return true;
             }
             case ParamDesc::kBool:
             {
