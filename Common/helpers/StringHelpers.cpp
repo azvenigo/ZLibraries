@@ -124,21 +124,8 @@ string SH::replaceTokens(std::string input, const std::string& token, const std:
     return input;
 }
 
-
-string SH::FormatFriendlyBytes(uint64_t nBytes, int64_t sizeType)
+string SH::FormatFriendlyBytes(uint64_t nBytes, int64_t sizeType, bool bIncludeBytes)
 {
-    if (sizeType == kAuto)
-    {
-        if (nBytes > kTiB)   // TB show in GB
-            sizeType = kGiB;
-        if (nBytes > kGiB)	// GB show in MB
-            sizeType = kMiB;
-        else if (nBytes > kMiB)	// MB show in KB
-            sizeType = kKiB;
-        else
-            sizeType = kBytes;
-    }
-
     char buf[128];
 
     switch (sizeType)
@@ -146,33 +133,53 @@ string SH::FormatFriendlyBytes(uint64_t nBytes, int64_t sizeType)
     case kKiB:
         sprintf(buf, "%" PRId64 "KiB", nBytes / kKiB);
         return string(buf);
-        break;
+
     case kMiB:
         sprintf(buf, "%" PRId64 "MiB", nBytes / kMiB);
         return string(buf);
-        break;
+
     case kGiB:
         sprintf(buf, "%" PRId64 "GiB", nBytes / kGiB);
         return string(buf);
+    default:
         break;
     }
 
-    if (nBytes > kGiB)       // return in MB
+    if (nBytes < kKiB)
     {
-        sprintf(buf, "%" PRId64 "MiB", nBytes / kMiB);
-        return string(buf);
+        sprintf(buf, "%" PRId64 "B", nBytes);
+        bIncludeBytes = false; // already reported in bytes
     }
-    else if (nBytes > kMB)  // return in KB
+    else if (nBytes < kMiB)
     {
-        sprintf(buf, "%" PRId64 "KiB", nBytes / kKiB);
-        return string(buf);
+        double fKiB = (double)nBytes / (double)kKiB;
+        sprintf(buf, "%0.1fKiB", fKiB);
+    }
+    else if (nBytes < kGiB)
+    {
+        double fMiB = (double)nBytes / (double)kMiB;
+        sprintf(buf, "%0.1fMiB", fMiB);
+    }
+    else if (nBytes < kTiB)
+    {
+        double fGiB = (double)nBytes / (double)kGiB;
+        sprintf(buf, "%0.1fGiB", fGiB);
+    }
+    else
+    {
+        double fTiB = (double)nBytes / (double)kTiB;
+        sprintf(buf, "%0.1fTiB", fTiB);
     }
 
-    else sprintf(buf, "%" PRId64 "bytes", nBytes);
+    string s(buf);
+    if (bIncludeBytes)
+    {
+        sprintf(buf, " (%" PRId64 "B)", nBytes);
+        s += string(buf);
+    }
 
-    return string(buf);
+    return s;
 }
-
 bool SH::Compare(const string& a, const string& b, bool bCaseSensitive)
 {
     if (bCaseSensitive)
@@ -271,40 +278,11 @@ int64_t SH::ToInt(string sReadable)
     return nOut;
 }
 
-// If the number is a power of two, converts to a more readable form
-// example 32768   -> 32KiB
-//         1048576 -> 1MiB
-string SH::ToUserReadable(int64_t nValue)
+string SH::ToUserReadable(double fValue, size_t precision)
 {
-    char buf[128];
-    if (nValue % kPiB == 0)
-        sprintf(buf, "%" PRId64 "PiB", nValue / kPiB);
-    else if (nValue % kPB == 0)
-        sprintf(buf, "%" PRId64 "PB", nValue / kPB);
-
-    else if (nValue % kTiB == 0)
-        sprintf(buf, "%" PRId64 "TiB", nValue / kTiB);
-    else if (nValue % kTB == 0)
-        sprintf(buf, "%" PRId64 "TB", nValue / kTB);
-
-    else if (nValue % kGiB == 0)
-        sprintf(buf, "%" PRId64 "GiB", nValue / kGiB);
-    else if (nValue % kGB == 0)
-        sprintf(buf, "%" PRId64 "GB", nValue / kGB);
-
-    else if (nValue % kMiB == 0)
-        sprintf(buf, "%" PRId64 "MiB", nValue / kMiB);
-    else if (nValue % kMB == 0)
-        sprintf(buf, "%" PRId64 "MB", nValue / kMB);
-
-    else if (nValue % kKiB == 0)
-        sprintf(buf, "%" PRId64 "KiB", nValue / kKiB);
-    else if (nValue % kKB == 0)
-        sprintf(buf, "%" PRId64 "KB", nValue / kKB);
-
-    else sprintf(buf, "%" PRId64, nValue);
-
-    return string(buf);
+    std::ostringstream out;
+    out << std::fixed << std::setprecision(precision) << fValue;
+    return out.str();
 }
 
 string SH::FromVector(tStringArray& stringVector, const char token)
@@ -622,7 +600,7 @@ std::string SH::convertToASCII(const std::string& input)
             if (c1 == 0x80)
             {
                 if (c2 == 0x9C || c2 == 0x9D)
-                { // Opening curly double quote “
+                { // Opening curly double quote Â“
                     output += '"';
                     i += 2;
                 }
