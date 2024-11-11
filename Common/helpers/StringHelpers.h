@@ -112,8 +112,8 @@ namespace SH
     std::string     wstring2string(const std::wstring& sVal);
     std::wstring    string2wstring(const std::string& sVal);
 
-    std::string     FormatFriendlyBytes(uint64_t nBytes, int64_t sizeType = kAuto);
-    std::string     ToUserReadable(int64_t nValue);
+    std::string     FormatFriendlyBytes(uint64_t nBytes, int64_t sizeType = kAuto, bool bIncludeBytes = false);
+    std::string     ToUserReadable(double fValue, size_t precision = 2);
     int64_t         ToInt(std::string sReadable);
 
     std::string     FromVector(tStringArray& stringVector, const char token = kCharSplitToken);
