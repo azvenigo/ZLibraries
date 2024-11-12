@@ -9,7 +9,7 @@ const Table::Style Table::kCenteredStyle = Table::Style(COL_RESET, CENTER, EVEN)
 
 using namespace std;
 
-#define PAD(n) string(n, ' ')
+#define PAD(n, c) string(n, c)
 
 
 ostream& operator <<(std::ostream& os, Table::Style& style)
@@ -233,19 +233,20 @@ string Table::Cell::StyledOut(size_t width, tOptionalStyle _style)
         if (s.length() > width)
             return Substring(s, width); // however many will fit
 
-        return s + PAD(width - s.length()); // pad out however many remaining spaces
+        return s + PAD(width - s.length(), ' '); // pad out however many remaining spaces
     }
 
     uint8_t alignment = use_style.value().alignment;
     uint8_t padding = use_style.value().padding;
+    char padchar = use_style.value().padchar;
 
     if (width < padding * 2)    // if not enough space to draw anything
-        return use_style.value().color + PAD(width) + COL_RESET;
+        return use_style.value().color + PAD(width, padchar) + COL_RESET;
 
 
     size_t remaining_width = width - padding * 2;
 
-    string sOut = PAD(padding) + Substring(s, remaining_width) + PAD(padding);
+    string sOut = PAD(padding, padchar) + Substring(s, remaining_width) + PAD(padding, padchar);
     size_t visOutLen = VisLength(sOut);
 
 
@@ -253,14 +254,14 @@ string Table::Cell::StyledOut(size_t width, tOptionalStyle _style)
     {
         size_t left_pad = (width - visOutLen) / 2;
         size_t right_pad = (width - left_pad - visOutLen);
-        sOut = PAD(left_pad) + sOut + PAD(right_pad);
+        sOut = PAD(left_pad, padchar) + sOut + PAD(right_pad, padchar);
     }
     else if (alignment == Table::RIGHT)
     {
-        sOut = PAD(width - visOutLen) + sOut;
+        sOut = PAD(width - visOutLen, padchar) + sOut;
     }
     else // default left
-        sOut += PAD(width - visOutLen);
+        sOut += PAD(width - visOutLen, padchar);
 
     return use_style.value().color + sOut + COL_RESET;
 }

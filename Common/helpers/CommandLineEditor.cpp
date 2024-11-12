@@ -2509,7 +2509,7 @@ namespace CLP
         }
 
         Table additionalHelp;
-        additionalHelp.defaultStyle.color = ColToAnsi(0xFF888888);
+        additionalHelp.defaultStyle.color = AnsiCol(0xFF888888);
         additionalHelp.SetBorders("+", "+", "+", "+");
         additionalHelp.renderWidth = drawWidth;
 
@@ -2758,6 +2758,7 @@ namespace CLP
         {
             if (!rawCommandBuf.GetText().empty())
             {
+                cout << "\n\n";
                 cout << "Command Entered:\n\"" << COL_YELLOW << CLP::appName << " " << rawCommandBuf.GetText() << COL_RESET << "\"\n";
                 cout << "\n\n";
             }

@@ -224,7 +224,7 @@ inline std::string StripAnsiSequences(const std::string& s)
     return result;
 }
 
-inline std::string ColToAnsi(uint8_t r, uint8_t g, uint8_t b, uint8_t bg_r, uint8_t bg_g, uint8_t bg_b)
+inline std::string AnsiCol(uint8_t r, uint8_t g, uint8_t b, uint8_t bg_r, uint8_t bg_g, uint8_t bg_b)
 {
     std::string s;
     s += "\033[38;2;" + std::to_string(r) + ";" + std::to_string(g) + ";" + std::to_string(b) + "m";
@@ -232,21 +232,21 @@ inline std::string ColToAnsi(uint8_t r, uint8_t g, uint8_t b, uint8_t bg_r, uint
     return s;
 };
 
-inline std::string ColToAnsi(uint8_t r, uint8_t g, uint8_t b)
+inline std::string AnsiCol(uint8_t r, uint8_t g, uint8_t b)
 {
     std::string s;
     s += "\033[38;2;" + std::to_string(r) + ";" + std::to_string(g) + ";" + std::to_string(b) + "m";
     return s;
 };
 
-inline std::string ColToAnsi(uint32_t col)
+inline std::string AnsiCol(uint32_t col)
 {
-    return ColToAnsi((col & 0x00ff0000) >> 16, (col & 0x0000ff00) >> 8, (col & 0x000000ff));
+    return AnsiCol((col & 0x00ff0000) >> 16, (col & 0x0000ff00) >> 8, (col & 0x000000ff));
 }
 
-inline std::string ColToAnsi(uint64_t col)
+inline std::string AnsiCol(uint64_t col)
 {
-    return ColToAnsi(
+    return AnsiCol(
         (uint8_t)((col & 0x0000000000ff0000) >> 16), 
         (uint8_t)((col & 0x000000000000ff00) >>  8), 
         (uint8_t)((col & 0x00000000000000ff)      ),
@@ -309,7 +309,7 @@ public:
 
     struct Style
     {
-        Style(std::string _color = COL_RESET, uint8_t _alignment = LEFT, uint8_t _spacing = TIGHT, uint8_t _padding = 1) : color(_color), alignment(_alignment), spacing(_spacing), padding(_padding) {}
+        Style(std::string _color = COL_RESET, uint8_t _alignment = LEFT, uint8_t _spacing = TIGHT, uint8_t _padding = 1, char _padchar = ' ') : color(_color), alignment(_alignment), spacing(_spacing), padding(_padding), padchar(_padchar) {}
 
         friend std::ostream& operator <<(std::ostream& os, Style& style);
 
@@ -317,6 +317,7 @@ public:
         uint8_t     alignment = LEFT;
         uint8_t     spacing = TIGHT;
         uint8_t     padding = 1;
+        char        padchar = ' ';
     };
 
     // Some helpful defaults
