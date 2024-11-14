@@ -2181,7 +2181,7 @@ namespace CLP
         }
     }
 
-/*    void CommandLineEditor::SaveConsoleState()
+    void CommandLineEditor::SaveConsoleState()
     {
         originalScreenInfo = screenInfo;
         originalConsoleBuf.resize(originalScreenInfo.dwSize.X * originalScreenInfo.dwSize.Y);
@@ -2194,7 +2194,8 @@ namespace CLP
         SMALL_RECT writeRegion = { 0, 0, originalScreenInfo.dwSize.X - 1, originalScreenInfo.dwSize.Y - 1 };
         WriteConsoleOutput(mhOutput, &originalConsoleBuf[0], originalScreenInfo.dwSize, { 0, 0 }, &writeRegion);
         SetConsoleCursorPosition(mhOutput, originalScreenInfo.dwCursorPosition);
-    }*/
+        SetConsoleTextAttribute(mhOutput, originalScreenInfo.wAttributes);
+    }
 
 
     int64_t RawEntryWin::CursorToTextIndex(COORD coord)
@@ -2583,7 +2584,7 @@ namespace CLP
         SHORT h = ScreenH();
 
 
-        //SaveConsoleState();
+        SaveConsoleState();
         std::vector<CHAR_INFO> blank(w * h);
         for (int i = 0; i < blank.size(); i++)
         {
@@ -2740,32 +2741,21 @@ namespace CLP
             }
         }
 
-
-        //RestoreConsoleState();
-        if (rawCommandBuf.mbCanceled)
-        {
-            cout << COL_RESET "\n\nCanceled editing.\n";
-            if (!rawCommandBuf.GetText().empty())
-            {
-                cout << string(ScreenW(), '*');
-                cout << "Last Edit: \"" << COL_YELLOW << CLP::appName << " " << rawCommandBuf.GetText() << COL_RESET << "\"\n";
-                cout << string(ScreenW(), '*');
-                cout << "\n\n";
-            }
-            return "";
-        }
-        else
-        {
-            if (!rawCommandBuf.GetText().empty())
-            {
-                cout << "\n\n";
-                cout << "Command Entered:\n\"" << COL_YELLOW << CLP::appName << " " << rawCommandBuf.GetText() << COL_RESET << "\"\n";
-                cout << "\n\n";
-            }
-        }
-
         AddToHistory(rawCommandBuf.GetText());
         SaveHistory();
+
+        RestoreConsoleState();
+
+        string OutCommandLine = fs::path(CLP::appPath + CLP::appName).string() + " " + rawCommandBuf.GetText();
+
+        if (!rawCommandBuf.mbCanceled)
+        {
+            OutCommandLine += "\n";
+        }
+
+
+
+        OutputCommandToConsole(OutCommandLine);
 
         return rawCommandBuf.GetText();
     }
@@ -2775,7 +2765,6 @@ namespace CLP
         if (!mbVisible)
             return;
 
-//        Clear(mClearAttrib);
         ConsoleWin::BasePaint();
 
         Rect drawArea;
@@ -2785,15 +2774,6 @@ namespace CLP
         DrawClippedAnsiText(drawArea.l, -firstDrawRow, mText, true, &drawArea);
 
         ConsoleWin::RenderToBackBuf(backBuf);
-
-/*        for (int64_t y = 0; y < mHeight; y++)
-        {
-            int64_t readOffset = (y * mWidth);
-            int64_t writeOffset = ((y + mY) * mWidth + mX);
-
-            memcpy(&backBuf[writeOffset], &mBuffer[readOffset], mWidth * sizeof(ZChar));
-        }
-        */
     }
 
     void InfoWin::UpdateCaptions()
@@ -2937,6 +2917,71 @@ namespace CLP
         commandHistory.emplace_back(sCommandLine);
         return true;
     }
+
+    bool CommandLineEditor::OutputCommandToConsole(const std::string& command)
+    {
+        // Find the window handle for the Command Prompt (assuming it has a unique title or class name)
+        HWND hwnd = GetConsoleWindow();
+        if (!hwnd)
+        {
+            cerr << "Failed to get console window!\n";
+            return false;
+        }
+
+        // Set the Command Prompt window to the foreground
+        SetForegroundWindow(hwnd);
+
+        // Wait for the window to be focused
+        //Sleep(10);
+
+        // Prepare a list of inputs
+        std::vector<INPUT> inputs;
+
+        for (char c : command)
+        {
+            // Determine if Shift key needs to be held down
+            bool shift = isupper(c) || strchr("!@#$%^&*()_+{}|:\"<>?", c);
+
+            // Map character to a virtual key code
+            SHORT vk = VkKeyScan(c);
+            if (vk == -1) continue;  // Skip if the character doesn't have a virtual key
+
+            // Add Shift key down if necessary
+            if (shift) 
+            {
+                INPUT shiftDown = {};
+                shiftDown.type = INPUT_KEYBOARD;
+                shiftDown.ki.wVk = VK_SHIFT;
+                inputs.push_back(shiftDown);
+            }
+
+            // Add key down and key up events for the character
+            INPUT keyDown = {};
+            keyDown.type = INPUT_KEYBOARD;
+            keyDown.ki.wVk = vk & 0xFF;  // Extract the virtual key code
+            inputs.push_back(keyDown);
+
+            INPUT keyUp = keyDown;
+            keyUp.ki.dwFlags = KEYEVENTF_KEYUP;
+            inputs.push_back(keyUp);
+
+            // Add Shift key up if necessary
+            if (shift) 
+            {
+                INPUT shiftUp = {};
+                shiftUp.type = INPUT_KEYBOARD;
+                shiftUp.ki.wVk = VK_SHIFT;
+                shiftUp.ki.dwFlags = KEYEVENTF_KEYUP;
+                inputs.push_back(shiftUp);
+            }
+        }
+
+        // Send the input array to the system
+        SendInput(static_cast<UINT>(inputs.size()), inputs.data(), sizeof(INPUT));
+
+        return true;
+    }
+
 };
 
 #endif // ENABLE_CLE

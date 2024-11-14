@@ -1120,10 +1120,6 @@ namespace CLP
     bool CommandLineParser::Parse(int argc, char* argv[], [[maybe_unused]] bool bEditOnParseFail)
     {
 
-        //ZAttrib test = 0x0011223300445566;
-
-
-
 #ifdef ENABLE_CLE
         CLP::CommandLineEditor editor;
 #endif
@@ -1223,14 +1219,9 @@ namespace CLP
                     }
                 }
 
+                editor.Edit(ToString(argArray));    // show editor and exit
 
-                string result = editor.Edit(ToString(argArray));
-                if (result.empty())
-                {
-                    bSuccess = false;
-                    break;
-                }
-                argArray = ToArray(result);
+                return false;   // return false for the calling application to exit
             }
 #endif
         }

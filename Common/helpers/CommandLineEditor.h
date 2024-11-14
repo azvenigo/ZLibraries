@@ -479,6 +479,8 @@ namespace CLP
         void SaveConsoleState();
         void RestoreConsoleState();
         void ShowHelp();
+        bool OutputCommandToConsole(const std::string& command);
+
 
         void UpdateParams();        // parse mText and break into parameter fields
         std::string     mLastParsedText;
@@ -488,7 +490,7 @@ namespace CLP
 
         HANDLE mhInput;
         HANDLE mhOutput;
-        tConsoleBuffer originalConsoleBuf;
+        std::vector<CHAR_INFO> originalConsoleBuf;
         CONSOLE_SCREEN_BUFFER_INFO originalScreenInfo;
 
 
