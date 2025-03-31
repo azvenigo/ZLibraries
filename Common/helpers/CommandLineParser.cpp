@@ -681,17 +681,6 @@ namespace CLP
         sCommandLineExample = appName;
 
         string sParamsExample;
-        for (auto& desc : mGeneralCommandLineParser.mParameterDescriptors)
-        {
-            if (desc.IsPositional())
-                sParamsExample += " " + desc.msName;
-        }
-        for (auto& desc : mGeneralCommandLineParser.mParameterDescriptors)
-        {
-            if (desc.IsNamed() && desc.IsRequired())
-                sParamsExample += " " + desc.msName;
-        }
-
         if (IsMultiMode() && IsRegisteredMode(sMode))
         {
             sCommandLineExample += " " + sMode + sParamsExample;
@@ -706,7 +695,21 @@ namespace CLP
                     sCommandLineExample += " " + desc.msName;
             }
         }
-        else if (IsMultiMode())
+
+        for (auto& desc : mGeneralCommandLineParser.mParameterDescriptors)
+        {
+            if (desc.IsPositional())
+                sParamsExample += " " + desc.msName;
+        }
+        for (auto& desc : mGeneralCommandLineParser.mParameterDescriptors)
+        {
+            if (desc.IsNamed() && desc.IsRequired())
+                sParamsExample += " " + desc.msName;
+        }
+
+
+
+        if (IsMultiMode() && !IsRegisteredMode(sMode))
             sCommandLineExample += " COMMAND" + sParamsExample;
         else
             sCommandLineExample += sParamsExample;

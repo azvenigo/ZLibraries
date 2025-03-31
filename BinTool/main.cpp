@@ -9,6 +9,7 @@
 #include "helpers/sha256.h"
 #include <filesystem>
 #include <fstream>
+#include <Windows.h>
 
 using namespace std;
 using namespace CLP;
@@ -430,36 +431,43 @@ bool Diff(const std::string& sFile1, const std::string& sFile2, bool bVerbose)
 }
 
 
+
+
+
+
+
+
+
+
+
 int main(int argc, char* argv[])
 {
 /*
     Table table;
-    table.SetBorders(COL_BLACK COL_BG_GREEN "<" COL_RED "=", COL_BLACK COL_BG_GREEN "^", COL_BLACK COL_BG_GREEN "=>", COL_BLACK COL_BG_GREEN "\\\\" COL_BG_CYAN "---" COL_BG_GREEN "//", COL_BLACK COL_BG_GREEN "|");
-    table.defaultStyle = Table::Style(COL_BG_GREEN, Table::RIGHT, Table::EVEN, 0);
+    table.defaultStyle = Table::Style(AnsiCol(40, 40, 255, 0, 0, 0), Table::RIGHT, Table::EVEN, 0);
+    table.SetBorders( AnsiCol(40, 40, 255, 0, 0, 0) + string("["), "-", "]", "-" );
     Table::Style sectionStyle;
     sectionStyle.alignment = Table::CENTER;
-    sectionStyle.color = COL_BG_CYAN COL_YELLOW;
+    sectionStyle.color = AnsiCol(125, 255, 80, 10, 10, 10);
+    sectionStyle.padchar = '%';
 
     Table::Style rightStyle;
     rightStyle.alignment = Table::RIGHT;
     rightStyle.spacing = Table::EVEN;
     rightStyle.padding = 0;
     
-    table.AddRow(sectionStyle, "This is a section");
-//    table.AddRow("a name", "another cell");
-    table.AddRow(1.345, 0, 543, "wow");
-    table.AddRow(rightStyle, 345, 1/3.0, 43, "wowie");
-    table.AddRow("");
-    table.AddRow(sectionStyle, "This is a section");
-    table.AddRow(Table::Style(ColToAnsi(0, 0, 0, 20, 255, 80), Table::CENTER, Table::EVEN, 1), "123", "12345678901234567890", "123", "1", "1");
-    table.AddRow(Table::Style(ColToAnsi(0, 0, 0, 20, 255, 20), Table::CENTER, Table::EVEN, 1), "12345", "1234567890", "12345", "1", "1234");
+    table.AddRow(sectionStyle, " This is a section ");
+    table.AddRow(Table::Style(AnsiCol(0, 0, 0, 20, 255, 80), Table::CENTER, Table::EVEN, 1), "123", "12345678901234567890", "123", "1", "1");
+    table.AddRow(Table::Style(AnsiCol(0, 0, 0, 20, 255, 20), Table::CENTER, Table::EVEN, 1), "12345", "1234567890", "12345", "1", "1234");
+
+    table.AddRow("blah", 123, "blah blah blah");
     table.renderWidth = 16;
     std::cout << table;
-
-
-
     
     */
+
+    
+    
 
 
 

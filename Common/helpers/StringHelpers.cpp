@@ -449,7 +449,7 @@ bool SH::ContainsWhitespace(const std::string& s, bool bSkipQuotes)
         for (size_t i = 0; i < s.length(); i++)
         {
             char c = s[i];
-            if (std::isspace(c))
+            if (std::isspace((uint8_t)c))
                 return true;
             if (c == '\'' || c == '\"')
             {
@@ -462,7 +462,7 @@ bool SH::ContainsWhitespace(const std::string& s, bool bSkipQuotes)
         return false;
     }
 
-    return std::any_of(s.begin(), s.end(), [](char c) { return std::isspace(static_cast<unsigned char>(c)); });
+    return std::any_of(s.begin(), s.end(), [](char c) { return std::isspace((uint8_t)(c)); });
 }
 
 
