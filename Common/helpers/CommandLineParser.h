@@ -133,6 +133,7 @@ namespace CLP
     static Table::Style AppStyle      = Table::Style(COL_YELLOW);
     static Table::Style SectionStyle  = Table::Style(COL_CYAN);
     static Table::Style ParamStyle    = Table::Style(COL_YELLOW);
+    static Table::Style WarningStyle  = Table::Style(COL_ORANGE);
     static Table::Style ErrorStyle    = Table::Style(COL_RED);
 
     // array of colors

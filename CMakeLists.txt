@@ -50,6 +50,8 @@ list (APPEND COMMON_FILES
     ${CMN_SOURCE}/helpers/LoggingHelpers.h      ${CMN_SOURCE}/helpers/LoggingHelpers.cpp       
     ${CMN_SOURCE}/helpers/StringHelpers.h       ${CMN_SOURCE}/helpers/StringHelpers.cpp     
     ${CMN_SOURCE}/helpers/CommandLineEditor.h   ${CMN_SOURCE}/helpers/CommandLineEditor.cpp 
+    ${CMN_SOURCE}/helpers/CommandLineMonitor.h 	${CMN_SOURCE}/helpers/CommandLineMonitor.cpp 
+    ${CMN_SOURCE}/helpers/CommandLineCommon.h 	${CMN_SOURCE}/helpers/CommandLineCommon.cpp	
     ${CMN_SOURCE}/helpers/StringHelpers.h       ${CMN_SOURCE}/helpers/StringHelpers.cpp 
     ${CMN_SOURCE}/helpers/FileHelpers.h         ${CMN_SOURCE}/helpers/FileHelpers.cpp )
     
@@ -63,5 +65,6 @@ add_subdirectory(DupeScanner)
 add_subdirectory(BinTool)
 add_subdirectory(ZZip)
 add_subdirectory(ZPackager)
+add_subdirectory(CLMonitorTest)
 
 ################################################################################

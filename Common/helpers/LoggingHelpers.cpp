@@ -1,15 +1,52 @@
 #include "LoggingHelpers.h"
+#include <chrono>
 int64_t LOG::gnVerbosityLevel = 1;
 
 const Table::Style Table::kLeftAlignedStyle = Table::Style(COL_RESET, LEFT, EVEN);
 const Table::Style Table::kRightAlignedStyle = Table::Style(COL_RESET, RIGHT, EVEN);
 const Table::Style Table::kCenteredStyle = Table::Style(COL_RESET, CENTER, EVEN);
 
-
+LOG::Logger gLogger;
+LOG::LogStream gLogOut(gLogger, std::cout);
+LOG::LogStream gLogErr(gLogger, std::cerr);
 
 using namespace std;
 
 #define PAD(n, c) string(n, c)
+
+
+thread_local std::ostringstream LOG::LogStream::t_buffer;
+
+
+std::string LOG::usToDateTime(uint64_t us)
+{
+    time_t seconds = us / 1000000;
+    uint64_t remainingus = us % 1000000;
+    std::tm* timeInfo = std::localtime(&seconds);
+    std::ostringstream oss;
+    oss << std::put_time(timeInfo, "%Y/%m/%d %H:%M:%S");
+    oss << '.' << std::setfill('0') << std::setw(6) << remainingus;
+    return oss.str();
+}
+
+std::string LOG::usToElapsed(uint64_t us)
+{
+    uint64_t hours = us / 3600000000ULL;
+    uint64_t minutes = us / 60000000ULL;
+    us %= 60000000ULL;
+
+    uint64_t seconds = us / 1000000ULL;
+    us %= 1000000ULL;
+
+
+    std::ostringstream oss;
+    oss << hours << ":"
+        << std::setfill('0') << std::setw(2) << minutes << ":"
+        << std::setfill('0') << std::setw(2) << seconds << ":"
+        << std::setfill('0') << std::setw(6) << us;
+
+    return oss.str();
+}
 
 
 ostream& operator <<(std::ostream& os, Table::Style& style)
@@ -26,6 +63,26 @@ ostream& operator <<(std::ostream& os, Table::Style& style)
 Table::Table()
 {
 }
+
+
+LOG::LogEntry::LogEntry(const std::string& _text, uint64_t _time)
+{
+    text = _text;
+
+    if (_time == -1)
+        time = std::chrono::system_clock::now().time_since_epoch() / std::chrono::microseconds(1);
+    else
+        time = _time;
+};
+
+void LOG::LogStream::flush() 
+{
+//    cout << "t_buffer at flush has:" << t_buffer.str() << std::endl;
+    m_logger.addEntry(t_buffer.str());
+    t_buffer.str("");  // Clear buffer
+    t_buffer.clear();  // Clear error flags
+}
+
 
 // Formatting
 

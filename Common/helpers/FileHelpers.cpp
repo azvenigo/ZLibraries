@@ -2,6 +2,8 @@
 #include "StringHelpers.h"
 #include <filesystem>
 #include <iostream>
+#include <fstream>
+#include <system_error>
 
 #ifdef _WIN64
 #define WIN32_LEAN_AND_MEAN
@@ -131,6 +133,29 @@ namespace FH
 
         return true;
     }
+
+    bool ReadIntoBuffer(const std::filesystem::path filename, std::vector<uint8_t>& outBuffer)
+    {
+        ifstream inFile(filename, ios::binary);
+        if (!inFile.is_open())
+        {
+            cout << "Unable to open file: " << filename << "\n";
+            return false;
+        }
+
+        size_t size = fs::file_size(filename);
+        outBuffer.resize(size);
+        inFile.read((char*)&outBuffer[0], size);
+
+        if (!inFile)
+        {
+            cout << "Read from:" << filename << " failed. err:" << errno << std::error_code(errno, std::generic_category()).message() << "\n";
+            return false;
+        }
+
+        return true;
+    }
+
 
 #ifdef _WIN64
 #define WIN32_LEAN_AND_MEAN

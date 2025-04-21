@@ -7,18 +7,19 @@
 #include <iostream>
 #include <inttypes.h>
 #include <list>
+#include <deque>
 #include <vector>
 #include <map>
 #include <optional>
 #include <iomanip>
 #include <algorithm>
+#include <thread>
+#include <mutex>
 
-#ifndef __PROSPERO__
 #define ENABLE_ANSI_OUT
-#endif
 #ifdef ENABLE_ANSI_OUT
 
-#define COL_RESET   "\033[00m"
+#define COL_RESET   "\033[37m"
 #define COL_BLACK   "\033[30m"
 #define COL_RED     "\033[31m"
 #define COL_GREEN   "\033[32m"
@@ -27,6 +28,7 @@
 #define COL_PURPLE  "\033[35m"
 #define COL_CYAN    "\033[36m"
 #define COL_WHITE   "\033[37m"
+#define COL_ORANGE  "\033[38;2;255;165;0m"
 
 
 #define COL_BG_BLACK   "\033[40m"
@@ -84,7 +86,192 @@ namespace LOG
 
 
 #define OUT_HEX(statement)          std::hex << statement << std::dec 
+
+
+
+    struct LogEntry
+    {
+        LogEntry(const std::string& _text, uint64_t _time = -1);
+
+        uint64_t        time;
+        uint64_t        counter;
+        std::thread::id threadID;
+        std::string     text;
+    };
+
+    typedef std::deque<LogEntry> tLogEntries;
+
+    class Logger;
+    class LogStream 
+    {
+    public:
+        LogStream(Logger& logger, std::ostream& fallback, bool _outputToFallback = true) : m_logger(logger), m_fallback(fallback), outputToFallback(_outputToFallback){}
+
+        template<typename T>
+        LogStream& operator<<(const T& data) 
+        {
+            // Append to our internal stream
+            t_buffer << data;
+//            std::cout << "buffer now has " << t_buffer.str() << "\n";
+
+            if (outputToFallback)
+            {
+                std::lock_guard<std::mutex> lock(m_fallbackMutex);
+                m_fallback << data;
+            }
+            return *this;
+        }
+
+        // Handle std::endl and other manipulators
+        LogStream& operator<<(std::ostream& (*manip)(std::ostream&)) 
+        {
+            // Apply manipulator to fallback stream
+            if (outputToFallback)
+            {
+                std::lock_guard<std::mutex> lock(m_fallbackMutex);
+                manip(m_fallback);
+            }
+
+            // If it's endl, flush our buffer to a log entry
+            if (manip == static_cast<std::ostream & (*)(std::ostream&)>(std::endl)) 
+            {
+                flush();
+            }
+            else 
+            {
+                // Otherwise just add it to our buffer
+                t_buffer << manip;
+            }
+
+            return *this;
+        }
+
+        void flush();
+
+        bool outputToFallback;
+
+    private:
+        Logger& m_logger;
+        std::ostream& m_fallback;
+        std::mutex m_fallbackMutex;
+
+        static thread_local std::ostringstream t_buffer;
+    };
+
+
+    class Logger
+    {
+    public:
+        const size_t kQueueSize = 1024;
+        Logger() : logCount(0) 
+        {
+        }
+
+        void addEntry(const std::string& text) 
+        {
+            std::lock_guard<std::mutex> lock(logEntriesMutex);
+            while (logEntries.size() > kQueueSize)
+                logEntries.pop_front();
+
+            LogEntry e(text);
+            e.threadID = std::this_thread::get_id();
+            e.counter = logCount++;
+            logEntries.emplace_back(std::move(e));
+        }
+
+        size_t getCount() const
+        {
+            return logCount;
+        }
+
+        const std::deque<LogEntry>& getEntries() const
+        {
+            return logEntries;
+        }
+
+        bool getEntries(uint64_t startingIndex, size_t count, std::deque<LogEntry>& outEntries) const
+        {
+            std::lock_guard<std::mutex> lock(logEntriesMutex);
+            outEntries.clear();
+            auto entry = logEntries.begin();
+            while (startingIndex > 0 && entry != logEntries.end())
+            {
+                entry++;
+                startingIndex--;
+            }
+
+
+            while (entry != logEntries.end() && outEntries.size() < count)
+            {
+                outEntries.push_back(*entry);
+                entry++;
+            }
+
+            return true;
+        }
+
+
+        std::deque<LogEntry> tail(size_t n) const 
+        {
+            std::deque<LogEntry> result;
+
+            std::lock_guard<std::mutex> lock(logEntriesMutex);
+            if (n >= logEntries.size())
+            {
+                // If requesting more entries than exist, return the whole log
+                return logEntries;
+            }
+
+            // Calculate starting index for the tail portion
+            size_t startIndex = logEntries.size() - n;
+
+            // Copy the last n elements to the result deque
+            result.insert(result.begin(), logEntries.begin() + startIndex, logEntries.end());
+
+            return result;
+        }
+
+
+        void clear() 
+        {
+            std::lock_guard<std::mutex> lock(logEntriesMutex);
+            logEntries.clear();
+        }
+
+        friend std::ostream& operator<<(std::ostream& os, const Logger& logger) 
+        {
+            std::lock_guard<std::mutex> lock(logger.logEntriesMutex);
+
+            for (const auto& entry : logger.logEntries)
+            {
+                os << "[" << entry.time << "][Thread:" << entry.threadID << "] " << entry.text << std::endl;
+            }
+            return os;
+        }
+
+        tLogEntries logEntries;
+        mutable std::mutex logEntriesMutex;
+        size_t logCount;    // total count of flushes, or entries submitted. For tracking changes even if we max out the logEntries queue
+
+    };
+
+    std::string usToDateTime(uint64_t us);
+    std::string usToElapsed(uint64_t us);
 };
+
+extern LOG::Logger gLogger;
+extern LOG::LogStream gLogOut;
+extern LOG::LogStream gLogErr;
+
+#ifdef ENABLE_CLM
+#define zout gLogOut
+#define zerr gLogErr
+#else
+#define zout std::cout
+#define zerr std::cerr
+#endif
+
+
 
 #define RATE_LIMITED_PROGRESS(cadence_seconds, completed, total, unit_per_second, message)	static uint64_t report_ts_=(std::chrono::system_clock::now().time_since_epoch() / std::chrono::microseconds(1)); static uint64_t start_=(std::chrono::system_clock::now().time_since_epoch() / std::chrono::microseconds(1));\
 { uint64_t cur_time = (std::chrono::system_clock::now().time_since_epoch() / std::chrono::microseconds(1));\
@@ -94,9 +281,11 @@ namespace LOG
      double fCompletions_per_second = (double) completed * 1000000.0 / elapsed_us;\
      double fLeftToDo = (double) (total - completed);\
      double fETA = fLeftToDo / fCompletions_per_second;\
-     cout << message << " - Elapsed:" << (elapsed_us) / 1000000 << "s. Completed:" << completed << "/" << total << " (" << (int)((double) 100.0 * completed / (double) total) << "%) " \
-     "  Rate:" << (completed/(elapsed_us / 1000000)) << unit_per_second \
-     "  ETA:" << (int)fETA << "s                          \r";\
+     cout << message \
+     << " - Completed:" << completed << "/" << total << " (" << (int)((double) 100.0 * completed / (double) total) << "%) " \
+     << " - Rate:" << (completed/(elapsed_us / 1000000)) << unit_per_second \
+     << " - Elapsed:" << LOG::usToElapsed(elapsed_us) \
+     << " -  ETA:" << (int)fETA << "s                          \r";\
      report_ts_ = cur_time;\
   }\
  }
