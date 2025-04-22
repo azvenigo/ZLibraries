@@ -28,72 +28,14 @@ namespace CLP
     typedef std::vector<EnteredParams> tEnteredParams;
 
 
-    class RawEntryWin : public ConsoleWin
+    class RawEntryWin : public TextEditWin
     {
-        friend class CommandLineEditor;
-        struct undoEntry
-        {
-            undoEntry(const std::string& _text = "", int64_t _cursorindex = -1, int64_t _selectionstart = -1, int64_t _selectionend = -1) :
-                text(_text), cursorindex(_cursorindex), selectionstart(_selectionstart), selectionend(_selectionend) {}
-
-            std::string text;
-            int64_t     cursorindex     = -1;
-            int64_t     selectionstart  = -1;
-            int64_t     selectionend    = -1;
-        };
-        typedef std::list<undoEntry> tUndoEntryList;
-
     public:
-        void SetText(const std::string& text);
-
-        void DrawClippedText(int64_t x, int64_t y, std::string text, ZAttrib attributes = WHITE_ON_BLACK, bool bWrap = true, bool bHighlightSelection = true, Rect* pClip = nullptr);
-
+        void OnKey(int keycode, char c);
         void Paint(tConsoleBuffer& backBuf);
+        friend class CommandLineEditor;
         bool GetParameterUnderIndex(int64_t index, size_t& outStart, size_t& outEnd, std::string& outParam, ParamDesc** ppPD = nullptr);
         bool HandleParamContext();
-
-        std::string GetText() { return mText; }
-//        COORD GetCursorPos() { return mCursorPos; }
-//        int64_t GetCursorIndex() { return CursorToTextIndex(mCursorPos); }
-
-        void FindNextBreak(int nDir);
-        void UpdateCursorPos(COORD localPos);
-        void UpdateFirstVisibleRow();
-
-
-        bool IsIndexInSelection(int64_t i);
-        bool IsTextSelected() { return selectionstart >= 0 && selectionend >= 0; }
-
-        void SetArea(const Rect& r);
-
-        virtual void OnKey(int keycode, char c);
-
-        void HandlePaste(std::string text);
-
-
-        void UpdateSelection();
-        void DeleteSelection();
-        void ClearSelection();
-        std::string GetSelectedText();
-
-        void AddUndoEntry();
-        void Undo();
-
-
-        tUndoEntryList mUndoEntryList;
-    protected:
-
-        int64_t CursorToTextIndex(COORD coord);
-        COORD TextIndexToCursor(int64_t i);
-        COORD LocalCursorToGlobal(COORD cursor);
-
-
-        std::string     mText;
-
-        COORD mLocalCursorPos;
-        int64_t firstVisibleRow = 0;
-        int64_t selectionstart = -1;
-        int64_t selectionend = -1;
     };
 
 

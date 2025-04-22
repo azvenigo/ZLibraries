@@ -74,190 +74,12 @@ namespace CLP
 
 
 
-    string GetTextFromClipboard()
-    {
-        if (!OpenClipboard(NULL))
-            return "";
-
-        HANDLE hData = GetClipboardData(CF_TEXT);
-        if (hData == NULL)
-        {
-            CloseClipboard();
-            return "";
-        }
-
-        CHAR* pszText = static_cast<CHAR*>(GlobalLock(hData));
-        if (pszText == NULL)
-        {
-            CloseClipboard();
-            return "";
-        }
-
-        std::string clipboardText = pszText;
-
-        GlobalUnlock(hData);
-        CloseClipboard();
-
-        return clipboardText;
-    }
-
-    bool CopyTextToClipboard(const std::string& text)
-    {
-        if (!OpenClipboard(NULL))
-        {
-            std::cerr << "Error opening clipboard" << std::endl;
-            return false;
-        }
-
-        if (!EmptyClipboard())
-        {
-            CloseClipboard();
-            std::cerr << "Error emptying clipboard" << std::endl;
-            return false;
-        }
-
-        HGLOBAL hClipboardData = GlobalAlloc(GMEM_MOVEABLE, (text.length() + 1) * sizeof(char));
-        if (hClipboardData == NULL)
-        {
-            CloseClipboard();
-            std::cerr << "Error allocating memory for clipboard" << std::endl;
-            return false;
-        }
-
-        char* pBuffer = static_cast<char*>(GlobalLock(hClipboardData));
-        if (pBuffer == NULL)
-        {
-            CloseClipboard();
-            std::cerr << "Error locking memory for clipboard" << std::endl;
-            return false;
-        }
-
-        // Copy the text to the buffer
-        strcpy_s(pBuffer, text.length() + 1, text.c_str());
-
-        GlobalUnlock(hClipboardData);
-
-        if (!SetClipboardData(CF_TEXT, hClipboardData))
-        {
-            CloseClipboard();
-            std::cerr << "Error setting clipboard data" << std::endl;
-            return false;
-        }
-
-        CloseClipboard();
-        return true;
-    }
-
     CommandLineEditor::CommandLineEditor()
     {
         pCLP = nullptr;
         pCLE = this;
     }
 
-    void RawEntryWin::UpdateFirstVisibleRow()
-    {
-        if (!mbVisible)
-            return;
-
-        int64_t rowCount = ((int64_t)mText.size() + mWidth - 1) / mWidth;
-
-        if (mLocalCursorPos.Y < 0)
-        {
-            firstVisibleRow = firstVisibleRow+mLocalCursorPos.Y;
-            UpdateCursorPos(COORD(mLocalCursorPos.X, 0));
-        }
-        else if (mLocalCursorPos.Y >= mHeight)
-        {
-            firstVisibleRow = firstVisibleRow + mLocalCursorPos.Y - mHeight + 1;
-            UpdateCursorPos(COORD(mLocalCursorPos.X, (SHORT)mHeight-1));
-        }
-    }
-
-
-    void RawEntryWin::UpdateCursorPos(COORD localPos)
-    {
-        if (!mbVisible)
-            return;
-
-        int index = (int)CursorToTextIndex(localPos);
-        if (index > (int)mText.length())
-            index = (int)mText.length();
-        mLocalCursorPos = TextIndexToCursor(index);
-
-//        SetConsoleCursorPosition(GetStdHandle(STD_OUTPUT_HANDLE), LocalCursorToGlobal(mLocalCursorPos));
-
-        COORD global = LocalCursorToGlobal(mLocalCursorPos);
-        cout << "\033[" << global.X+1 << "G\033[" << global.Y << "d" << std::flush;
-    }
-
-
-    COORD RawEntryWin::LocalCursorToGlobal(COORD cursor)
-    {
-        return COORD(cursor.X + (SHORT)mX + (SHORT) (CLP::appName.length() + 1), cursor.Y + (SHORT)mY);
-    }
-
-
-
-    void RawEntryWin::FindNextBreak(int nDir)
-    {
-        int index = (int)CursorToTextIndex(mLocalCursorPos);
-
-        if (nDir > 0)
-        {
-            index++;
-            if (index < (int64_t)mText.length())
-            {
-                if (isalnum((int)mText[index]))   // index is on an alphanumeric
-                {
-                    while (index < (int64_t)mText.length() && isalnum((int)mText[index]))   // while an alphanumeric character, skip
-                        index++;
-                }
-
-                while (index < (int64_t)mText.length() && isblank((int)mText[index]))    // while whitespace, skip
-                    index++;
-            }
-        }
-        else
-        {
-            index--;
-            if (index > 0)
-            {
-                if (isalnum((int)mText[index]))   // index is on an alphanumeric
-                {
-                    while (index > 0 && isalnum((int)mText[index - 1]))   // while an alphanumeric character, skip
-                        index--;
-                }
-                else
-                {
-                    while (index > 0 && isblank((int)mText[index - 1]))    // while whitespace, skip
-                        index--;
-
-                    while (index > 0 && isalnum((int)mText[index - 1]))   // while an alphanumeric character, skip
-                        index--;
-                }
-            }
-        }
-
-        if (index < 0)
-            index = 0;
-        if (index > (int)mText.length())
-            index = (int)mText.length();
-
-        UpdateCursorPos(TextIndexToCursor(index));
-    }
-
-    bool RawEntryWin::IsIndexInSelection(int64_t i)
-    {
-        int64_t normalizedStart = selectionstart;
-        int64_t normalizedEnd = selectionend;
-        if (normalizedEnd < normalizedStart)
-        {
-            normalizedStart = selectionend;
-            normalizedEnd = selectionstart;
-        }
-
-        return (i >= normalizedStart && i < normalizedEnd);
-    }
 
     void CommandLineEditor::SetConfiguredCLP(CommandLineParser* _pCLP)
     { 
@@ -343,64 +165,6 @@ namespace CLP
     }
 
 
-    string RawEntryWin::GetSelectedText()
-    {
-        if (!IsTextSelected())
-            return "";
-
-        int64_t normalizedStart = selectionstart;
-        int64_t normalizedEnd = selectionend;
-        if (normalizedEnd < normalizedStart)
-        {
-            normalizedStart = selectionend;
-            normalizedEnd = selectionstart;
-        }
-
-        return mText.substr(normalizedStart, normalizedEnd - normalizedStart);
-    }
-
-    void RawEntryWin::AddUndoEntry()
-    {
-        undoEntry entry(mText, CursorToTextIndex(mLocalCursorPos), selectionstart, selectionend);
-        mUndoEntryList.emplace_back(std::move(entry));
-    }
-
-    void RawEntryWin::Undo()
-    {
-        if (mUndoEntryList.empty())
-            return;
-
-        undoEntry entry(*mUndoEntryList.rbegin());
-        mUndoEntryList.pop_back();
-
-        mText = entry.text;
-        selectionstart = entry.selectionstart;
-        selectionend = entry.selectionend;
-        UpdateCursorPos(TextIndexToCursor(entry.cursorindex));
-    }
-
-
-/*    bool RawEntryWin::GetParameterUnderIndex(int64_t index, size_t& outStart, size_t& outEnd, string& outParam)
-    {
-        if (index == string::npos || index >= (int64_t)mText.size())
-            return false;
-
-
-
-
-        while (index > 0 && !isblank((int)mText[index-1])) 
-            index--;
-
-        outStart = index;
-        outEnd = index;
-
-        while (outEnd < mText.size() && !isblank((int)mText[outEnd]))
-            outEnd++;
-
-        outParam = mText.substr(outStart, outEnd - outStart);
-        return true;
-    }*/
-
     bool RawEntryWin::GetParameterUnderIndex(int64_t index, size_t& outStart, size_t& outEnd, string& outParam, ParamDesc** ppPD)
     {
         for (auto& entry : enteredParams)
@@ -419,11 +183,51 @@ namespace CLP
         return false;
     }
 
-    void RawEntryWin::SetText(const std::string& text)
+    void RawEntryWin::OnKey(int keycode, char c)
     {
-        mText = text;
-        UpdateCursorPos(TextIndexToCursor((int64_t)text.size()));
+        bool bCTRLHeld = GetKeyState(VK_CONTROL) & 0x800;
+        bool bSHIFTHeld = GetKeyState(VK_SHIFT) & 0x800;
+
+        bool bHandled = false;
+
+        do
+        {
+            switch (keycode)
+            {
+            case VK_TAB:
+                HandleParamContext();
+                bHandled = true;
+                break;
+            case VK_UP:
+            {
+                if (mLocalCursorPos.Y + firstVisibleRow == 0 && !commandHistory.empty())
+                {
+                    // select everything
+                    selectionstart = 0;
+                    selectionend = mText.size();
+
+                    // show history window
+                    historyWin.mbVisible = true;
+                    historyWin.positionCaption[Position::CT] = "History";
+                    historyWin.positionCaption[Position::RB] = "[ESC-Cancel] [ENTER-Select] [DEL-Delete Entry]";
+                    historyWin.mMinWidth = ScreenW();
+                    historyWin.SetEntries(commandHistory, mText, selectionstart, mY);
+                    bHandled = true;
+                }
+            }
+            break;
+            }
+        } while (0); // for breaking
+
+        // nothing handled above....regular text entry
+        if (!bHandled)
+        {
+            return TextEditWin::OnKey(keycode, c);
+        }
+
+        UpdateFirstVisibleRow();
     }
+
 
     void ConsoleWin::SetArea(const Rect& r)
     {
@@ -444,12 +248,6 @@ namespace CLP
             }
 
         }
-    }
-
-    void RawEntryWin::SetArea(const Rect& r)
-    {
-        ConsoleWin::SetArea(r);
-        UpdateCursorPos(mLocalCursorPos);
     }
 
     void ConsoleWin::GetArea(Rect& r)
@@ -817,129 +615,6 @@ namespace CLP
 
 
 
-
-
-/*    void RawEntryWin::DrawClippedText(int64_t x, int64_t y, std::string text, ZAttrib attributes, bool bWrap, bool bHeightlightSelection)
-    {
-        COORD cursor((SHORT)x, (SHORT)y);
-
-        for (size_t textindex = 0; textindex < text.size(); textindex++)
-        {
-            char c = text[textindex];
-            if (c == '\n' && bWrap)
-            {
-                cursor.X = 0;
-                cursor.Y++;
-            }
-            else
-            {
-                if (bHeightlightSelection && IsIndexInSelection(textindex))
-                    DrawCharClipped(c, cursor.X, cursor.Y, kAttribRawSelectedText);
-                else
-                    DrawCharClipped(c, cursor.X, cursor.Y, kAttribRawText);
-            }
-
-            cursor.X++;
-            if (cursor.X >= mWidth && !bWrap)
-                break;
-        }
-    }*/
-
-
-
-    void RawEntryWin::Paint(tConsoleBuffer& backBuf)
-    {
-        // Update display
-        if (!mbVisible)
-            return;
-
-        ConsoleWin::BasePaint();
-
-        COORD cursor((SHORT)0, (SHORT)-firstVisibleRow);
-
-        std::vector<ZAttrib> attribs;
-        attribs.resize(mText.size());
-
-
-        for (size_t textindex = 0; textindex < mText.length(); textindex++)
-        {
-            attribs[textindex] = kRawText;
-        }
-
-        for (size_t textindex = 0; textindex < mText.length(); textindex++)
-        {
-            // find error params
-            size_t startIndex = string::npos;
-            size_t endIndex = string::npos;
-            string sParamUnderCursor;
-            if (GetParameterUnderIndex(textindex, startIndex, endIndex, sParamUnderCursor))
-            {
-                for (auto& param : enteredParams)
-                {
-                    if (param.sParamText == sParamUnderCursor)
-                    {
-                        for (size_t colorindex = startIndex; colorindex < endIndex; colorindex++)
-                        {
-                            attribs[colorindex] = param.drawAttributes;
-                        }
-
-                        textindex = endIndex;   // skip to end of param
-                        break;
-                    }
-                }
-            }
-        }
-
-
-        for (size_t textindex = 0; textindex < mText.length(); textindex++)
-        {
-            if (IsIndexInSelection(textindex))
-                attribs[textindex] = kSelectedText;
-        }
-
-
-        for (size_t textindex = 0; textindex < CLP::appName.size(); textindex++)
-        {
-            char c = CLP::appName[textindex];
-            if (c == '\n')
-            {
-
-                cursor.X = 0;
-                cursor.Y++;
-            }
-            else
-            {
-                DrawCharClipped(c, cursor.X, cursor.Y, kAttribAppName);
-            }
-
-            cursor.X++;
-        }
-
-        cursor.X++;
-
-
-        for (size_t textindex = 0; textindex < mText.size(); textindex++)
-        {
-            char c = mText[textindex];
-            if (c == '\n')
-            {
-
-                cursor.X = 0;
-                cursor.Y++;
-            }
-            else
-            {
-                DrawCharClipped(c, cursor.X, cursor.Y, attribs[textindex]);
-            }
-
-            cursor.X++;
-        }
-
-
-        
-        ConsoleWin::RenderToBackBuf(backBuf);
-    }
-
     void AnsiColorWin::Paint(tConsoleBuffer& backBuf)
     {
         // Update display
@@ -956,252 +631,6 @@ namespace CLP
         ConsoleWin::RenderToBackBuf(backBuf);
     }
 
-
-    void RawEntryWin::OnKey(int keycode, char c)
-    {
-        bool bCTRLHeld = GetKeyState(VK_CONTROL) & 0x800;
-        bool bSHIFTHeld = GetKeyState(VK_SHIFT) & 0x800;
-
-        bool bHandled = false;
-
-        do
-        {
-
-            switch (keycode)
-            {
-            case VK_TAB:
-                HandleParamContext();
-                bHandled = true;
-                break;
-            case VK_RETURN:
-                mbDone = true;
-                bHandled = true;
-                return;
-            case VK_ESCAPE:
-            {
-                if (IsTextSelected())
-                {
-                    ClearSelection();
-                }
-                else
-                {
-                    mbCanceled = true;
-                }
-                bHandled = true;
-            }
-            break;
-            case VK_HOME:
-            {
-                UpdateSelection();
-                UpdateCursorPos(TextIndexToCursor(0));
-                UpdateSelection();
-                bHandled = true;
-            }
-            break;
-            case VK_END:
-            {
-                UpdateSelection();
-                UpdateCursorPos(TextIndexToCursor((int64_t)mText.size()));
-                UpdateSelection();
-                bHandled = true;
-            }
-            break;
-            case VK_UP:
-            {
-                if (mLocalCursorPos.Y+firstVisibleRow > 0)
-                {
-                    mLocalCursorPos.Y--;
-                    UpdateFirstVisibleRow();
-                    UpdateCursorPos(mLocalCursorPos);
-                }
-                else if (mLocalCursorPos.Y + firstVisibleRow == 0 && !commandHistory.empty())
-                {
-                    // select everything
-                    selectionstart = 0;
-                    selectionend = mText.size();
-
-                    // show history window
-                    historyWin.mbVisible = true;
-                    historyWin.positionCaption[Position::CT] = "History";
-                    historyWin.positionCaption[Position::RB] = "[ESC-Cancel] [ENTER-Select] [DEL-Delete Entry]";
-                    historyWin.mMinWidth = ScreenW();
-                    historyWin.SetEntries(commandHistory, mText, selectionstart, mY);
-                }
-                else
-                {
-                    UpdateSelection();
-                    UpdateCursorPos(COORD(mLocalCursorPos.X, mLocalCursorPos.Y-1));
-                    UpdateSelection();
-                }
-                bHandled = true;
-            }
-            break;
-            case VK_DOWN:
-            {
-                UpdateSelection();
-                UpdateCursorPos(COORD(mLocalCursorPos.X, mLocalCursorPos.Y + 1));
-                UpdateSelection();
-                bHandled = true;
-            }
-            break;
-            case VK_LEFT:
-            {
-                UpdateSelection();
-                // Move cursor left
-                int64_t index = CursorToTextIndex(mLocalCursorPos);
-                if (index > 0)
-                {
-                    if (bCTRLHeld)
-                        FindNextBreak(-1);
-                    else
-                        UpdateCursorPos(TextIndexToCursor(index - 1));
-                }
-                UpdateSelection();
-                bHandled = true;
-            }
-            break;
-            case VK_RIGHT:
-            {
-                UpdateSelection();
-                if (bCTRLHeld)
-                {
-                    FindNextBreak(1);
-                }
-                else
-                {
-                    // Move cursor right
-                    int64_t index = CursorToTextIndex(mLocalCursorPos);
-                    if (index < (int64_t)mText.size())
-                    {
-                        UpdateCursorPos(TextIndexToCursor(index + 1));
-                    }
-
-                }
-                UpdateSelection();
-                bHandled = true;
-            }
-            break;
-            case VK_BACK:
-            {
-                if (IsTextSelected())
-                {
-                    AddUndoEntry();
-                    DeleteSelection();
-                }
-                else
-                {
-                    // Delete character before cursor
-                    int64_t index = CursorToTextIndex(mLocalCursorPos);
-                    if (index > 0)
-                    {
-                        UpdateSelection();
-                        mText.erase(index - 1, 1);
-                        UpdateCursorPos(TextIndexToCursor(index - 1));
-                    }
-                }
-                bHandled = true;
-            }
-            break;
-            case VK_DELETE:
-            {
-                if (IsTextSelected())
-                {
-                    AddUndoEntry();
-                    if (bSHIFTHeld) // SHIFT-DELETE is cut
-                    {
-                        CopyTextToClipboard(GetSelectedText());
-                    }
-
-                    DeleteSelection();
-                }
-                else
-                {
-                    // Delete character at cursor
-                    int64_t index = CursorToTextIndex(mLocalCursorPos);
-                    if (index < (int64_t)(mText.size()))
-                    {
-                        AddUndoEntry();
-                        mText.erase(index, 1);
-                    }
-                }
-                UpdateSelection();
-                bHandled = true;
-            }
-            break;
-            case 0x58:
-            {
-                if (bCTRLHeld)  // CTRL-X is cut
-                {
-                    if (IsTextSelected())
-                    {
-                        AddUndoEntry();
-                        CopyTextToClipboard(GetSelectedText());
-                        DeleteSelection();
-                    }
-
-                    bHandled = true;
-                    break;
-                }
-            }
-            case 0x41:
-            {
-                if (bCTRLHeld)  // CTRL-A
-                {
-                    selectionstart = 0;
-                    selectionend = mText.length();
-                    bHandled = true;
-                    break;
-                }
-            }
-            break;
-            case VK_INSERT:
-            case 0x43:
-            {
-                if (bCTRLHeld)  // CTRL-C
-                {
-                    // handle copy
-                    CopyTextToClipboard(GetSelectedText());
-                    bHandled = true;
-                    break;
-                }
-                if (bSHIFTHeld)  // SHIFT-INSERT is paste
-                {
-                    AddUndoEntry();
-                    HandlePaste(GetTextFromClipboard());
-                    bHandled = true;
-                    break;
-                }
-            }
-            break;
-            case 0x5a:          // CTRL-Z
-            {
-                if (bCTRLHeld)
-                {
-                    rawCommandBuf.Undo();
-                    bHandled = true;
-                    break;
-                }
-            }
-            }
-        } while (0); // for breaking
-
-        // nothing handled above....regular text entry
-        if (!bHandled && keycode >= 32)
-        {
-            AddUndoEntry();
-            if (IsTextSelected())
-                DeleteSelection();
-
-            // Insert character at cursor position
-            int index = (int)CursorToTextIndex(mLocalCursorPos);
-            mText.insert(index, 1, c);
-            UpdateCursorPos(TextIndexToCursor(index + 1));
-            UpdateSelection();
-        }
-
-
-        UpdateFirstVisibleRow();
-    }
 
     void UsageWin::Paint(tConsoleBuffer& backBuf)
     {
@@ -1621,6 +1050,99 @@ namespace CLP
         return true;
     }
 
+    void RawEntryWin::Paint(tConsoleBuffer& backBuf)
+    {
+        // Update display
+        if (!mbVisible)
+            return;
+
+        ConsoleWin::BasePaint();
+
+        COORD cursor((SHORT)0, (SHORT)-firstVisibleRow);
+
+        std::vector<ZAttrib> attribs;
+        attribs.resize(mText.size());
+
+
+        for (size_t textindex = 0; textindex < mText.length(); textindex++)
+        {
+            attribs[textindex] = kRawText;
+        }
+
+        for (size_t textindex = 0; textindex < mText.length(); textindex++)
+        {
+            // find error params
+            size_t startIndex = string::npos;
+            size_t endIndex = string::npos;
+            string sParamUnderCursor;
+            if (GetParameterUnderIndex(textindex, startIndex, endIndex, sParamUnderCursor))
+            {
+                for (auto& param : enteredParams)
+                {
+                    if (param.sParamText == sParamUnderCursor)
+                    {
+                        for (size_t colorindex = startIndex; colorindex < endIndex; colorindex++)
+                        {
+                            attribs[colorindex] = param.drawAttributes;
+                        }
+
+                        textindex = endIndex;   // skip to end of param
+                        break;
+                    }
+                }
+            }
+        }
+
+
+        for (size_t textindex = 0; textindex < mText.length(); textindex++)
+        {
+            if (IsIndexInSelection(textindex))
+                attribs[textindex] = kSelectedText;
+        }
+
+
+        for (size_t textindex = 0; textindex < CLP::appName.size(); textindex++)
+        {
+            char c = CLP::appName[textindex];
+            if (c == '\n')
+            {
+
+                cursor.X = 0;
+                cursor.Y++;
+            }
+            else
+            {
+                DrawCharClipped(c, cursor.X, cursor.Y, kAttribAppName);
+            }
+
+            cursor.X++;
+        }
+
+        cursor.X++;
+
+
+        for (size_t textindex = 0; textindex < mText.size(); textindex++)
+        {
+            char c = mText[textindex];
+            if (c == '\n')
+            {
+
+                cursor.X = 0;
+                cursor.Y++;
+            }
+            else
+            {
+                DrawCharClipped(c, cursor.X, cursor.Y, attribs[textindex]);
+            }
+
+            cursor.X++;
+        }
+
+
+
+        ConsoleWin::RenderToBackBuf(backBuf);
+    }
+
 
     void CommandLineEditor::UpdateUsageWin()
     {
@@ -1739,89 +1261,6 @@ namespace CLP
     }
 
 
-    int64_t RawEntryWin::CursorToTextIndex(COORD coord)
-    {
-        int64_t i = (coord.Y+firstVisibleRow) * mWidth + coord.X;
-        return std::min<size_t>(i, mText.size());
-    }
-
-    COORD RawEntryWin::TextIndexToCursor(int64_t i)
-    {
-        if (i > (int64_t)mText.size())
-            i = (int64_t)mText.size();
-
-        if (mWidth > 0)
-        {
-            COORD c;
-            c.X = (SHORT)(i) % mWidth;
-            c.Y = (SHORT)((i/mWidth)-firstVisibleRow);
-            return c;
-        }
-
-        return COORD(0, 0);
-    }
-
-    void RawEntryWin::HandlePaste(string text)
-    {
-        DeleteSelection();  // delete any selection if needed
-        int64_t curindex = CursorToTextIndex(mLocalCursorPos);
-        mText.insert(curindex, text);
-        curindex += (int)text.length();
-        UpdateCursorPos(TextIndexToCursor(curindex));
-
-/*        static int count = 1;
-        char buf[64];
-        sprintf(buf, "paste:%d\n", count++);
-        OutputDebugString(buf);*/
-    }
-
-    void RawEntryWin::DeleteSelection()
-    {
-        if (!IsTextSelected())
-            return;
-
-        int64_t normalizedStart = selectionstart;
-        int64_t normalizedEnd = selectionend;
-        if (normalizedEnd < normalizedStart)
-        {
-            normalizedStart = selectionend;
-            normalizedEnd = selectionstart;
-        }
-
-        int64_t selectedChars = normalizedEnd - normalizedStart;
-
-        mText.erase(normalizedStart, selectedChars);
-
-        int curindex = (int)CursorToTextIndex(mLocalCursorPos);
-        if (curindex > normalizedStart)
-            curindex -= (int)(curindex- normalizedStart);
-        UpdateCursorPos(TextIndexToCursor(curindex));
-
-        ClearSelection();
-    }
-
-    void RawEntryWin::ClearSelection()
-    {
-        selectionstart = -1;
-        selectionend = -1;
-        UpdateCursorPos(mLocalCursorPos);
-    }
-
-    void RawEntryWin::UpdateSelection()
-    {
-        if (!(GetKeyState(VK_SHIFT) & 0x800))
-        {
-            ClearSelection();
-        }
-        else
-        {
-            if (selectionstart == -1)
-            {
-                selectionstart = CursorToTextIndex(mLocalCursorPos);
-            }
-            selectionend = CursorToTextIndex(mLocalCursorPos);
-        }
-    }
 
     bool CommandLineEditor::ParseParam(const std::string sParamText, std::string& outName, std::string& outValue)
     {
