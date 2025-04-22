@@ -270,8 +270,8 @@ namespace CLP
         void Clear(ZAttrib attrib = 0, bool bGradient = false);
 
 
-        void Fill(const Rect& r, ZAttrib attrib);
-        void Fill(ZAttrib attrib);
+        void Fill(const Rect& r, ZAttrib attrib, bool bGradient = false);
+        void Fill(ZAttrib attrib, bool bGradient = false);
 
         void DrawCharClipped(char c, int64_t x, int64_t y, ZAttrib attrib = {}, Rect* pClip = nullptr);
         void DrawCharClipped(char c, int64_t offset, ZAttrib attrib = {});
@@ -324,6 +324,8 @@ namespace CLP
     public:
         void Paint(tConsoleBuffer& backBuf);
         void OnKey(int keycode, char c);
+
+        void DrawScrollbar(const Rect& r, int64_t min, int64_t max, int64_t cur, ZAttrib bg, ZAttrib thumb);
         virtual void UpdateCaptions();
 
         int64_t mTopVisibleRow = 0;

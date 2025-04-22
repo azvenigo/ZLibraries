@@ -152,6 +152,16 @@ namespace CLP
         GetInnerArea(drawArea);
 
         DrawClippedAnsiText(drawArea.l, drawArea.t, mText, true, &drawArea);
+        int64_t h = drawArea.b - drawArea.t;
+
+        int64_t logCount = (int64_t)gLogger.getCount();
+        if (logCount > h)
+        {
+            ZAttrib bg(MAKE_BG(0xff888888));
+            ZAttrib thumb(MAKE_BG(0xff8888ff));
+            Rect sb(drawArea.r - 1, drawArea.t, drawArea.r, drawArea.b);
+            DrawScrollbar(sb, 0, gLogger.getCount()-h, mTopVisibleRow, bg, thumb);
+        }
 
         ConsoleWin::RenderToBackBuf(backBuf);
     }
@@ -164,12 +174,12 @@ namespace CLP
 
 
         int64_t entryCount = gLogger.getCount();
-        if (keycode == VK_F1 || keycode == VK_ESCAPE)
+/*        if (keycode == VK_F1 || keycode == VK_ESCAPE)
         {
             mText.clear();
             SetVisible(false);
             mbDone = true;
-        }
+        }*/
 
 
         if (keycode == VK_UP)
@@ -487,7 +497,7 @@ namespace CLP
                         {
                             if (infoWin.mbVisible)
                             {
-                                infoWin.SetVisible(false);
+                                SetMonitorVisible(!mbVisible);
                             }
                             else
                                 mbDone = true;
@@ -507,7 +517,8 @@ namespace CLP
             }
         }
 
-        RestoreConsoleState();
+        if (mbVisible)
+            SetMonitorVisible(false);
     }
 
 };

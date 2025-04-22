@@ -462,19 +462,19 @@ namespace CLP
         Clear(mClearAttrib, mbGradient);
 
         // Fill 
-        Fill(Rect(0, 0, mWidth, mHeight), mClearAttrib);
+        Fill(Rect(0, 0, mWidth, mHeight), mClearAttrib, mbGradient);
 
         if (enableFrame[Side::T])
-            Fill(Rect(0, 0, mWidth, 1), kAttribCaption);   // top
+            Fill(Rect(0, 0, mWidth, 1), kAttribCaption, mbGradient);   // top
 
         if (enableFrame[Side::L])
-            Fill(Rect(0, 0, 1, mHeight), kAttribCaption);   // left
+            Fill(Rect(0, 0, 1, mHeight), kAttribCaption, mbGradient);   // left
 
         if (enableFrame[Side::B])
-            Fill(Rect(0, mHeight - 1, mWidth, mHeight), kAttribCaption);    // bottom
+            Fill(Rect(0, mHeight - 1, mWidth, mHeight), kAttribCaption, mbGradient);    // bottom
 
         if (enableFrame[Side::R])
-            Fill(Rect(mWidth - 1, 0, mWidth, mHeight), kAttribCaption);    // right  
+            Fill(Rect(mWidth - 1, 0, mWidth, mHeight), kAttribCaption, mbGradient);    // right  
 
         // draw all captions
         for (uint8_t pos = 0; pos < Position::MAX_POSITIONS; pos++)
@@ -544,12 +544,12 @@ namespace CLP
     }
 
 
-    void ConsoleWin::Fill(const Rect& r, ZAttrib attrib)
+    void ConsoleWin::Fill(const Rect& r, ZAttrib attrib, bool bGradient)
     {
         for (int64_t y = r.t; y < r.b; y++)
         {
             // playing with gradient fill
-            if (mbGradient)
+            if (bGradient)
             {
                 attrib.br = (uint64_t)(attrib.br * 0.96);
                 attrib.bg = (uint64_t)(attrib.bg * 0.96);
@@ -563,9 +563,9 @@ namespace CLP
         }
     }
 
-    void ConsoleWin::Fill(ZAttrib attrib)
+    void ConsoleWin::Fill(ZAttrib attrib, bool bGradient)
     {
-        return Fill(Rect(0, 0, mWidth, mHeight), attrib);
+        return Fill(Rect(0, 0, mWidth, mHeight), attrib, bGradient);
     }
 
     void ConsoleWin::DrawCharClipped(char c, int64_t x, int64_t y, ZAttrib attrib, Rect* pClip)
@@ -669,6 +669,59 @@ namespace CLP
 
         ConsoleWin::RenderToBackBuf(backBuf);
     }
+
+
+
+    void InfoWin::DrawScrollbar(const Rect& r, int64_t min, int64_t max, int64_t cur, ZAttrib bg, ZAttrib thumb)
+    {
+        if (!mbVisible)
+            return;
+
+        bool bHorizontal = true;
+
+        int64_t sbSize = r.r - r.l;
+        if (r.b - r.t > sbSize)
+        {
+            sbSize = r.b - r.t;
+            bHorizontal = false;
+        }
+
+        assert(sbSize > 0);
+
+        float fThumbRatio = (float)sbSize/(float)(max - min);
+
+        int64_t thumbSize = std::max<int64_t>(1, (int64_t) ((float)(sbSize) * fThumbRatio)); // minimum 1 
+        thumbSize = std::min<int64_t>(sbSize, thumbSize);                                       // maximum the whole scrollbar
+
+        Fill(r, bg, false);
+
+
+        int64_t nUnscaledValRange = max - min;
+        double fNormalizedValue = (double)(cur - min) / nUnscaledValRange;
+        if (fNormalizedValue < 0.0)
+            fNormalizedValue = 0.0;
+        else if (fNormalizedValue > 1.0)
+            fNormalizedValue = 1.0;
+
+        Rect rThumb;
+        if (bHorizontal)
+        {
+            rThumb.l = r.l + (int64_t) (fNormalizedValue * (float)((r.r - r.l) - thumbSize));
+            rThumb.r = rThumb.l + thumbSize;
+            rThumb.t = r.t;
+            rThumb.b = r.b;
+        }
+        else
+        {
+            rThumb.t = r.t + (int64_t) (fNormalizedValue * (float)((r.b - r.t) - thumbSize));
+            rThumb.b = rThumb.t + thumbSize;
+            rThumb.l = r.l;
+            rThumb.r = r.r;
+        }
+
+        Fill(rThumb, thumb, false);
+    }
+
 
     void InfoWin::UpdateCaptions()
     {
