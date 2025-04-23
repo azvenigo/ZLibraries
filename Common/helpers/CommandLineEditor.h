@@ -31,11 +31,13 @@ namespace CLP
     class RawEntryWin : public TextEditWin
     {
     public:
-        void OnKey(int keycode, char c);
+        bool OnKey(int keycode, char c);
         void Paint(tConsoleBuffer& backBuf);
         friend class CommandLineEditor;
         bool GetParameterUnderIndex(int64_t index, size_t& outStart, size_t& outEnd, std::string& outParam, ParamDesc** ppPD = nullptr);
         bool HandleParamContext();
+        COORD LocalCursorToGlobal(COORD cursor);
+
     };
 
 
@@ -58,7 +60,7 @@ namespace CLP
     {
     public:
         HistoryWin();
-        virtual void OnKey(int keycode, char c);
+        virtual bool OnKey(int keycode, char c);
     };
 
     class FolderList : public ListboxWin
@@ -67,7 +69,7 @@ namespace CLP
         FolderList();
         bool            Scan(std::string sPath, int64_t origin_l, int64_t origin_b);  // bottom left corner to auto size from
         std::string     FindClosestParentPath(std::string sPath);    // given some path with possibly non-existant elements, walk up the chain until finding an existing parent
-        virtual void    OnKey(int keycode, char c);
+        virtual bool    OnKey(int keycode, char c);
 
         void            UpdateCaptions();
         tStringList     mEntries;

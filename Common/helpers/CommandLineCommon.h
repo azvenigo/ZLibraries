@@ -286,7 +286,7 @@ namespace CLP
         virtual void BasePaint();
         virtual void RenderToBackBuf(tConsoleBuffer& backBuf);
 
-        virtual void OnKey(int keycode, char c) {}
+        virtual bool OnKey(int keycode, char c) { return false; }
 
         virtual void SetArea(const Rect& r);
         void GetArea(Rect& r);
@@ -323,7 +323,7 @@ namespace CLP
     {
     public:
         void Paint(tConsoleBuffer& backBuf);
-        void OnKey(int keycode, char c);
+        bool OnKey(int keycode, char c);
 
         void DrawScrollbar(const Rect& r, int64_t min, int64_t max, int64_t cur, ZAttrib bg, ZAttrib thumb);
         virtual void UpdateCaptions();
@@ -351,7 +351,7 @@ namespace CLP
 
         virtual void SetEntries(tStringList entries, std::string selectionSearch = "", int64_t anchor_l = -1, int64_t anchor_b = -1);
         virtual void Paint(tConsoleBuffer& backBuf);
-        virtual void OnKey(int keycode, char c);
+        virtual bool OnKey(int keycode, char c);
 
         virtual void SizeWindowToEntries();
         virtual void UpdateCaptions();
@@ -382,7 +382,11 @@ namespace CLP
         typedef std::list<undoEntry> tUndoEntryList;
 
     public:
+        TextEditWin() : bMultiline(false) {}
+
         void SetText(const std::string& text);
+
+        void Show();
 
         void DrawClippedText(int64_t x, int64_t y, std::string text, ZAttrib attributes = WHITE_ON_BLACK, bool bWrap = true, bool bHighlightSelection = true, Rect* pClip = nullptr);
 
@@ -402,7 +406,7 @@ namespace CLP
 
         void SetArea(const Rect& r);
 
-        virtual void OnKey(int keycode, char c);
+        virtual bool OnKey(int keycode, char c);
 
         void HandlePaste(std::string text);
 
@@ -417,6 +421,8 @@ namespace CLP
 
 
         tUndoEntryList mUndoEntryList;
+
+        bool    bMultiline;
     protected:
 
         int64_t CursorToTextIndex(COORD coord);
@@ -445,6 +451,8 @@ namespace CLP
     std::string GetTextFromClipboard();
     bool CopyTextToClipboard(const std::string& text);
 
+    void SetCursorPosition(COORD coord, bool bForce = false);
+
     void SaveConsoleState();
     void RestoreConsoleState();
     //bool getANSIColorAttribute(const std::string& str, size_t offset, ZAttrib& attribute, size_t& length);
@@ -454,6 +462,7 @@ namespace CLP
     extern bool bScreenChanged;
     extern HANDLE mhInput;
     extern HANDLE mhOutput;
+    extern COORD gLastCursorPos;
 
 
 };  // namespace CLP

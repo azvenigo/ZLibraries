@@ -279,7 +279,17 @@ namespace CLP
     CONSOLE_SCREEN_BUFFER_INFO originalScreenInfo;
     CONSOLE_SCREEN_BUFFER_INFO screenInfo;
     bool bScreenChanged = false;
+    COORD gLastCursorPos = { -1, -1 };
 
+
+    void SetCursorPosition(COORD coord, bool bForce)
+    {
+        if (bForce || coord.X != gLastCursorPos.X || coord.Y != gLastCursorPos.Y)
+        {
+            cout << "\033[" + SH::FromInt(coord.X + 1) + "G\033[" + SH::FromInt(coord.Y) + "d";
+            gLastCursorPos = coord;
+        }
+    }
 
     void SaveConsoleState()
     {
@@ -303,17 +313,9 @@ namespace CLP
     void DrawAnsiChar(int64_t x, int64_t y, char c, ZAttrib ca)
     {
         static ZAttrib lastC;
-        static int64_t lastX = -1;
-        static int64_t lastY = -1;
+        SetCursorPosition(COORD((SHORT)x, (SHORT)y));
 
         string s;
-        if (x != lastX || y != lastY)
-        {
-            s += "\033[" + SH::FromInt(x + 1) + "G\033[" + SH::FromInt(y) + "d";
-            lastX = x;
-            lastY = y;
-        }
-
         if (lastC.a != ca.a || lastC.r != ca.r || lastC.g != ca.g || lastC.b != ca.b || lastC.ba != ca.ba || lastC.br != ca.br || lastC.bg != ca.bg || lastC.bb != ca.bb)
         {
             s += "\033[38;2;" + SH::FromInt(ca.r) + ";" + SH::FromInt(ca.g) + ";" + SH::FromInt(ca.b) + "m"; //forground color
@@ -327,7 +329,7 @@ namespace CLP
         else
             s += c;
         cout << s;
-        lastX++;    // cursor advances after drawing
+        gLastCursorPos.X++;    // cursor advances after drawing
     };
 
 
@@ -744,8 +746,9 @@ namespace CLP
         }
     }
 
-    void InfoWin::OnKey(int keycode, char c)
+    bool InfoWin::OnKey(int keycode, char c)
     {
+        bool bHandled = false;
         Rect drawArea;
         GetInnerArea(drawArea);
         int64_t drawHeight = drawArea.b - drawArea.t;
@@ -766,26 +769,32 @@ namespace CLP
             if (keycode == VK_UP)
             {
                 mTopVisibleRow--;
+                bHandled = true;
             }
             else if (keycode == VK_DOWN)
             {
                 mTopVisibleRow++;
+                bHandled = true;
             }
             else if (keycode == VK_HOME)
             {
                 mTopVisibleRow = 0;
+                bHandled = true;
             }
             else if (keycode == VK_PRIOR)
             {
                 mTopVisibleRow -= drawHeight;
+                bHandled = true;
             }
             else if (keycode == VK_NEXT)
             {
                 mTopVisibleRow += drawHeight;
+                bHandled = true;
             }
             else if (keycode == VK_END)
             {
                 mTopVisibleRow = docHeight - drawHeight;
+                bHandled = true;
             }
 
             if (mTopVisibleRow < 0)
@@ -796,6 +805,7 @@ namespace CLP
 
         UpdateCaptions();
 
+        return bHandled;
     }
 
 
@@ -821,24 +831,27 @@ namespace CLP
 
     void TextEditWin::UpdateCursorPos(COORD localPos)
     {
-        if (!mbVisible)
-            return;
+//        if (!mbVisible)
+//            return;
 
         int index = (int)CursorToTextIndex(localPos);
         if (index > (int)mText.length())
             index = (int)mText.length();
         mLocalCursorPos = TextIndexToCursor(index);
 
+//        cout << "mLocalCursorPos:" << mLocalCursorPos.X << ", " << mLocalCursorPos.Y << "\n";
+
         //        SetConsoleCursorPosition(GetStdHandle(STD_OUTPUT_HANDLE), LocalCursorToGlobal(mLocalCursorPos));
 
         COORD global = LocalCursorToGlobal(mLocalCursorPos);
-        cout << "\033[" << global.X + 1 << "G\033[" << global.Y << "d" << std::flush;
+        SetCursorPosition(global, true);
+//        cout << "\033[" << global.X + 1 << "G\033[" << global.Y << "d" << std::flush;
     }
 
 
     COORD TextEditWin::LocalCursorToGlobal(COORD cursor)
     {
-        return COORD(cursor.X + (SHORT)mX + (SHORT)(CLP::appName.length() + 1), cursor.Y + (SHORT)mY);
+        return COORD(cursor.X + (SHORT)mX, cursor.Y + (SHORT)mY);
     }
 
 
@@ -946,6 +959,13 @@ namespace CLP
         UpdateCursorPos(TextIndexToCursor((int64_t)text.size()));
     }
 
+    void TextEditWin::Show()
+    {
+        mbDone = false;
+        mbCanceled = false;
+        mbVisible = true;
+    }
+
     void TextEditWin::SetArea(const Rect& r)
     {
         ConsoleWin::SetArea(r);
@@ -978,30 +998,10 @@ namespace CLP
         }
 
 
-        for (size_t textindex = 0; textindex < CLP::appName.size(); textindex++)
-        {
-            char c = CLP::appName[textindex];
-            if (c == '\n')
-            {
-
-                cursor.X = 0;
-                cursor.Y++;
-            }
-            else
-            {
-                DrawCharClipped(c, cursor.X, cursor.Y, kAttribAppName);
-            }
-
-            cursor.X++;
-        }
-
-        cursor.X++;
-
-
         for (size_t textindex = 0; textindex < mText.size(); textindex++)
         {
             char c = mText[textindex];
-            if (c == '\n')
+            if (c == '\n' && bMultiline)
             {
 
                 cursor.X = 0;
@@ -1021,7 +1021,7 @@ namespace CLP
     }
 
 
-    void TextEditWin::OnKey(int keycode, char c)
+    bool TextEditWin::OnKey(int keycode, char c)
     {
         bool bCTRLHeld = GetKeyState(VK_CONTROL) & 0x800;
         bool bSHIFTHeld = GetKeyState(VK_SHIFT) & 0x800;
@@ -1034,8 +1034,7 @@ namespace CLP
             {
             case VK_RETURN:
                 mbDone = true;
-                bHandled = true;
-                return;
+                return true;
             case VK_ESCAPE:
             {
                 if (IsTextSelected())
@@ -1067,27 +1066,33 @@ namespace CLP
             break;
             case VK_UP:
             {
-                if (mLocalCursorPos.Y + firstVisibleRow > 0)
+                if (bMultiline)
                 {
-                    mLocalCursorPos.Y--;
-                    UpdateFirstVisibleRow();
-                    UpdateCursorPos(mLocalCursorPos);
+                    if (mLocalCursorPos.Y + firstVisibleRow > 0)
+                    {
+                        mLocalCursorPos.Y--;
+                        UpdateFirstVisibleRow();
+                        UpdateCursorPos(mLocalCursorPos);
+                    }
+                    else
+                    {
+                        UpdateSelection();
+                        UpdateCursorPos(COORD(mLocalCursorPos.X, mLocalCursorPos.Y - 1));
+                        UpdateSelection();
+                    }
+                    bHandled = true;
                 }
-                else
-                {
-                    UpdateSelection();
-                    UpdateCursorPos(COORD(mLocalCursorPos.X, mLocalCursorPos.Y - 1));
-                    UpdateSelection();
-                }
-                bHandled = true;
             }
             break;
             case VK_DOWN:
             {
-                UpdateSelection();
-                UpdateCursorPos(COORD(mLocalCursorPos.X, mLocalCursorPos.Y + 1));
-                UpdateSelection();
-                bHandled = true;
+                if (bMultiline)
+                {
+                    UpdateSelection();
+                    UpdateCursorPos(COORD(mLocalCursorPos.X, mLocalCursorPos.Y + 1));
+                    UpdateSelection();
+                    bHandled = true;
+                }
             }
             break;
             case VK_LEFT:
@@ -1232,7 +1237,7 @@ namespace CLP
         } while (0); // for breaking
 
         // nothing handled above....regular text entry
-        if (!bHandled && keycode >= 32)
+        if (!bHandled && c >= 32)
         {
             AddUndoEntry();
             if (IsTextSelected())
@@ -1243,10 +1248,12 @@ namespace CLP
             mText.insert(index, 1, c);
             UpdateCursorPos(TextIndexToCursor(index + 1));
             UpdateSelection();
+            bHandled = true;
         }
 
 
         UpdateFirstVisibleRow();
+        return bHandled;
     }
 
     int64_t TextEditWin::CursorToTextIndex(COORD coord)

@@ -165,6 +165,11 @@ namespace CLP
     }
 
 
+    COORD RawEntryWin::LocalCursorToGlobal(COORD cursor)
+    {
+        return COORD(cursor.X + (SHORT)mX + (SHORT)(CLP::appName.length() + 1), cursor.Y + (SHORT)mY);
+    }
+
     bool RawEntryWin::GetParameterUnderIndex(int64_t index, size_t& outStart, size_t& outEnd, string& outParam, ParamDesc** ppPD)
     {
         for (auto& entry : enteredParams)
@@ -183,7 +188,7 @@ namespace CLP
         return false;
     }
 
-    void RawEntryWin::OnKey(int keycode, char c)
+    bool RawEntryWin::OnKey(int keycode, char c)
     {
         bool bCTRLHeld = GetKeyState(VK_CONTROL) & 0x800;
         bool bSHIFTHeld = GetKeyState(VK_SHIFT) & 0x800;
@@ -226,6 +231,7 @@ namespace CLP
         }
 
         UpdateFirstVisibleRow();
+        return bHandled;
     }
 
 
@@ -334,8 +340,9 @@ namespace CLP
         return *it;
     }
 
-    void ListboxWin::OnKey(int keycode, char c)
+    bool ListboxWin::OnKey(int keycode, char c)
     {
+        bool bHandled = false;
         bool bCTRLHeld = GetKeyState(VK_CONTROL) & 0x800;
         bool bSHIFTHeld = GetKeyState(VK_SHIFT) & 0x800;
 
@@ -347,12 +354,14 @@ namespace CLP
                 mSelection--;
                 if (mSelection < 0)
                     mSelection = (int64_t)mEntries.size() - 1;
+                bHandled = true;
             }
             else
             {
                 mSelection++;
                 if (mSelection >= (int64_t)mEntries.size())
                     mSelection = 0;
+                bHandled = true;
             }
             break;
         case VK_UP:
@@ -360,30 +369,36 @@ namespace CLP
                 mSelection--;
                 if (mSelection < 0)
                     mSelection = (int64_t)mEntries.size() - 1;
-            }
+                bHandled = true;
+        }
             break;
         case VK_DOWN:
         {
             mSelection++;
             if (mSelection >= (int64_t)mEntries.size())
                 mSelection = 0;
+            bHandled = true;
         }
         break;
         case VK_HOME:
             mSelection = 0;
+            bHandled = true;
             break;
         case VK_END:
             mSelection = (int64_t)mEntries.size() - 1;
+            bHandled = true;
             break;
         case VK_PRIOR:
             mSelection -= mHeight;
             if (mSelection < 0)
                 mSelection = 0;
+            bHandled = true;
             break;
         case VK_NEXT:
             mSelection+=mHeight;
             if (mSelection >= (int64_t)mEntries.size()-1)
                 mSelection = (int64_t)mEntries.size() - 1;
+            bHandled = true;
             break;
         case VK_RETURN:
             {
@@ -391,16 +406,20 @@ namespace CLP
             rawCommandBuf.HandlePaste(GetSelection());
             mEntries.clear();
             mbVisible = false;
-            }
+            bHandled = true;
+        }
             break;
         case VK_ESCAPE:
             mEntries.clear();
             mbVisible = false;
             rawCommandBuf.ClearSelection();
+            bHandled = true;
             break;
         }
         Clear(mClearAttrib, mbGradient);
         UpdateCaptions();
+
+        return bHandled;
     }
 
 
@@ -409,7 +428,7 @@ namespace CLP
         mMinWidth = 64;
     }
 
-    void HistoryWin::OnKey(int keycode, char c)
+    bool HistoryWin::OnKey(int keycode, char c)
     {
         bool bCTRLHeld = GetKeyState(VK_CONTROL) & 0x800;
         bool bSHIFTHeld = GetKeyState(VK_SHIFT) & 0x800;
@@ -433,11 +452,11 @@ namespace CLP
                         rawCommandBuf.ClearSelection();
                     }
                 }
-                return;
+                return true;
             }
         }
 
-        ListboxWin::OnKey(keycode, c);
+        return ListboxWin::OnKey(keycode, c);
     }
 
 
@@ -551,8 +570,9 @@ namespace CLP
     }
 
 
-    void FolderList::OnKey(int keycode, char c)
+    bool FolderList::OnKey(int keycode, char c)
     {
+        bool bHandled = false;
         bool bCTRLHeld = GetKeyState(VK_CONTROL) & 0x800;
         bool bSHIFTHeld = GetKeyState(VK_SHIFT) & 0x800;
 
@@ -565,14 +585,14 @@ namespace CLP
                     navigate = mPath.substr(0, mPath.length() - 1); // strip last directory indicator so that parent_path works
                 if (navigate.has_parent_path())
                     Scan(navigate.parent_path().string(), mX, mY + mHeight);
-                return;
+                return true;
             }
             case VK_TAB:
             {
                 string selection(mPath + CommandLineParser::StripEnclosure(GetSelection()));
                 if (fs::is_directory(selection))
                     Scan(selection, mX, mY + mHeight);
-                return;
+                return true;
             }
             case VK_RETURN:
             {
@@ -584,7 +604,7 @@ namespace CLP
                 if (IsRootFolder(selection))
                 {
                     Scan(selection, mX, mY + mHeight);
-                    return;
+                    return true;
                 }
 
 
@@ -592,12 +612,14 @@ namespace CLP
                 rawCommandBuf.HandlePaste(CommandLineParser::EncloseWhitespaces(mPath + selection));
                 mEntries.clear();
                 mbVisible = false;
-                return;
+                return true;
             }
         }
 
-        ListboxWin::OnKey(keycode, c);
+        bHandled = ListboxWin::OnKey(keycode, c);
         UpdateCaptions();
+
+        return bHandled;
     }
 
     void FolderList::UpdateCaptions()
@@ -1870,6 +1892,7 @@ namespace CLP
 
         return true;
     }
+
 
 };
 

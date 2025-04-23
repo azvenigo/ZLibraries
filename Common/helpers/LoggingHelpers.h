@@ -189,47 +189,8 @@ namespace LOG
             return logEntries;
         }
 
-        bool getEntries(uint64_t startingIndex, size_t count, std::deque<LogEntry>& outEntries) const
-        {
-            std::lock_guard<std::mutex> lock(logEntriesMutex);
-            outEntries.clear();
-            auto entry = logEntries.begin();
-            while (startingIndex > 0 && entry != logEntries.end())
-            {
-                entry++;
-                startingIndex--;
-            }
-
-
-            while (entry != logEntries.end() && outEntries.size() < count)
-            {
-                outEntries.push_back(*entry);
-                entry++;
-            }
-
-            return true;
-        }
-
-
-        std::deque<LogEntry> tail(size_t n) const 
-        {
-            std::deque<LogEntry> result;
-
-            std::lock_guard<std::mutex> lock(logEntriesMutex);
-            if (n >= logEntries.size())
-            {
-                // If requesting more entries than exist, return the whole log
-                return logEntries;
-            }
-
-            // Calculate starting index for the tail portion
-            size_t startIndex = logEntries.size() - n;
-
-            // Copy the last n elements to the result deque
-            result.insert(result.begin(), logEntries.begin() + startIndex, logEntries.end());
-
-            return result;
-        }
+        bool getEntries(uint64_t startingIndex, size_t count, std::deque<LogEntry>& outEntries, const std::string& sFilter = {}) const;
+        std::deque<LogEntry> tail(size_t n, const std::string& sFilter = {}) const;
 
 
         void clear() 

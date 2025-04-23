@@ -1,4 +1,5 @@
 #include "LoggingHelpers.h"
+#include "StringHelpers.h"
 #include <chrono>
 int64_t LOG::gnVerbosityLevel = 1;
 
@@ -82,6 +83,90 @@ void LOG::LogStream::flush()
     t_buffer.str("");  // Clear buffer
     t_buffer.clear();  // Clear error flags
 }
+bool LOG::Logger::getEntries(uint64_t startingIndex, size_t count, std::deque<LogEntry>& outEntries, const std::string& sFilter) const
+{
+    std::lock_guard<std::mutex> lock(logEntriesMutex);
+    outEntries.clear();
+
+    // If we have a filter, we need to count matching entries
+    if (!sFilter.empty()) 
+    {
+        auto entry = logEntries.begin();
+        uint64_t matchingEntriesSkipped = 0;
+
+        // Skip startingIndex matching entries
+        while (entry != logEntries.end() && matchingEntriesSkipped < startingIndex)
+        {
+            // Assuming LogEntry has a toString() or similar method to get its content
+            if (SH::Contains((*entry).text, sFilter, false))
+            {
+                matchingEntriesSkipped++;
+            }
+            entry++;
+        }
+
+        // Collect count matching entries
+        while (entry != logEntries.end() && outEntries.size() < count)
+        {
+            if (SH::Contains((*entry).text, sFilter, false))
+            {
+                outEntries.push_back(*entry);
+            }
+            entry++;
+        }
+    }
+    else 
+    {
+        // Original logic for when no filter is applied
+        auto entry = logEntries.begin();
+        while (startingIndex > 0 && entry != logEntries.end())
+        {
+            entry++;
+            startingIndex--;
+        }
+        while (entry != logEntries.end() && outEntries.size() < count)
+        {
+            outEntries.push_back(*entry);
+            entry++;
+        }
+    }
+
+    return true;
+}
+
+std::deque<LOG::LogEntry> LOG::Logger::tail(size_t n, const std::string& sFilter) const
+{
+    std::deque<LOG::LogEntry> result;
+    std::lock_guard<std::mutex> lock(logEntriesMutex);
+
+    if (sFilter.empty())
+    {
+        // Original logic for when no filter is applied
+        if (n >= logEntries.size())
+        {
+            // If requesting more entries than exist, return the whole log
+            return logEntries;
+        }
+        // Calculate starting index for the tail portion
+        size_t startIndex = logEntries.size() - n;
+        // Copy the last n elements to the result deque
+        result.insert(result.begin(), logEntries.begin() + startIndex, logEntries.end());
+    }
+    else
+    {
+        // When filter is applied, collect the last n matching entries
+        for (auto it = logEntries.rbegin(); it != logEntries.rend() && result.size() < n; ++it)
+        {
+            if (SH::Contains((*it).text, sFilter, false))
+            {
+                result.push_front(*it);
+            }
+        }
+    }
+
+    return result;
+}
+
 
 
 // Formatting

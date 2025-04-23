@@ -21,7 +21,7 @@ namespace CLP
 
         void Update();
         void UpdateCaptions();
-        void OnKey(int keycode, char c);
+        bool OnKey(int keycode, char c);
         void Paint(tConsoleBuffer& backBuf);
 
 
@@ -34,13 +34,15 @@ namespace CLP
         bool    viewTimestamp = false;
         bool    viewColoredThreads = false;
         bool    viewColorWarningsAndErrors = true;
+
+        std::string sFilter;
     };
 
 
     class CommandLineMonitor
     {
     public:
-        friend class ParamListWin;
+        friend class LogWin;
         CommandLineMonitor();
 
         void Start();
@@ -51,8 +53,6 @@ namespace CLP
         void DrawToScreen();
         void SetMonitorVisible(bool bVisible = true);
 
-        LogWin   infoWin;
-
         tConsoleBuffer backBuffer;      // for double buffering
         tConsoleBuffer drawStateBuffer; // for rendering only delta
 
@@ -60,6 +60,9 @@ namespace CLP
         bool mbDone;
         bool mbCanceled;
     };
+
+    extern  LogWin      logWin;
+    extern  TextEditWin textEntryWin;
 
 
 };  // namespace CLP

@@ -22,6 +22,10 @@ namespace fs = std::filesystem;
 namespace CLP
 {
 
+    LogWin      logWin;
+    TextEditWin textEntryWin;
+
+
     void LogWin::SetVisible(bool bVisible)
     {
         mbVisible = bVisible;
@@ -50,19 +54,28 @@ namespace CLP
             invalid = true;
         }
 
+        if (textEntryWin.GetText() != sFilter)
+        {
+            sFilter = textEntryWin.GetText();
+            invalid = true;
+        }
+
 
         if (invalid)
         {
             Rect drawArea;
             GetInnerArea(drawArea);
-            int64_t drawWidth = drawArea.r - drawArea.l - 2;
+            int64_t drawWidth = drawArea.r - drawArea.l - 1;
             int64_t drawHeight = drawArea.b - drawArea.t-1;
+            if (textEntryWin.mbVisible)
+                drawHeight--;
+
 
             LOG::tLogEntries entries;
                 
             if (viewAtEnd)
             {
-                entries = gLogger.tail(drawHeight);
+                entries = gLogger.tail(drawHeight, sFilter);
                 topLogEntryTimestamp = 0;
                 if (!entries.empty())
                 {
@@ -72,7 +85,7 @@ namespace CLP
             }
             else
             {
-                gLogger.getEntries(mTopVisibleRow, drawHeight, entries);
+                gLogger.getEntries(mTopVisibleRow, drawHeight, entries, sFilter);
             }
 
             positionCaption[ConsoleWin::Position::LT] = "Info Window";
@@ -137,6 +150,12 @@ namespace CLP
 
 
         positionCaption[ConsoleWin::Position::LT] = sFeatures;
+
+        if (sFilter.empty())
+            positionCaption[ConsoleWin::Position::LB] = "Filter:(none)";
+        else
+            positionCaption[ConsoleWin::Position::LB] = "Filter:\"" + sFilter + "\"";
+
         positionCaption[ConsoleWin::Position::RT] = "Log lines (" + SH::FromInt(mTopVisibleRow + 1) + "/" + SH::FromInt(gLogger.getCount()) + ")";
         positionCaption[ConsoleWin::Position::RB] = "[UP/DOWN][PAGE Up/Down][HOME/END]";
     }
@@ -157,8 +176,8 @@ namespace CLP
         int64_t logCount = (int64_t)gLogger.getCount();
         if (logCount > h)
         {
-            ZAttrib bg(MAKE_BG(0xff888888));
-            ZAttrib thumb(MAKE_BG(0xff8888ff));
+            ZAttrib bg(MAKE_BG(0xff555555));
+            ZAttrib thumb(MAKE_BG(0xffbbbbbb));
             Rect sb(drawArea.r - 1, drawArea.t, drawArea.r, drawArea.b);
             DrawScrollbar(sb, 0, gLogger.getCount()-h, mTopVisibleRow, bg, thumb);
         }
@@ -166,75 +185,95 @@ namespace CLP
         ConsoleWin::RenderToBackBuf(backBuf);
     }
 
-    void LogWin::OnKey(int keycode, char c)
+    bool LogWin::OnKey(int keycode, char c)
     {
+        bool bHandled = false;
         Rect drawArea;
         GetInnerArea(drawArea);
         int64_t drawHeight = drawArea.b - drawArea.t;
 
+        bool bCTRLHeld = GetKeyState(VK_CONTROL) & 0x800;
+
 
         int64_t entryCount = gLogger.getCount();
-/*        if (keycode == VK_F1 || keycode == VK_ESCAPE)
-        {
-            mText.clear();
-            SetVisible(false);
-            mbDone = true;
-        }*/
-
 
         if (keycode == VK_UP)
         {
             mTopVisibleRow--;
             viewAtEnd = false;
             invalid = true;
+            bHandled = true;
         }
         else if (keycode == VK_DOWN)
         {
             mTopVisibleRow++;
             invalid = true;
+            bHandled = true;
         }
         else if (keycode == VK_HOME)
         {
             mTopVisibleRow = 0;
             viewAtEnd = false;
             invalid = true;
+            bHandled = true;
         }
         else if (keycode == VK_PRIOR)
         {
             mTopVisibleRow -= drawHeight;
             viewAtEnd = false;
             invalid = true;
+            bHandled = true;
         }
         else if (keycode == VK_NEXT)
         {
             mTopVisibleRow += drawHeight;
             invalid = true;
+            bHandled = true;
         }
         else if (keycode == VK_END)
         {
             mTopVisibleRow = entryCount - drawHeight;
             viewAtEnd = true;
             invalid = true;
+            bHandled = true;
         }
         else if (keycode == '1')
         {
             viewCountEnabled = !viewCountEnabled;
             invalid = true;
+            bHandled = true;
         }
         else if (keycode == '2')
         {
             viewTimestamp = !viewTimestamp;
             invalid = true;
+            bHandled = true;
         }
         else if (keycode == '3')
         {
             viewColoredThreads = !viewColoredThreads;
             invalid = true;
+            bHandled = true;
         }
         else if (keycode == '4')
         {
             viewColorWarningsAndErrors = !viewColorWarningsAndErrors;
             invalid = true;
+            bHandled = true;
+        }
+        else if (keycode == 'f' || keycode == 'F')
+        {
+            if (bCTRLHeld)
+            {
+                if (!textEntryWin.mbVisible)
+                {
+                    textEntryWin.Clear(ZAttrib(0xff666699ffffffff));
+                    textEntryWin.SetArea(Rect(mX, mY + mHeight, mX + mWidth - 1, mY + mHeight+1));
+                    textEntryWin.Show();
+                    invalid = true;
+                }
+                bHandled = true;
+            }
         }
 
         if (mTopVisibleRow < 0)
@@ -251,6 +290,7 @@ namespace CLP
         }
 
         Update();
+        return bHandled;
     }
 
 
@@ -274,16 +314,16 @@ namespace CLP
     {
         // clear back buffer
         memset(&backBuffer[0], 0, backBuffer.size() * sizeof(ZChar));
-        bool bCursorShouldBeHidden = false;
-        bool bCursorHidden = false;
 
-        if (infoWin.mbVisible)
-            infoWin.Paint(backBuffer);
+        if (logWin.mbVisible)
+            logWin.Paint(backBuffer);
+        if (textEntryWin.mbVisible)
+            textEntryWin.Paint(backBuffer);
 
 
-        if (!bCursorHidden)
+//        if (!bCursorHidden)
         {
-            bCursorHidden = true;
+//            bCursorHidden = true;
             cout << "\033[?25l";
         }
 
@@ -303,7 +343,7 @@ namespace CLP
         bScreenChanged = false;
 
 
-        if (bCursorHidden && !bCursorShouldBeHidden)
+//        if (bCursorHidden && !bCursorShouldBeHidden)
         {
             cout << "\033[?25h";
         }
@@ -339,8 +379,15 @@ namespace CLP
             drawStateBuffer.clear();
             drawStateBuffer.resize(w * h);
 
-            infoWin.Clear(kAttribHelpBG, true);
-            infoWin.SetArea(Rect(1, 1, w-1, h-1));
+
+            logWin.Clear(kAttribHelpBG, true);
+
+            Rect logWinRect(1, 1, w - 1, h - 1);
+            if (textEntryWin.mbVisible)
+                logWinRect.b--;
+            logWin.SetArea(logWinRect);
+
+            textEntryWin.SetArea(Rect(1, h-1, w-1, h));
 
             UpdateDisplay();
         }
@@ -354,16 +401,16 @@ namespace CLP
             SaveConsoleState();
 
             string sText;
-            infoWin.Init(Rect(0, 1, ScreenW(), ScreenH()));
-            infoWin.SetEnableFrame();
-            infoWin.Clear(kAttribHelpBG, true);
+            logWin.Init(Rect(0, 1, ScreenW(), ScreenH()));
+            logWin.SetEnableFrame();
+            logWin.Clear(kAttribHelpBG, true);
 
-            infoWin.Update();
-            infoWin.SetVisible(true);
+            logWin.Update();
+            logWin.SetVisible(true);
         }
         else
         {
-            infoWin.SetVisible(false);
+            logWin.SetVisible(false);
             RestoreConsoleState();
 
             LOG::tLogEntries entries = gLogger.tail(ScreenH());
@@ -457,11 +504,11 @@ namespace CLP
 
         while (!mbDone && !mbCanceled)
         {
-            infoWin.Update();
+            logWin.Update();
 
             if (mbVisible)
             {
-                UpdateFromConsoleSize();
+                UpdateFromConsoleSize(bScreenChanged);  // force update if the screen changed
                 UpdateDisplay();
             }
 
@@ -469,8 +516,16 @@ namespace CLP
             MSG msg;
             if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
             {
-                TranslateMessage(&msg);
-                DispatchMessage(&msg);
+                if (msg.message == WM_HOTKEY && msg.wParam == MY_HOTKEY_ID)
+                {
+                    textEntryWin.AddUndoEntry();
+                    textEntryWin.HandlePaste(GetTextFromClipboard());
+                }
+                else
+                {
+                    TranslateMessage(&msg);
+                    DispatchMessage(&msg);
+                }
             }
 
             if (PeekConsoleInput(mhInput, inputRecord, 128, &numEventsRead) && numEventsRead > 0)
@@ -492,25 +547,41 @@ namespace CLP
                         int keycode = inputRecord[i].Event.KeyEvent.wVirtualKeyCode;
                         char c = inputRecord[i].Event.KeyEvent.uChar.AsciiChar;
 
+                        bool bHandled = false;
+                        if (textEntryWin.mbVisible)
+                            bHandled = textEntryWin.OnKey(keycode, c);
+                        if (logWin.mbVisible && !bHandled)
+                            bHandled = logWin.OnKey(keycode, c);
 
-                        if (keycode == VK_ESCAPE)
+                        if (textEntryWin.mbVisible)
                         {
-                            if (infoWin.mbVisible)
+                            if (textEntryWin.mbCanceled)
+                                textEntryWin.SetText("");
+
+                            if (textEntryWin.mbCanceled || textEntryWin.mbDone)
                             {
-                                SetMonitorVisible(!mbVisible);
+                                textEntryWin.mbVisible = false;
+                                textEntryWin.mbCanceled = false;
+                                textEntryWin.mbDone = false;
+                                bHandled = true;
+                                bScreenChanged = true;
                             }
-                            else
-                                mbDone = true;
+                        }
+                        if (logWin.mbVisible && logWin.mbCanceled)
+                        {
+                            SetMonitorVisible(!mbVisible);
+                            bHandled = true;
+                            bScreenChanged = true;
+                        }
+
+                        if (keycode == VK_ESCAPE && !bHandled)
+                        {
+                            mbDone = true;
                             bScreenChanged = true;
                         }
                         else if (keycode == VK_F1)
                         {
                             SetMonitorVisible(!mbVisible);
-                        }
-                        else
-                        {
-                            if (infoWin.mbVisible)
-                                infoWin.OnKey(keycode, c);
                         }
                     }
                 }
