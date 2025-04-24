@@ -1,11 +1,22 @@
 #pragma once
 
 #include <string>
-#include "CommandLineParser.h"
+//#include "CommandLineParser.h"
 #include "StringHelpers.h"
-#include <Windows.h>
 #include <list>
 #include <assert.h>
+#include <algorithm>
+#include <stdlib.h>
+#include <iostream>
+#include <iomanip>
+#include <cctype>
+#include <optional>
+
+
+#ifdef _WIN64
+#include <Windows.h>
+#endif
+
 
 const uint64_t WHITE_ON_BLACK   = 0xFF000000FFffffff;
 const uint32_t TRANS            = 0x00000000;
@@ -60,6 +71,20 @@ typedef std::list<std::string> tStringList;
 
 namespace CLP
 {
+
+    enum eResponse : uint32_t
+    {
+        kSuccess = 0,
+        kCanceled = 1,
+        kShowAvailableModes = 2,
+        kShowHelp = 3,
+        kErrorShowEdit = 4,
+        kErrorAbort = 5
+    };
+
+
+
+
 #pragma pack(push, 1)
     class ZAttrib
     {
@@ -183,6 +208,9 @@ namespace CLP
         uint64_t bg : 8; // background
         uint64_t bb : 8; // background
     };
+
+
+#ifdef ENABLE_CLE
 
     struct ZChar
     {
@@ -426,8 +454,8 @@ namespace CLP
     protected:
 
         int64_t CursorToTextIndex(COORD coord);
-        COORD TextIndexToCursor(int64_t i);
-        COORD LocalCursorToGlobal(COORD cursor);
+        virtual COORD TextIndexToCursor(int64_t i);
+        virtual COORD LocalCursorToGlobal(COORD cursor);
 
 
         std::string     mText;
@@ -465,4 +493,6 @@ namespace CLP
     extern COORD gLastCursorPos;
 
 
+#endif // ENABLE_CLE
 };  // namespace CLP
+

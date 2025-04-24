@@ -36,7 +36,7 @@ namespace CLP
         friend class CommandLineEditor;
         bool GetParameterUnderIndex(int64_t index, size_t& outStart, size_t& outEnd, std::string& outParam, ParamDesc** ppPD = nullptr);
         bool HandleParamContext();
-        COORD LocalCursorToGlobal(COORD cursor);
+        virtual COORD LocalCursorToGlobal(COORD cursor);
 
     };
 
@@ -85,8 +85,8 @@ namespace CLP
         friend class ParamListWin;
         CommandLineEditor();
 
-        std::string Edit(int argc, char* argv[]);
-        std::string Edit(const std::string& sCommandLine);
+        eResponse Edit(int argc, char* argv[], std::string& outEditedCommandLine);
+        eResponse Edit(const std::string& sCommandLine, std::string& outEditedCommandLine);
 
         void SetConfiguredCLP(CommandLineParser* pCLP);
 

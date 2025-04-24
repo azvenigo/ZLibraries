@@ -235,53 +235,6 @@ namespace CLP
     }
 
 
-    void ConsoleWin::SetArea(const Rect& r)
-    {
-        assert(r.r > r.l && r.b > r.t);
-        mX = r.l;
-        mY = r.t;
-
-        int64_t newW = r.r - r.l;
-        int64_t newH = r.b - r.t;
-        if (mWidth != newW || mHeight != newH)
-        {
-            if (newW > 0 && newH > 0)
-            {
-                mBuffer.resize(newW * newH);
-                mWidth = newW;
-                mHeight = newH;
-                Clear(mClearAttrib, mbGradient);
-            }
-
-        }
-    }
-
-    void ConsoleWin::GetArea(Rect& r)
-    {
-        r.l = mX;
-        r.t = mY;
-        r.r = r.l + mWidth;
-        r.b = r.t + mHeight;
-    }
-
-    void ConsoleWin::GetInnerArea(Rect& r)
-    {
-        r.l = 0;
-        r.t = 0;
-        r.r = mWidth;
-        r.b = mHeight;
-
-        if (enableFrame[Side::L])
-            r.l++;
-        if (enableFrame[Side::T])
-            r.t++;
-        if (enableFrame[Side::R])
-            r.r--;
-        if (enableFrame[Side::B])
-            r.b--;
-    }
-
-
     void ListboxWin::Paint(tConsoleBuffer& backBuf)
     {
         if (!mbVisible)
@@ -1246,7 +1199,8 @@ namespace CLP
                     }
 
                     bScreenChanged = true;
-                    DrawAnsiChar(x, y, backBuffer[i].c, backBuffer[i].attrib);
+                    if (backBuffer[i] != drawStateBuffer[i])
+                        DrawAnsiChar(x, y, backBuffer[i].c, backBuffer[i].attrib);
                 }
             }
         }
@@ -1416,11 +1370,11 @@ namespace CLP
         availableNamedParams = GetCLPNamedParamsForMode(CLP::GetMode());
     }
 
-    std::string CommandLineEditor::Edit(int argc, char* argv[])
+    eResponse CommandLineEditor::Edit(int argc, char* argv[], std::string& outEditedCommandLine)
     {
 //        appEXE = argv[0];
         tStringArray params(CommandLineParser::ToArray(argc-1, argv));    // first convert to param array then to a string which will enclose parameters with whitespaces
-        return Edit(CommandLineParser::ToString(params));
+        return Edit(CommandLineParser::ToString(params), outEditedCommandLine);
     }
 
     void CommandLineEditor::UpdateFromConsoleSize(bool bForce)
@@ -1550,7 +1504,7 @@ namespace CLP
     }
 
 
-    string CommandLineEditor::Edit(const string& sCommandLine)
+    eResponse CommandLineEditor::Edit(const string& sCommandLine, std::string& outEditedCommandLine)
     {
         // Get the handle to the standard input
         mhInput = GetStdHandle(STD_INPUT_HANDLE);
@@ -1558,7 +1512,7 @@ namespace CLP
         if (mhInput == INVALID_HANDLE_VALUE || mhOutput == INVALID_HANDLE_VALUE)
         {
             cerr << "Failed to get standard input/output handle." << endl;
-            return "";
+            return kErrorAbort;
         }
 
         int MY_HOTKEY_ID = 1;
@@ -1566,19 +1520,19 @@ namespace CLP
         if (!RegisterHotKey(NULL, MY_HOTKEY_ID, MOD_CONTROL, 'V'))
         {
             std::cerr << "Error registering hotkey" << std::endl;
-            return "";
+            return kErrorAbort;
         }
 
         if (!RegisterHotKey(NULL, MY_HOTKEY_ID, MOD_SHIFT, VK_INSERT))
         {
             std::cerr << "Error registering hotkey" << std::endl;
-            return "";
+            return kErrorAbort;
         }
 
         if (!GetConsoleScreenBufferInfo(mhOutput, &screenInfo))
         {
             cerr << "Failed to get console info." << endl;
-            return sCommandLine;
+            return kErrorAbort;
         }
 
 
@@ -1602,7 +1556,7 @@ namespace CLP
         if (!GetConsoleMode(mhInput, &mode))
         {
             cerr << "Failed to get console mode." << endl;
-            return sCommandLine;
+            return kErrorAbort;
         }
         mode |= ENABLE_MOUSE_INPUT | ENABLE_EXTENDED_FLAGS | ENABLE_WINDOW_INPUT | ENABLE_VIRTUAL_TERMINAL_PROCESSING;
         mode &= ~ENABLE_PROCESSED_INPUT;
@@ -1611,7 +1565,7 @@ namespace CLP
         if (!SetConsoleMode(mhInput, mode))
         {
             cerr << "Failed to set console mode." << endl;
-            return sCommandLine;
+            return kErrorAbort;
         }
 
         // Main loop to read input events
@@ -1695,7 +1649,7 @@ namespace CLP
                     if (!ReadConsoleInput(mhInput, inputRecord, 1, &numEventsRead))
                     {
                         cerr << "Failed to read console input." << endl;
-                        return "";
+                        return kErrorAbort;
                     }
 
                     if (inputRecord[i].EventType == MOUSE_EVENT)
@@ -1756,10 +1710,14 @@ namespace CLP
         }
 
 
-
         OutputCommandToConsole(OutCommandLine);
 
-        return rawCommandBuf.GetText();
+        outEditedCommandLine = rawCommandBuf.GetText();
+
+        if (rawCommandBuf.mbCanceled)
+            return kCanceled;
+
+        return kSuccess;
     }
 
     string CommandLineEditor::HistoryPath()

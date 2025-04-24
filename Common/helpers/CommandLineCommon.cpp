@@ -1,11 +1,14 @@
-#pragma once
-
 #include <string>
 #include "CommandLineCommon.h"
 #include "StringHelpers.h"
-#include <Windows.h>
 #include <list>
 #include <assert.h>
+#include <sstream>
+
+
+#ifdef _WIN64
+#include <Windows.h>
+#endif
 
 using namespace std;
 
@@ -243,6 +246,8 @@ string CLP::ZAttrib::ToAnsi() const
     return ansi.str();
 }
 
+#ifdef ENABLE_CLE
+
 
 namespace CLP
 {
@@ -342,6 +347,54 @@ namespace CLP
         mbCanceled = false;
         return true;
     }
+
+    void ConsoleWin::SetArea(const Rect& r)
+    {
+        assert(r.r > r.l && r.b > r.t);
+        mX = r.l;
+        mY = r.t;
+
+        int64_t newW = r.r - r.l;
+        int64_t newH = r.b - r.t;
+        if (mWidth != newW || mHeight != newH)
+        {
+            if (newW > 0 && newH > 0)
+            {
+                mBuffer.resize(newW * newH);
+                mWidth = newW;
+                mHeight = newH;
+                Clear(mClearAttrib, mbGradient);
+            }
+
+        }
+    }
+
+    void ConsoleWin::GetArea(Rect& r)
+    {
+        r.l = mX;
+        r.t = mY;
+        r.r = r.l + mWidth;
+        r.b = r.t + mHeight;
+    }
+
+    void ConsoleWin::GetInnerArea(Rect& r)
+    {
+        r.l = 0;
+        r.t = 0;
+        r.r = mWidth;
+        r.b = mHeight;
+
+        if (enableFrame[Side::L])
+            r.l++;
+        if (enableFrame[Side::T])
+            r.t++;
+        if (enableFrame[Side::R])
+            r.r--;
+        if (enableFrame[Side::B])
+            r.b--;
+    }
+
+
 
     void ConsoleWin::DrawClippedAnsiText(int64_t x, int64_t y, std::string ansitext, bool bWrap, Rect* pClip)
     {
@@ -1417,3 +1470,5 @@ namespace CLP
     }
 
 };  // namespace CLP
+
+#endif // ENABLE_CLE

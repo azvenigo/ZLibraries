@@ -1,9 +1,4 @@
 #include "CommandLineParser.h"
-#include <algorithm>
-#include <stdlib.h>
-#include <iostream>
-#include <iomanip>
-#include <cctype>
 #include <assert.h>
 #include <stdarg.h> 
 #include <sstream>
@@ -883,7 +878,7 @@ namespace CLP
     }
 
 
-    CommandLineParser::eResponse CommandLineParser::TryParse(const tStringArray& params)    // params without app name
+    CLP::eResponse CommandLineParser::TryParse(const tStringArray& params)    // params without app name
     {
         msMode.clear();
 
@@ -1147,7 +1142,7 @@ namespace CLP
         bool bSuccess = false;
         while (1)
         {
-            CommandLineParser::eResponse response = TryParse(argArray);
+            CLP::eResponse response = TryParse(argArray);
 
             if (response == kSuccess)
             {
@@ -1221,10 +1216,14 @@ namespace CLP
                         break;
                     }
                 }
-
-                editor.Edit(ToString(argArray));    // show editor and exit
-
-                return false;   // return false for the calling application to exit
+                string sEdited;
+                eResponse response = editor.Edit(ToString(argArray), sEdited);
+                if (response != CLP::kSuccess)
+                {
+                    bSuccess = false;
+                    break;
+                }
+                argArray = ToArray(sEdited);
             }
 #endif
         }
@@ -1350,8 +1349,8 @@ namespace CLP
         Table GeneralHelpTable = GetCLPHelp(bDetailed);
 
 
-        size_t nMinWidth = 80;
 #ifdef _WIN64
+        size_t nMinWidth = 80;
         CONSOLE_SCREEN_BUFFER_INFO screenInfo;
         if (GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &screenInfo))
             nMinWidth = screenInfo.dwSize.X-4;

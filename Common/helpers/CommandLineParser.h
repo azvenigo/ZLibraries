@@ -3,10 +3,9 @@
 #include <map>
 #include <vector>
 #include <set>
-#include <iostream>
-#include <optional>
 #include "LoggingHelpers.h"
 #include "StringHelpers.h"
+#include "CommandLineCommon.h"
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // CommandlineParser 
@@ -342,17 +341,6 @@ namespace CLP
         static std::string      StripEnclosure(const std::string& value);         // remove surrounding quotes
 
     protected:
-
-        enum eResponse : uint32_t
-        {
-            kSuccess            = 0,
-            kCanceled           = 1,
-            kShowAvailableModes = 2,
-            kShowHelp           = 3,
-            kErrorShowEdit      = 4,
-            kErrorAbort         = 5
-        };
-
 
         eResponse       TryParse(const tStringArray& params);    // params not including app exe in element 0
 
