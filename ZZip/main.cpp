@@ -95,14 +95,14 @@ int main(int argc, char* argv[])
 
     if (gsPackageURL.find("*") != std::string::npos)
     {
-        cout << "ERROR: URL \"" << gsPackageURL << "\" includes illegal wildcards.\n";
+        zout << "ERROR: URL \"" << gsPackageURL << "\" includes illegal wildcards.\n";
         return -1;
     }
 
     if (gsBaseFolder.find("?") != std::string::npos ||
         gsBaseFolder.find("*") != std::string::npos)
     {
-        cout << "ERROR: Folder \"" << gsBaseFolder << "\" includes illegal wildcards.\n";
+        zout << "ERROR: Folder \"" << gsBaseFolder << "\" includes illegal wildcards.\n";
         return -1;
     }
 
@@ -151,9 +151,9 @@ int main(int argc, char* argv[])
     newJob.SetVerbose(LOG::gnVerbosityLevel > LVL_DEFAULT);
 
     newJob.Run();
-    newJob.Join();  // will output progress to cout until completed
+    newJob.Join();  // will output progress to zout until completed
 
-    cout << std::flush;
+    zout << std::flush;
     wcout << std::flush;
 
 //	_CrtMemDumpStatistics(&s1);  

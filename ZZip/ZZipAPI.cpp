@@ -12,6 +12,7 @@
 #include <iomanip>
 #include "zlibAPI.h"
 #include "helpers/FNMatch.h"
+#include "helpers/LoggingHelpers.h"
 #include <filesystem>
 #include <time.h>
 #include <ctime>
@@ -69,7 +70,7 @@ bool ZZipAPI::Init(const string& sZipURL, eOpenType type, int32_t nCompressionLe
 {
     if (mbInitted)
     {
-        cout << "ZZipAPI already open!  Cannot Reinitialize.\n";
+        zout << "ZZipAPI already open!  Cannot Reinitialize.\n";
         return false;
     }
 
@@ -148,7 +149,7 @@ void ZZipAPI::DumpReport(const string& sOutputFilename)
     outFile.open(sOutputFilename, ios_base::out | ios_base::trunc);
     if (outFile.fail())
     {
-        cout << "Failed to open " << sOutputFilename.c_str() << " for report.\n";
+        zout << "Failed to open " << sOutputFilename.c_str() << " for report.\n";
         return;
     }
     outFile << "<html><body>";
@@ -230,7 +231,7 @@ bool ZZipAPI::ExtractRawStream(const string& sFilename, const string& sOutputFil
     if (!cZZFile::Open(sOutputFilename, cZZFile::ZZFILE_WRITE, pOutFile))
     {
         delete[] pStream;
-        cout << "Failed to open " << sOutputFilename.c_str() << " for extraction. Reason: " << pOutFile->GetLastError() << "\n";
+        zout << "Failed to open " << sOutputFilename.c_str() << " for extraction. Reason: " << pOutFile->GetLastError() << "\n";
         return false;
     }
 
@@ -311,7 +312,7 @@ bool ZZipAPI::DecompressToFile(const string& sFilename, const string& sOutputFil
     if (!cZZFile::Open(sOutputFilename, cZZFile::ZZFILE_WRITE, pOutFile))
     {
         delete[] pCompStream;
-        cout << "Failed to open " << sOutputFilename.c_str() << " for extraction. Reason: " << errno << "\n";
+        zout << "Failed to open " << sOutputFilename.c_str() << " for extraction. Reason: " << errno << "\n";
         return false;
     }
 
@@ -393,13 +394,13 @@ bool ZZipAPI::AddToZipFile(const string& sFilename, const string& sBaseFolder, P
 
     if (!mbInitted)
     {
-        cout << "AddToZipFile - Not Initialized!\n";
+        zout << "AddToZipFile - Not Initialized!\n";
         return false;
     }
 
     if (mOpenType != kZipCreate)
     {
-        cout << "AddToZipFile - ZZipAPI not open for creation!\n";
+        zout << "AddToZipFile - ZZipAPI not open for creation!\n";
         return false;
     }
 
@@ -426,7 +427,7 @@ bool ZZipAPI::AddToZipFile(const string& sFilename, const string& sBaseFolder, P
     {
         if (!cZZFile::Open(sFileOrFolder, cZZFile::ZZFILE_READ, pInFile))
         {
-            cout << "Failed to open " << sFileOrFolder.c_str() << " for compression. Reason: " << pInFile->GetLastError() << "\n";
+            zout << "Failed to open " << sFileOrFolder.c_str() << " for compression. Reason: " << pInFile->GetLastError() << "\n";
             return false;
         }
 
@@ -560,13 +561,13 @@ bool ZZipAPI::AddToZipFileFromBuffer(uint8_t* pInputBuffer, uint32_t nInputBuffe
 
     if (!mbInitted)
     {
-        cout << "AddToZipFile - Not Initialized!\n";
+        zout << "AddToZipFile - Not Initialized!\n";
         return false;
     }
 
     if (mOpenType != kZipCreate)
     {
-        cout << "AddToZipFile - ZZipAPI not open for creation!\n";
+        zout << "AddToZipFile - ZZipAPI not open for creation!\n";
         return false;
     }
 

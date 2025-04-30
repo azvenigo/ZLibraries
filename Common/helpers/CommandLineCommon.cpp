@@ -1,5 +1,6 @@
 #include <string>
 #include "CommandLineCommon.h"
+#include "LoggingHelpers.h"
 #include "StringHelpers.h"
 #include <list>
 #include <assert.h>
@@ -16,196 +17,154 @@ using namespace std;
 
 size_t CLP::ZAttrib::FromAnsi(const char* pChars)
 {
-    size_t len = strlen(pChars);
-    if (len < 2)
-        return false;
+    if (!pChars || pChars[0] != '\x1b' || pChars[1] != '[')
+        return 0;
 
-    const char* pWalker = pChars;
-    const char* pEnd = pChars + len;
+    size_t pos = 2; // skip ESC and [
+    int codes[20] = { 0 }; // Increased array size to handle RGB values
+    int codeCount = 0;
+    int num = 0;
+    bool hasNum = false;
 
-    // Check if the sequence starts with the ANSI escape character '\x1B' (27 in decimal)
-    if (*pWalker != '\x1B')
+    while (pChars[pos])
     {
-        return 0; // Not a valid ANSI sequence
-    }
-    pWalker++;
+        char c = pChars[pos];
 
-    // Check if the next character is '[' which indicates the beginning of an ANSI sequence
-    if (*pWalker != '[')
-    {
-        assert(false);
-        return 0; // Not a valid ANSI sequence
-    }
-
-    // Find the end of the ANSI sequence
-    const char* pSeqEnd = pWalker;
-    while (pSeqEnd < pEnd && *pSeqEnd != 'm')
-    {
-        pSeqEnd++;
-    }
-
-    if (pSeqEnd >= pEnd) 
-    {
-        assert(false);
-        return false; // Incomplete ANSI sequence
-    }
-
-    // Extract the ANSI sequence
-    std::string sequence(pWalker, pSeqEnd-pWalker+1);
-
-    // Check if the sequence contains color information
-    if (sequence.find("m") != std::string::npos)
-    {
-        // Convert ANSI color code to ZAttrib
-        size_t pos = sequence.find("[");
-        if (pos != std::string::npos)
+        if (c >= '0' && c <= '9')
         {
-            std::string colorStr = sequence.substr(pos + 1, sequence.size() - pos - 2); // Extract color code part
-            std::vector<std::string> colorCodes;
-            size_t start = 0;
-            size_t semicolon = colorStr.find(";");
-            while (semicolon != std::string::npos)
-            {
-                colorCodes.push_back(colorStr.substr(start, semicolon - start));
-                start = semicolon + 1;
-                semicolon = colorStr.find(";", start);
-            }
-            colorCodes.push_back(colorStr.substr(start, colorStr.size() - start));
-
-            // Process color codes
-            for (size_t i = 0; i < colorCodes.size(); i++)
-            {
-                int colorCode = std::stoi(colorCodes[i]);
-
-                // Handle basic colors (30-37, 40-47)
-                if (colorCode >= 30 && colorCode <= 37) 
-                {
-                    // Foreground colors
-                    switch (colorCode)
-                    {
-                    case 30: SetFG(BLACK);      break;
-                    case 31: SetFG(RED);        break;
-                    case 32: SetFG(GREEN);      break;
-                    case 33: SetFG(YELLOW);     break;
-                    case 34: SetFG(BLUE);       break;
-                    case 35: SetFG(MAGENTA);    break;
-                    case 36: SetFG(CYAN);       break;
-                    case 37: SetFG(WHITE);      break;
-                    }
-                }
-                else if (colorCode >= 40 && colorCode <= 47) 
-                {
-                    // Background colors
-                    switch (colorCode)
-                    {
-                    case 40: SetBG(BLACK);      break;
-                    case 41: SetBG(RED);        break;
-                    case 42: SetBG(GREEN);      break;
-                    case 43: SetBG(YELLOW);     break;
-                    case 44: SetBG(BLUE);       break;
-                    case 45: SetBG(MAGENTA);    break;
-                    case 46: SetBG(CYAN);       break;
-                    case 47: SetBG(WHITE);      break;
-                    }
-                }
-                // Handle 256 color mode: 38;5;NNN (foreground)
-                else if (colorCode == 38 && i + 2 < colorCodes.size() && colorCodes[i + 1] == "5") 
-                {
-                    int colorIndex = std::stoi(colorCodes[i + 2]);
-
-                    // Convert 256-color index to RGB
-                    // This is a simplification - actual mapping depends on the terminal
-                    if (colorIndex < 16) 
-                    {
-                        // Standard colors (0-15)
-                        // Map accordingly to your ZAttrib system
-                    }
-                    else if (colorIndex < 232) 
-                    {
-                        // 6x6x6 color cube (16-231)
-                        int indexAdjusted = colorIndex - 16;
-                        a = 0xFF;  // Full alpha
-                        r = (indexAdjusted / 36) * 51;
-                        g = ((indexAdjusted % 36) / 6) * 51;
-                        b = (indexAdjusted % 6) * 51;
-                    }
-                    else 
-                    {
-                        // Grayscale (232-255)
-                        uint8_t gray = (colorIndex - 232) * 10 + 8;
-                        a = 0xFF;
-                        r = gray;
-                        g = gray;
-                        b = gray;
-                    }
-
-                    i += 2; // Skip the next two parameters
-                }
-                // Handle 256 color mode: 48;5;NNN (background)
-                else if (colorCode == 48 && i + 2 < colorCodes.size() && colorCodes[i + 1] == "5") 
-                {
-                    int colorIndex = std::stoi(colorCodes[i + 2]);
-
-                    // Similar conversion for background
-                    if (colorIndex < 16) 
-                    {
-                        // Standard colors (0-15)
-                        // Map accordingly
-                    }
-                    else if (colorIndex < 232) 
-                    {
-                        // 6x6x6 color cube (16-231)
-                        int indexAdjusted = colorIndex - 16;
-                        ba = 0xFF;
-                        br = (indexAdjusted / 36) * 51;
-                        bg = ((indexAdjusted % 36) / 6) * 51;
-                        bb = (indexAdjusted % 6) * 51;
-                    }
-                    else 
-                    {
-                        // Grayscale (232-255)
-                        uint8_t gray = (colorIndex - 232) * 10 + 8;
-                        ba = 0xFF;
-                        br = gray;
-                        bg = gray;
-                        bb = gray;
-                    }
-
-                    i += 2; // Skip the next two parameters
-                }
-                // Handle RGB mode: 38;2;R;G;B (foreground)
-                else if (colorCode == 38 && i + 4 < colorCodes.size() && colorCodes[i + 1] == "2") 
-                {
-                    // Set RGB foreground
-                    a = 0xFF;
-                    r = static_cast<uint8_t>(std::stoi(colorCodes[i + 2]));
-                    g = static_cast<uint8_t>(std::stoi(colorCodes[i + 3]));
-                    b = static_cast<uint8_t>(std::stoi(colorCodes[i + 4]));
-
-                    i += 4; // Skip the next four parameters
-                }
-                // Handle RGB mode: 48;2;R;G;B (background)
-                else if (colorCode == 48 && i + 4 < colorCodes.size() && colorCodes[i + 1] == "2") 
-                {
-                    // Set RGB background
-                    ba = 0xFF;
-                    br = static_cast<uint8_t>(std::stoi(colorCodes[i + 2]));
-                    bg = static_cast<uint8_t>(std::stoi(colorCodes[i + 3]));
-                    bb = static_cast<uint8_t>(std::stoi(colorCodes[i + 4]));
-
-                    i += 4; // Skip the next four parameters
-                }
-                // Reset
-                else if (colorCode == 0) 
-                {
-                    Set(WHITE_ON_BLACK);
-                }
-            }
-
-            return pSeqEnd- pChars+1;
+            num = num * 10 + (c - '0');
+            hasNum = true;
         }
+        else if (c == ';')
+        {
+            if (hasNum)
+            {
+                if (codeCount < 20)
+                    codes[codeCount++] = num;
+                num = 0;
+                hasNum = false;
+            }
+        }
+        else if (c >= '@' && c <= '~') // final character of ANSI sequence
+        {
+            if (hasNum)
+            {
+                if (codeCount < 20)
+                    codes[codeCount++] = num;
+            }
+
+            if (c != 'm')  // Only handle SGR sequences (colors, attributes)
+                return pos + 1;
+
+            // Now process codes
+            int i = 0;
+            while (i < codeCount)
+            {
+                int code = codes[i++];
+                switch (code)
+                {
+                case 0:
+                    SetFG(0xFF, 0xFF, 0xFF, 0xFF); // reset FG to white
+                    SetBG(0xFF, 0x00, 0x00, 0x00); // reset BG to black
+                    break;
+
+                case 1: // bold, often increase brightness
+                    // Optionally handle
+                    break;
+
+                case 38: // Foreground extended color
+                    if (i < codeCount)
+                    {
+                        int colorType = codes[i++];
+                        if (colorType == 2 && i + 2 < codeCount) // RGB
+                        {
+                            // RGB color: 38;2;r;g;b
+                            int r = codes[i++];
+                            int g = codes[i++];
+                            int b = codes[i++];
+                            SetFG(0xFF, r, g, b);
+                        }
+                        else if (colorType == 5 && i < codeCount) // 256-color
+                        {
+                            // 256-color: 38;5;n
+                            // Handle 256-color palette if needed
+                            i++; // Skip the color index for now
+                        }
+                    }
+                    break;
+
+                case 48: // Background extended color
+                    if (i < codeCount)
+                    {
+                        int colorType = codes[i++];
+                        if (colorType == 2 && i + 2 < codeCount) // RGB
+                        {
+                            // RGB color: 48;2;r;g;b
+                            int r = codes[i++];
+                            int g = codes[i++];
+                            int b = codes[i++];
+                            SetBG(0xFF, r, g, b);
+                        }
+                        else if (colorType == 5 && i < codeCount) // 256-color
+                        {
+                            // 256-color: 48;5;n
+                            // Handle 256-color palette if needed
+                            i++; // Skip the color index for now
+                        }
+                    }
+                    break;
+
+                case 30: SetFG(0xFF, 0x00, 0x00, 0x00); break; // Black
+                case 31: SetFG(0xFF, 0xFF, 0x00, 0x00); break; // Red
+                case 32: SetFG(0xFF, 0x00, 0xFF, 0x00); break; // Green
+                case 33: SetFG(0xFF, 0xFF, 0xFF, 0x00); break; // Yellow
+                case 34: SetFG(0xFF, 0x00, 0x00, 0xFF); break; // Blue
+                case 35: SetFG(0xFF, 0xFF, 0x00, 0xFF); break; // Magenta
+                case 36: SetFG(0xFF, 0x00, 0xFF, 0xFF); break; // Cyan
+                case 37: SetFG(0xFF, 0xFF, 0xFF, 0xFF); break; // White
+                case 39: SetFG(0xFF, 0xFF, 0xFF, 0xFF); break; // Default FG
+                case 40: SetBG(0xFF, 0x00, 0x00, 0x00); break; // BG Black
+                case 41: SetBG(0xFF, 0xFF, 0x00, 0x00); break; // BG Red
+                case 42: SetBG(0xFF, 0x00, 0xFF, 0x00); break; // BG Green
+                case 43: SetBG(0xFF, 0xFF, 0xFF, 0x00); break; // BG Yellow
+                case 44: SetBG(0xFF, 0x00, 0x00, 0xFF); break; // BG Blue
+                case 45: SetBG(0xFF, 0xFF, 0x00, 0xFF); break; // BG Magenta
+                case 46: SetBG(0xFF, 0x00, 0xFF, 0xFF); break; // BG Cyan
+                case 47: SetBG(0xFF, 0xFF, 0xFF, 0xFF); break; // BG White
+                case 49: SetBG(0xFF, 0x00, 0x00, 0x00); break; // Default BG
+                default:
+                    if (code >= 90 && code <= 97)
+                    {
+                        // Bright foreground colors
+                        static const uint32_t brightFg[8] = {
+                            0xFF808080, 0xFFFF6060, 0xFF60FF60, 0xFFFFFF60,
+                            0xFF6060FF, 0xFFFF60FF, 0xFF60FFFF, 0xFFFFFFFF
+                        };
+                        SetFG(brightFg[code - 90]);
+                    }
+                    else if (code >= 100 && code <= 107)
+                    {
+                        // Bright background colors
+                        static const uint32_t brightBg[8] = {
+                            0xFF808080, 0xFFFF6060, 0xFF60FF60, 0xFFFFFF60,
+                            0xFF6060FF, 0xFFFF60FF, 0xFF60FFFF, 0xFFFFFFFF
+                        };
+                        SetBG(brightBg[code - 100]);
+                    }
+                    break;
+                }
+            }
+            return pos + 1;
+        }
+        else
+        {
+            // Invalid character inside ANSI?
+            return 0;
+        }
+        pos++;
     }
-    return 0; // Not a valid ANSI color sequence
+
+    return 0;
 }
 
 string CLP::ZAttrib::ToAnsi() const
@@ -291,7 +250,7 @@ namespace CLP
     {
         if (bForce || coord.X != gLastCursorPos.X || coord.Y != gLastCursorPos.Y)
         {
-            cout << "\033[" + SH::FromInt(coord.X + 1) + "G\033[" + SH::FromInt(coord.Y) + "d";
+            cout << "\033[" + SH::FromInt(coord.X + 1) + "G\033[" + SH::FromInt(coord.Y) + "d" << flush;
             gLastCursorPos = coord;
         }
     }
@@ -342,7 +301,7 @@ namespace CLP
     bool ConsoleWin::Init(const Rect& r)
     {
         SetArea(r);
-        mbVisible = true;
+        SetVisible();
         mbDone = false;
         mbCanceled = false;
         return true;
@@ -398,6 +357,12 @@ namespace CLP
 
     void ConsoleWin::DrawClippedAnsiText(int64_t x, int64_t y, std::string ansitext, bool bWrap, Rect* pClip)
     {
+
+#ifdef _DEBUG
+        validateAnsiSequences(ansitext);
+#endif
+
+
         int64_t cursorX = x;
         int64_t cursorY = y;
 
@@ -813,7 +778,7 @@ namespace CLP
         if (keycode == VK_F1 || keycode == VK_ESCAPE)
         {
             mText.clear();
-            mbVisible = false;
+            SetVisible(false);
             mbDone = true;
         }
 
@@ -1006,17 +971,68 @@ namespace CLP
         UpdateCursorPos(TextIndexToCursor(entry.cursorindex));
     }
 
+    TextEditWin::~TextEditWin()
+    {
+        if (bHotkeyHooked)
+        {
+            UnhookHotkeys();
+        }
+    }
+
+    void TextEditWin::HookHotkeys()
+    {
+        if (bHotkeyHooked)
+            return;
+
+        if (!RegisterHotKey(nullptr, CTRL_V_HOTKEY, MOD_CONTROL, 'V'))
+        {
+            std::cerr << "Error registering hotkey:" << GetLastError() << std::endl;
+            return;
+        }
+
+        if (!RegisterHotKey(nullptr, SHIFT_INSERT_HOTKEY, MOD_SHIFT, VK_INSERT))
+        {
+            std::cerr << "Error registering hotkey:" << GetLastError() << std::endl;
+            return;
+        }
+
+        bHotkeyHooked = true;
+    }
+
+    void TextEditWin::UnhookHotkeys()
+    {
+        if (!bHotkeyHooked)
+            return;
+
+        UnregisterHotKey(nullptr, CTRL_V_HOTKEY);
+        UnregisterHotKey(nullptr, SHIFT_INSERT_HOTKEY);
+
+        bHotkeyHooked = false;
+    }
+
+
     void TextEditWin::SetText(const std::string& text)
     {
         mText = text;
         UpdateCursorPos(TextIndexToCursor((int64_t)text.size()));
     }
 
-    void TextEditWin::Show()
+    void TextEditWin::SetVisible(bool bVisible)
     {
         mbDone = false;
         mbCanceled = false;
-        mbVisible = true;
+        mbVisible = bVisible;
+
+        if (bVisible && !bHotkeyHooked)
+        {
+            HookHotkeys();
+        }
+
+        if (!bVisible && bHotkeyHooked)
+        {
+            UnhookHotkeys();
+        }
+        UpdateCursorPos(TextIndexToCursor((int64_t)mText.size()));
     }
 
     void TextEditWin::SetArea(const Rect& r)

@@ -1,6 +1,7 @@
 #include <iostream>
 #include <fstream>
 #include "helpers/CommandLineParser.h"
+#include "helpers/CommandLineMonitor.h"
 #include "helpers/InlineFormatter.h"
 #include "helpers/RandHelpers.h"
 #include "helpers/StringHelpers.h"
@@ -17,7 +18,7 @@ bool bVerbose = false;
 void CreateCyclFile(string sPath, int64_t nTotalSize)
 {
     if (bVerbose)
-        cout << "Creating Cycl file size:" << nTotalSize << " path:" << sPath.c_str() << "...";
+        zout << "Creating Cycl file size:" << nTotalSize << " path:" << sPath.c_str() << "...";
     const int kBufferElements = 64 * 1024;
     uint32_t* bufcycl = new uint32_t[kBufferElements];
 
@@ -26,7 +27,7 @@ void CreateCyclFile(string sPath, int64_t nTotalSize)
     outFile.open(sPath.c_str(), ios_base::out| ios::binary);
     if (outFile.fail())
     {
-        cout << "Error creating file:" << errno << "\n";
+        zout << "Error creating file:" << errno << "\n";
         return;
     }
 
@@ -46,7 +47,7 @@ void CreateCyclFile(string sPath, int64_t nTotalSize)
     }
 
     if (bVerbose)
-        cout << "done\n";
+        zout << "done\n";
     outFile.close();
 
     delete[] bufcycl;
@@ -56,7 +57,7 @@ void CreateCyclFile(string sPath, int64_t nTotalSize)
 void CreateRandFile(string sPath, int64_t nTotalSize)
 {
     if (bVerbose)
-        cout << "Creating Rand file size:" << nTotalSize << " path:" << sPath.c_str() << "...";
+        zout << "Creating Rand file size:" << nTotalSize << " path:" << sPath.c_str() << "...";
     const int kBufferElements = 256 * 1024;
     uint32_t* bufcycl = new uint32_t[kBufferElements];
 
@@ -65,7 +66,7 @@ void CreateRandFile(string sPath, int64_t nTotalSize)
     outFile.open(sPath.c_str(), ios_base::out|ios_base::binary);
     if (outFile.fail())
     {
-        cout << "Error creating file:" << errno << "\n";
+        zout << "Error creating file:" << errno << "\n";
         return;
     }
 
@@ -75,8 +76,7 @@ void CreateRandFile(string sPath, int64_t nTotalSize)
             bufcycl[j] = RANDU64(0,0xffffffff);
 
         // experiment
-        
-
+        RATE_LIMITED_PROGRESS(1, i, nTotalSize, "b", "generating rand file");
 
         int32_t nBytesToWrite = kBufferElements * sizeof(uint32_t);
         if (i + nBytesToWrite > nTotalSize)
@@ -86,7 +86,7 @@ void CreateRandFile(string sPath, int64_t nTotalSize)
     }
 
     if (bVerbose)
-        cout << "done\n";
+        zout << "done\n";
     outFile.close();
 
     delete[] bufcycl;
@@ -96,7 +96,7 @@ void CreateRandFile(string sPath, int64_t nTotalSize)
 void CreateValueFile(string sPath, int64_t nTotalSize, int64_t nFillValue)
 {
     if (bVerbose)
-        cout << "Creating Value file size:" << nTotalSize << " path:" << sPath.c_str() << "...";
+        zout << "Creating Value file size:" << nTotalSize << " path:" << sPath.c_str() << "...";
     const int kBufferElements = 256 * 1024;
     int64_t* buf = new int64_t[kBufferElements];
     for (int j = 0; j < kBufferElements; j++)
@@ -108,7 +108,7 @@ void CreateValueFile(string sPath, int64_t nTotalSize, int64_t nFillValue)
     outFile.open(sPath.c_str(), ios_base::out | ios_base::binary);
     if (outFile.fail())
     {
-        cout << "Error creating file:" << errno << "\n";
+        zout << "Error creating file:" << errno << "\n";
         return;
     }
 
@@ -123,7 +123,7 @@ void CreateValueFile(string sPath, int64_t nTotalSize, int64_t nFillValue)
     }
 
     if (bVerbose)
-        cout << "done\n";
+        zout << "done\n";
     outFile.close();
 
     delete[] buf;
@@ -132,7 +132,7 @@ void CreateValueFile(string sPath, int64_t nTotalSize, int64_t nFillValue)
 void CreateCompressibleFile(string sPath, int64_t nTotalSize, int64_t nCompressFactor)
 {
     if (bVerbose)
-        cout << "Creating Compressible file size:" << nTotalSize << "Compress factor:" << nCompressFactor << " path:" << sPath.c_str() << "...";
+        zout << "Creating Compressible file size:" << nTotalSize << "Compress factor:" << nCompressFactor << " path:" << sPath.c_str() << "...";
     const int kBufferElements = 64 * 1024;
     uint32_t* bufcycl = new uint32_t[kBufferElements];
 
@@ -141,7 +141,7 @@ void CreateCompressibleFile(string sPath, int64_t nTotalSize, int64_t nCompressF
     outFile.open(sPath.c_str(), ios_base::out | ios::binary);
     if (outFile.fail())
     {
-        cout << "Error creating file:" << errno << "\n";
+        zout << "Error creating file:" << errno << "\n";
         return;
     }
 
@@ -163,7 +163,7 @@ void CreateCompressibleFile(string sPath, int64_t nTotalSize, int64_t nCompressF
     }
 
     if (bVerbose)
-        cout << "done\n";
+        zout << "done\n";
     outFile.close();
 
     delete[] bufcycl;
@@ -172,7 +172,7 @@ void CreateCompressibleFile(string sPath, int64_t nTotalSize, int64_t nCompressF
 void CreateVariableFile(string sPath, int64_t nTotalSize, int64_t nCompressFactor)
 {
     if (bVerbose)
-        cout << "Creating Variable Compressible file size:" << nTotalSize << "Compress factor:" << nCompressFactor << " path:" << sPath.c_str() << "...";
+        zout << "Creating Variable Compressible file size:" << nTotalSize << "Compress factor:" << nCompressFactor << " path:" << sPath.c_str() << "...";
     const int kBufferElements = 64 * 1024;
     uint32_t* bufcycl = new uint32_t[kBufferElements];
 
@@ -181,7 +181,7 @@ void CreateVariableFile(string sPath, int64_t nTotalSize, int64_t nCompressFacto
     outFile.open(sPath.c_str(), ios_base::out | ios::binary);
     if (outFile.fail())
     {
-        cout << "Error creating file:" << errno << "\n";
+        zout << "Error creating file:" << errno << "\n";
         return;
     }
 
@@ -203,7 +203,7 @@ void CreateVariableFile(string sPath, int64_t nTotalSize, int64_t nCompressFacto
     }
 
     if (bVerbose)
-        cout << "done\n";
+        zout << "done\n";
     outFile.close();
 
     delete[] bufcycl;
@@ -213,9 +213,6 @@ int main(int argc, char* argv[])
 {
 //    HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
 //    SetConsoleMode(hConsole, ENABLE_VIRTUAL_TERMINAL_PROCESSING);
-
-
-
 
 
 
@@ -270,6 +267,10 @@ int main(int argc, char* argv[])
         cerr << "Aborting.\n";
         return -1;
     }
+
+    CommandLineMonitor monitor;
+    monitor.Start();
+
     
     bFillSpecificValue = SH::Compare(parser.GetAppMode(), "value", false);
     bRandomFill = SH::Compare(parser.GetAppMode(), "rand", false);
@@ -336,7 +337,8 @@ int main(int argc, char* argv[])
  
     }
 
-    cout << "Done.";
+    zout << "Done.";
+    monitor.End();
 
     return 0;
 }

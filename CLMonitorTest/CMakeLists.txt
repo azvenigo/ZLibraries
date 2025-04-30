@@ -37,11 +37,9 @@ if(MSVC)
     # ignore pdb not found
     set(EXTRA_FLAGS "/WX")
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /ignore:4099")
-    add_compile_definitions(ENABLE_CLM)  
 
 else()
     set(EXTRA_FLAGS "-Wall -Wextra -Werror -march=x86-64")
-    set(EXTRA_CXX_FLAGS "-std=c++17")
     if( SYMBOLS ) 
         set(EXTRA_FLAGS "-g ${EXTRA_FLAGS}")
     endif()

@@ -1,5 +1,6 @@
 #include "FileHelpers.h"
 #include "StringHelpers.h"
+#include "LoggingHelpers.h"
 #include <filesystem>
 #include <iostream>
 #include <fstream>
@@ -139,7 +140,7 @@ namespace FH
         ifstream inFile(filename, ios::binary);
         if (!inFile.is_open())
         {
-            cout << "Unable to open file: " << filename << "\n";
+            zout << "Unable to open file: " << filename << "\n";
             return false;
         }
 
@@ -149,7 +150,7 @@ namespace FH
 
         if (!inFile)
         {
-            cout << "Read from:" << filename << " failed. err:" << errno << std::error_code(errno, std::generic_category()).message() << "\n";
+            zout << "Read from:" << filename << " failed. err:" << errno << std::error_code(errno, std::generic_category()).message() << "\n";
             return false;
         }
 

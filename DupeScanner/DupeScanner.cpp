@@ -44,7 +44,7 @@ int main(int argc, char* argv[])
 
     if (sSourcePath.empty())
     {
-        cout << parser.GetGeneralHelpString();
+        zout << parser.GetGeneralHelpString();
         return -1;
     }
 

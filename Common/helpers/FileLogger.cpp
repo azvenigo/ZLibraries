@@ -1,4 +1,4 @@
-#include "Logger.h"
+#include "FileLogger.h"
 #include <assert.h>
 #include <iostream>
 #include <ctime>
@@ -11,19 +11,19 @@ namespace LOG
 {
     const int kMaxQueueSize = 10;
 
-    Logger::Logger(int64_t _maxLogfileBytes)
+    FileLogger::FileLogger(int64_t _maxLogfileBytes)
     {
         mMaxLogfileBytes = _maxLogfileBytes;
         mCurrentLogfileBytes = 0;
     }
 
-    Logger::~Logger()
+    FileLogger::~FileLogger()
     {
         Flush();
         mFile.close();
     }
 
-    void Logger::Log(const std::string& sLine)
+    void FileLogger::Log(const std::string& sLine)
     {
         const std::time_t now = std::time(nullptr);
         char buf[32];
@@ -41,7 +41,7 @@ namespace LOG
 
 
 
-    void Logger::Flush()
+    void FileLogger::Flush()
     {
         const std::lock_guard<std::recursive_mutex> lock(mMutex);
 
@@ -54,7 +54,7 @@ namespace LOG
         Trim();
     }
 
-    void Logger::Trim()
+    void FileLogger::Trim()
     {
         if (mCurrentLogfileBytes < mMaxLogfileBytes)
             return;
@@ -86,7 +86,7 @@ namespace LOG
     }
 
 
-    void Logger::WriteToFile(const std::string& sLine)
+    void FileLogger::WriteToFile(const std::string& sLine)
     {
         const std::lock_guard<std::recursive_mutex> lock(mMutex);
 

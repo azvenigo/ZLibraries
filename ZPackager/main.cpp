@@ -24,6 +24,7 @@
 #include "../ZZip/ZipJob.h"
 #include "helpers/FileHelpers.h"
 #include "helpers/CommandLineParser.h"
+#include "helpers/LoggingHelpers.h"
 #include "helpers/ThreadPool.h"
 #include "helpers/Registry.h"
 #include <assert.h>
@@ -115,7 +116,7 @@ int Create(filesystem::path baseFolder, filesystem::path outputFilename)
     for (auto it : std::filesystem::recursive_directory_iterator(compressFolder))
     {
         if (LOG::gnVerbosityLevel > LVL_DEFAULT)
-            cout << "Found:" << it;
+            zout << "Found:" << it;
 
         cCDFileHeader fileHeader;
         fileHeader.mFileName = it.path().generic_string();
@@ -128,17 +129,17 @@ int Create(filesystem::path baseFolder, filesystem::path outputFilename)
         filesToCompress.push_back(fileHeader);
     }
 
-    cout << "Found " << filesToCompress.size() << " files.  Total size: " << FormatFriendlyBytes(nTotalBytes, SH::kMiB) << " (" << nTotalBytes << " bytes)\n";
+    zout << "Found " << filesToCompress.size() << " files.  Total size: " << FormatFriendlyBytes(nTotalBytes, SH::kMiB) << " (" << nTotalBytes << " bytes)\n";
 
     // Add files one at a time
     for (auto fileHeader : filesToCompress)
     {
         if (LOG::gnVerbosityLevel > LVL_DEFAULT)
-            cout << "Adding to Zip File: " << fileHeader.mFileName << "\n";
+            zout << "Adding to Zip File: " << fileHeader.mFileName << "\n";
         zipAPI.AddToZipFile(fileHeader.mFileName, baseFolder.string());
     }
 
-    cout << "Finished\n";
+    zout << "Finished\n";
 
     return 0;
 }
@@ -155,7 +156,7 @@ bool ExtractInstallFile(const string& sArchiveFilename, string& sResult)
     cZipCD& zipCD = zipAPI.GetZipCD();
 
     if (LOG::gnVerbosityLevel >= LVL_DIAG_BASIC)
-        zipCD.DumpCD(cout, "*", true, eToStringFormat::kTabs);
+        zipCD.DumpCD(zout, "*", true, eToStringFormat::kTabs);
 
 
     cCDFileHeader fileHeader;
@@ -192,7 +193,7 @@ int Extract(filesystem::path outputFolder)
     uint64_t nTotalBytesVerified = 0;
 
     // Create folder structure and build list of files that match pattern
-    cout << "Creating Folders.\n";
+    zout << "Creating Folders.\n";
     for (tCDFileHeaderList::iterator it = zipCD.mCDFileHeaderList.begin(); it != zipCD.mCDFileHeaderList.end(); it++)
     {
         cCDFileHeader& cdFileHeader = *it;
@@ -223,7 +224,7 @@ int Extract(filesystem::path outputFolder)
                 // decompress
                 if (!filesystem::is_directory(fullPath.parent_path()))
                 {
-                    cout << "Creating Path: \"" << fullPath.parent_path() << "\"\n";
+                    zout << "Creating Path: \"" << fullPath.parent_path() << "\"\n";
                     std::filesystem::create_directories(fullPath.parent_path());
                 }
 
@@ -265,10 +266,10 @@ int Extract(filesystem::path outputFolder)
         nTotalBytesDownloaded += taskResult.mBytesDownloaded;
         nTotalWrittenToDisk += taskResult.mBytesWrittenToDisk;
 
-        //		cout << taskResult << "\n";
+        //		zout << taskResult << "\n";
     }
 
-    cout << "done\n";
+    zout << "done\n";
     return 0;
 }
 
@@ -510,9 +511,9 @@ int RunInstall(string sOutputFolder, bool bForce = false)
     if (ExtractInstallFile("/install/install.cfg", sInstallDoc))
     {
         if (LOG::gnVerbosityLevel > LVL_DEFAULT)
-            cout << "Using install.cfg from archive\n";
+            zout << "Using install.cfg from archive\n";
         if (LOG::gnVerbosityLevel > LVL_DIAG_BASIC)
-            cout << sInstallDoc << "\n";
+            zout << sInstallDoc << "\n";
     }
 
 
@@ -659,7 +660,7 @@ int RunInstall(string sOutputFolder, bool bForce = false)
 
     for (auto fileExt : associationList)
     {
-        cout << "Setting association:" << fileExt << "\n";
+        zout << "Setting association:" << fileExt << "\n";
 
         if (fileExt[0] != '.')
             fileExt = "." + fileExt;

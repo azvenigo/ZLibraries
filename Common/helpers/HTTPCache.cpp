@@ -14,6 +14,7 @@
 #include <cstring>
 #include <atomic>
 #include <thread>
+#include "LoggingHelpers.h"
 
 using namespace std;
 
@@ -54,11 +55,11 @@ HTTPCache::HTTPCache()
 
 HTTPCache::~HTTPCache()
 {
-    //cout << "-HTTPCache Report-\n";
-    //cout << "Total Bytes Reserved:            " << gnTotalBytesReserved << "\n";
-    //cout << "Total Cache Lines Reserved:      " << gnTotalCacheLinesReserved << "\n";
-    //cout << "Bytes Copied Across Cache Lines: " << gnTotalBytesCopiedAcrossCacheLines << "\n";
-    //cout << "Bytes Saved :                    " << gnTotalBytesSaved << "\n";
+    //zout << "-HTTPCache Report-\n";
+    //zout << "Total Bytes Reserved:            " << gnTotalBytesReserved << "\n";
+    //zout << "Total Cache Lines Reserved:      " << gnTotalCacheLinesReserved << "\n";
+    //zout << "Bytes Copied Across Cache Lines: " << gnTotalBytesCopiedAcrossCacheLines << "\n";
+    //zout << "Bytes Saved :                    " << gnTotalBytesSaved << "\n";
 
 }
 
@@ -103,7 +104,7 @@ shared_ptr<HTTPCacheLine> HTTPCache::Reserve(int64_t nOffset)
                 pNewItem->mUnfullfilledInterval.second -= nUsableData;
             }
 
-            //cout << "offset:" << nOffset << " Copied " << nUsableData << "bytes into new buffer at offset:" << nOffset << "\n";
+            //zout << "offset:" << nOffset << " Copied " << nUsableData << "bytes into new buffer at offset:" << nOffset << "\n";
             gnTotalBytesCopiedAcrossCacheLines += nUsableData;
         }
 
@@ -155,7 +156,7 @@ shared_ptr<HTTPCacheLine> HTTPCache::Reserve(int64_t nOffset)
 
 
     mOffsetToHTTPCacheLineMap[nOffset] = pNewItem;
-    //cout << "reserve new at offset:" << nOffset << "\n";
+    //zout << "reserve new at offset:" << nOffset << "\n";
 
     gnTotalCacheLinesReserved++;
     gnTotalBytesReserved += kHTTPCacheLineSize;
@@ -199,7 +200,7 @@ bool HTTPCacheLine::Get(int64_t nOffset, int32_t nBytes, uint8_t* pDestination)
 
             if (elapsed.count() > kSleepTimeOut)
             {
-                cout << "TIMEOUT waiting on cache data!\n";
+                zout << "TIMEOUT waiting on cache data!\n";
                 return false;
             }
         }
@@ -207,14 +208,14 @@ bool HTTPCacheLine::Get(int64_t nOffset, int32_t nBytes, uint8_t* pDestination)
 
         // Retrieve the requested byte range
         uint32_t nIndexIntoCacheLine = (uint32_t) (nOffset - mnBaseOffset);
-        //cout << "found line item offset:" << mnBaseOffset << " copying from index:" << nIndexIntoCacheLine << " bytes:" << nBytes << "\n";
+        //zout << "found line item offset:" << mnBaseOffset << " copying from index:" << nIndexIntoCacheLine << " bytes:" << nBytes << "\n";
         memcpy(pDestination, mData + nIndexIntoCacheLine, nBytes);
         gnTotalBytesSaved += nBytes;
         return true;
     }
 
     // cannot fullfill!
-    cout << "Fatal Error! This cache line does not and will not contain the requested bytes!\n";
+    zout << "Fatal Error! This cache line does not and will not contain the requested bytes!\n";
     return false;
 }
 

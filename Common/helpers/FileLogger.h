@@ -7,12 +7,12 @@
 namespace LOG
 {
 
-    class Logger
+    class FileLogger
     {
     public:
-        Logger(int64_t _maxLogfileBytes = 4 * 1024 * 1024);  // whenever the file goes over this size, it will be trimmed
+        FileLogger(int64_t _maxLogfileBytes = 4 * 1024 * 1024);  // whenever the file goes over this size, it will be trimmed
 
-        ~Logger();
+        ~FileLogger();
 
         void                    Log(const std::string& sLine);
         void                    Flush();
@@ -31,5 +31,5 @@ namespace LOG
 
     };
 };
-extern LOG::Logger gLogger;
+extern LOG::FileLogger gLogger;
 

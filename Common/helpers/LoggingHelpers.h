@@ -5,6 +5,7 @@
 #include <sstream>
 #include <assert.h>
 #include <iostream>
+#include <ostream>
 #include <inttypes.h>
 #include <list>
 #include <deque>
@@ -16,9 +17,14 @@
 #include <thread>
 #include <mutex>
 
+#ifdef _DEBUG
+#include "StringHelpers.h"
+#endif
+
 #define ENABLE_ANSI_OUT
 #ifdef ENABLE_ANSI_OUT
 
+#define COL_CUSTOM_STYLE "[CUSTOMSTYLE]"
 #define COL_RESET   "\033[37m"
 #define COL_BLACK   "\033[30m"
 #define COL_RED     "\033[31m"
@@ -42,6 +48,7 @@
 
 #else
 
+#define COL_CUSTOM_STYLE    ""
 #define COL_RESET           ""
 #define COL_BLACK           ""
 #define COL_RED             ""
@@ -63,6 +70,8 @@
 #define COL_BG_WHITE        ""
 
 #endif
+
+bool validateAnsiSequences(const std::string& input);
 
 namespace LOG
 {
@@ -87,8 +96,6 @@ namespace LOG
 
 #define OUT_HEX(statement)          std::hex << statement << std::dec 
 
-
-
     struct LogEntry
     {
         LogEntry(const std::string& _text, uint64_t _time = -1);
@@ -101,8 +108,304 @@ namespace LOG
 
     typedef std::deque<LogEntry> tLogEntries;
 
-    class Logger;
-    class LogStream 
+
+
+
+
+    class Logger
+    {
+    public:
+        const size_t kQueueSize = 1024;
+        Logger() : logCount(0)
+        {
+        }
+
+        void addEntry(std::string text)
+        {
+            std::lock_guard<std::mutex> lock(logEntriesMutex);
+            while (logEntries.size() > kQueueSize)
+                logEntries.pop_front();
+
+
+            while (text[text.length() - 1] == '\n' || text[text.length() - 1] == '\r')
+                text = text.substr(0, text.length() - 1);   // strip 
+
+            if (!text.empty())  // do we add an entry if it's just a newline?
+            {
+                if (SH::Contains(text, "\n", true))
+                {
+                    int stophere = 5;
+                }
+
+
+                LogEntry e(text);
+
+#ifdef _DEBUG
+                validateAnsiSequences(text);
+#endif
+                e.threadID = std::this_thread::get_id();
+                e.counter = logCount++;
+                logEntries.emplace_back(std::move(e));
+            }
+        }
+
+        size_t getCount() const
+        {
+            return logCount;
+        }
+
+        const std::deque<LogEntry>& getEntries() const
+        {
+            return logEntries;
+        }
+
+        bool getEntries(uint64_t startingIndex, size_t count, std::deque<LogEntry>& outEntries, const std::string& sFilter = {}) const;
+        std::deque<LogEntry> tail(size_t n, const std::string& sFilter = {}) const;
+
+
+        void clear()
+        {
+            std::lock_guard<std::mutex> lock(logEntriesMutex);
+            logEntries.clear();
+        }
+
+        friend std::ostream& operator<<(std::ostream& os, const Logger& logger)
+        {
+            std::lock_guard<std::mutex> lock(logger.logEntriesMutex);
+
+            for (const auto& entry : logger.logEntries)
+            {
+                os << "[" << entry.time << "][Thread:" << entry.threadID << "] " << entry.text << std::endl;
+            }
+            return os;
+        }
+
+        tLogEntries logEntries;
+        mutable std::mutex logEntriesMutex;
+        size_t logCount;    // total count of flushes, or entries submitted. For tracking changes even if we max out the logEntries queue
+
+    };
+
+    class LogStreamBuf : public std::streambuf
+    {
+    public:
+        LogStreamBuf(Logger& logger) : m_logger(logger)
+        {
+            setp(m_buffer, m_buffer + BUFFER_SIZE - 1);
+        }
+    protected:
+
+
+        virtual int sync() override
+        {
+            if (pbase() != pptr())
+            {
+                char* pWalker = pbase();
+                char* pStart = pWalker;
+                while (pWalker < pptr())
+                {
+                    if (*pWalker == '\n')
+                    {
+                        std::string content(pStart, pWalker - pStart);
+                        if (isCompleteAnsiContent(content))
+                        {
+                            // Send it to the logger
+                            m_logger.addEntry(content);
+                            pWalker++;  // skip newline
+                            pStart = pWalker;
+                        }
+                    }
+                    pWalker++;
+                }
+
+                if (pStart < pptr())   // move over any remaining chars
+                {
+                    size_t remaining = pptr() - pStart;
+                    memcpy(m_buffer, pStart, remaining);
+                    setp(m_buffer+remaining, m_buffer + BUFFER_SIZE - 1-remaining);
+                }
+                else
+                {
+                    setp(m_buffer, m_buffer + BUFFER_SIZE - 1);
+                }
+            }
+            return 0;
+        }
+
+        virtual int overflow(int c) override
+        {
+            if (c != EOF)
+            {
+                // Add the character to the buffer first
+                *pptr() = static_cast<char>(c);
+                pbump(1);
+
+                // If buffer is full or it's a newline, consider syncing
+                if (pptr() >= epptr() || c == '\n')
+                {
+                    sync();
+                }
+            }
+            return c;
+        }
+
+    private:
+        // Determine if content has complete ANSI sequences
+        bool isCompleteAnsiContent(const std::string& content) 
+        {
+            bool inEscapeSeq = false;
+            bool inCSI = false;
+
+            for (size_t i = 0; i < content.length(); ++i) 
+            {
+                char c = content[i];
+
+                if (inEscapeSeq) 
+                {
+                    if (inCSI) 
+                    {
+                        // In a CSI sequence
+                        if (c >= 0x40 && c <= 0x7E) 
+                        {
+                            // Final byte - sequence complete
+                            inEscapeSeq = false;
+                            inCSI = false;
+                        }
+                    }
+                    else 
+                    {
+                        // Just saw ESC, checking next char
+                        if (c == '[') 
+                        {
+                            inCSI = true;
+                        }
+                        else 
+                        {
+                            // Some other escape sequence
+                            inEscapeSeq = false;
+                        }
+                    }
+                }
+                else if (c == '\x1B') 
+                {
+                    // Start of escape sequence
+                    inEscapeSeq = true;
+                }
+            }
+
+            // If we're still in an escape sequence at the end, it's incomplete
+            return !inEscapeSeq;
+        }
+
+        Logger& m_logger;
+        static const int BUFFER_SIZE = 1024; // Adjust size as needed
+        // Thread-local buffer for each thread
+        static thread_local char m_buffer[BUFFER_SIZE];
+    };
+
+    class LogStream : public std::ostream
+    {
+    public:
+        LogStream(Logger& logger, std::ostream& fallback, bool _outputToFallback = true) : 
+            std::ostream(&m_streamBuf), 
+            m_logger(logger), 
+            m_streamBuf(logger), 
+            m_fallback(fallback), 
+            m_outputToFallback(_outputToFallback) {}
+
+
+
+        virtual std::ostream& flush() 
+        {
+            std::ostream::flush(); // Flush our buffer (calls sync() on the streambuf)
+
+            if (m_outputToFallback) 
+            {
+                std::lock_guard<std::mutex> lock(m_fallbackMutex);
+                m_fallback.flush();
+            }
+
+            return *this;
+        }
+
+        template<typename T>
+        LogStream& operator<<(const T& data)
+        {
+            std::ostringstream oss;
+            oss << data;
+            std::string str = oss.str();
+
+            // write to our buffer
+            static_cast<std::ostream&> (*this) << data;
+
+            // Check for newlines
+            if (str.find('\n') != std::string::npos) 
+            {
+                flush();
+            }
+
+            if (m_outputToFallback)
+            {
+                std::lock_guard<std::mutex> lock(m_fallbackMutex);
+                m_fallback << data;
+            }
+
+            return *this;
+        }
+
+        template<typename T>
+        LogStream& operator<<(T& data)
+        {
+
+            std::ostringstream oss;
+            oss << data;
+            std::string str = oss.str();
+
+            // write to our buffer
+            static_cast<std::ostream&> (*this) << data;
+
+            if (m_outputToFallback)
+            {
+                std::lock_guard<std::mutex> lock(m_fallbackMutex);
+                m_fallback << data;
+            }
+
+            // Check for newlines
+            if (str.find('\n') != std::string::npos)
+            {
+                flush();
+            }
+
+            return *this;
+        }
+
+        LogStream& operator<<(std::ostream& (*manip)(std::ostream&))
+        {
+            // Apply to our stream
+            manip(static_cast<std::ostream&>(*this));
+
+            if (m_outputToFallback)
+            {
+                std::lock_guard<std::mutex> lock(m_fallbackMutex);
+                manip(m_fallback);
+            }
+
+            return *this;
+        }
+
+
+
+        bool                m_outputToFallback;
+
+    private:
+        LogStreamBuf        m_streamBuf;
+        Logger&             m_logger;
+        std::ostream&       m_fallback;
+        std::mutex          m_fallbackMutex;
+    };
+
+
+/*    class LogStream : public std::ostream
     {
     public:
         LogStream(Logger& logger, std::ostream& fallback, bool _outputToFallback = true) : m_logger(logger), m_fallback(fallback), outputToFallback(_outputToFallback){}
@@ -112,7 +415,13 @@ namespace LOG
         {
             // Append to our internal stream
             t_buffer << data;
-//            std::cout << "buffer now has " << t_buffer.str() << "\n";
+
+            // Check if the last character is a newline
+            std::string current = t_buffer.str();
+            if (!current.empty() && current.back() == '\n')
+            {
+                flush();
+            }
 
             if (outputToFallback)
             {
@@ -133,7 +442,8 @@ namespace LOG
             }
 
             // If it's endl, flush our buffer to a log entry
-            if (manip == static_cast<std::ostream & (*)(std::ostream&)>(std::endl)) 
+            if (manip == static_cast<std::ostream & (*)(std::ostream&)>(std::endl) ||
+                manip == static_cast<std::ostream & (*)(std::ostream&)>(std::flush))
             {
                 flush();
             }
@@ -141,6 +451,12 @@ namespace LOG
             {
                 // Otherwise just add it to our buffer
                 t_buffer << manip;
+                // Check if the last character is a newline
+                std::string current = t_buffer.str();
+                if (!current.empty() && current.back() == '\n')
+                {
+                    flush();
+                }
             }
 
             return *this;
@@ -156,77 +472,19 @@ namespace LOG
         std::mutex m_fallbackMutex;
 
         static thread_local std::ostringstream t_buffer;
-    };
-
-
-    class Logger
-    {
-    public:
-        const size_t kQueueSize = 1024;
-        Logger() : logCount(0) 
-        {
-        }
-
-        void addEntry(const std::string& text) 
-        {
-            std::lock_guard<std::mutex> lock(logEntriesMutex);
-            while (logEntries.size() > kQueueSize)
-                logEntries.pop_front();
-
-            LogEntry e(text);
-            e.threadID = std::this_thread::get_id();
-            e.counter = logCount++;
-            logEntries.emplace_back(std::move(e));
-        }
-
-        size_t getCount() const
-        {
-            return logCount;
-        }
-
-        const std::deque<LogEntry>& getEntries() const
-        {
-            return logEntries;
-        }
-
-        bool getEntries(uint64_t startingIndex, size_t count, std::deque<LogEntry>& outEntries, const std::string& sFilter = {}) const;
-        std::deque<LogEntry> tail(size_t n, const std::string& sFilter = {}) const;
-
-
-        void clear() 
-        {
-            std::lock_guard<std::mutex> lock(logEntriesMutex);
-            logEntries.clear();
-        }
-
-        friend std::ostream& operator<<(std::ostream& os, const Logger& logger) 
-        {
-            std::lock_guard<std::mutex> lock(logger.logEntriesMutex);
-
-            for (const auto& entry : logger.logEntries)
-            {
-                os << "[" << entry.time << "][Thread:" << entry.threadID << "] " << entry.text << std::endl;
-            }
-            return os;
-        }
-
-        tLogEntries logEntries;
-        mutable std::mutex logEntriesMutex;
-        size_t logCount;    // total count of flushes, or entries submitted. For tracking changes even if we max out the logEntries queue
-
-    };
-
+    };*/
     std::string usToDateTime(uint64_t us);
     std::string usToElapsed(uint64_t us);
+
+    extern Logger gLogger;
+    extern LogStream gLogOut;
+    extern LogStream gLogErr;
 };
 
-extern LOG::Logger gLogger;
-extern LOG::LogStream gLogOut;
-extern LOG::LogStream gLogErr;
 
 #ifdef ENABLE_CLM
-#define zout gLogOut
-#define zerr gLogErr
+#define zout LOG::gLogOut
+#define zerr LOG::gLogErr
 #else
 #define zout std::cout
 #define zerr std::cerr
@@ -242,11 +500,11 @@ extern LOG::LogStream gLogErr;
      double fCompletions_per_second = (double) completed * 1000000.0 / elapsed_us;\
      double fLeftToDo = (double) (total - completed);\
      double fETA = fLeftToDo / fCompletions_per_second;\
-     cout << message \
+     zout << message \
      << " - Completed:" << completed << "/" << total << " (" << (int)((double) 100.0 * completed / (double) total) << "%) " \
      << " - Rate:" << (completed/(elapsed_us / 1000000)) << unit_per_second \
      << " - Elapsed:" << LOG::usToElapsed(elapsed_us) \
-     << " -  ETA:" << (int)fETA << "s                          \r";\
+     << " -  ETA:" << (int)fETA << "s                          \r" << std::flush;\
      report_ts_ = cur_time;\
   }\
  }
@@ -284,19 +542,19 @@ inline void DumpMemoryToCout(uint8_t* pBuf, uint32_t nBytes, uint64_t nBaseMemor
         {
             // if we've reached a line end and we've accumulated ascii text
             if (!sAscii.empty())
-                std::cout << " |" << sAscii << "|";
+                zout << " |" << sAscii << "|";
 
             nBytesOnLine = 0;
-            std::cout << "\n" << HexValueOut((uint64_t)(nBaseMemoryOffset + (pWalker - pBuf)), false) << ": ";
+            zout << "\n" << HexValueOut((uint64_t)(nBaseMemoryOffset + (pWalker - pBuf)), false) << ": ";
             sAscii.clear();
         }
         else if (nBytesOnLine % 4 == 0)  // extra space every 4 bytes
         {
-            std::cout << " ";
+            zout << " ";
         }
 
         uint8_t c = *pWalker;
-        std::cout << byteToAscii[c >> 4] << byteToAscii[c & 0x0F] << " ";
+        zout << byteToAscii[c >> 4] << byteToAscii[c & 0x0F] << " ";
 
         // Accumulate visible ascii characters or just substitute a space
         if (c > ' ' && c != 127)
@@ -315,30 +573,60 @@ inline void DumpMemoryToCout(uint8_t* pBuf, uint32_t nBytes, uint64_t nBaseMemor
         while (nBytesOnLine < nColumns)
         {
             sAscii += ' ';
-            std::cout << "   ";
+            zout << "   ";
             if (nBytesOnLine % 4 == 0 && nBytesOnLine < nColumns)
-                std::cout << " ";
+                zout << " ";
             nBytesOnLine++;
         }
-        std::cout << " |" << sAscii << "|\n";
+        zout << " |" << sAscii << "|\n";
     }
 }
 
 
-inline size_t VisLength(const std::string& s)   // length of string without ansi sequences
+inline size_t VisLength(const std::string& s)
 {
-    const size_t kEscapeLength = strlen(COL_RESET);
-
-    size_t nCount = 0;
-    size_t nEscapeChar = s.find("\x1b", 0);
-    do
+    size_t length = 0;
+    size_t pos = 0;
+    while (pos < s.size())
     {
-        if (nEscapeChar != std::string::npos)
-            nCount++;
-        nEscapeChar = s.find("\x1b", nEscapeChar + kEscapeLength);
-    } while (nEscapeChar != std::string::npos);
+        if (s[pos] == '\x1b' && pos + 1 < s.size() && s[pos + 1] == '[')
+        {
+            pos += 2; // Skip ESC and '['
 
-    return s.length() - nCount * kEscapeLength;
+            // Skip until we find a final character in the range 0x40-0x7E (@-~)
+            while (pos < s.size() && !(s[pos] >= 0x40 && s[pos] <= 0x7E))
+            {
+                pos++;
+            }
+
+            // Skip the final command character if we found one
+            if (pos < s.size())
+                pos++;
+        }
+        else
+        {
+            length++;
+            pos++;
+        }
+    }
+    return length;
+}
+
+inline bool ContainsAnsiSequences(const std::string& s)
+{
+    size_t pos = 0;
+
+    while (pos < s.size())
+    {
+        if (s[pos] == '\x1b')
+        {
+            if (pos + 1 < s.size() && s[pos + 1] == '[')
+                return true; // Found ESC + [
+        }
+        pos++;
+    }
+
+    return false;
 }
 
 inline std::string StripAnsiSequences(const std::string& s)
@@ -348,21 +636,18 @@ inline std::string StripAnsiSequences(const std::string& s)
 
     while (pos < s.size())
     {
-        // If we find the start of an ANSI escape sequence
-        if (s[pos] == '\x1b' && pos + 1 < s.size() && s[pos + 1] == '[') {
-            // Skip the ANSI sequence by advancing pos
-            while (pos < s.size() && (
-                s[pos] != 'm' && s[pos] != 'A' && s[pos] != 'B' &&
-                s[pos] != 'C' && s[pos] != 'D' && s[pos] != 'E' &&
-                s[pos] != 'F' && s[pos] != 'G' && s[pos] != 'H' &&
-                s[pos] != 'J' && s[pos] != 'K' && s[pos] != 'L' &&
-                s[pos] != 'M' && s[pos] != 'P' && s[pos] != 'S' &&
-                s[pos] != 'T' && s[pos] != 'X' && s[pos] != 'f' &&
-                s[pos] != 'm' && s[pos] != 's' && s[pos] != 'u'))
+        if (s[pos] == '\x1b' && pos + 1 < s.size() && s[pos + 1] == '[')
+        {
+            pos += 2; // Skip '\x1b['
+
+            // Skip all characters that are valid inside the ANSI sequence
+            while (pos < s.size() && (isdigit(s[pos]) || s[pos] == ';' || s[pos] == '?' || s[pos] == ':' || s[pos] == '.' || s[pos] == '='))
             {
                 pos++;
             }
-            pos++; // Skip the final character that ends the ANSI sequence (e.g., 'm', 'A', etc.)
+
+            if (pos < s.size())
+                pos++; // Skip the final letter (like 'm', 'A', etc.)
         }
         else
         {
@@ -406,8 +691,6 @@ inline std::string AnsiCol(uint64_t col)
 }
 
 
-
-
 typedef std::vector<std::string> tStringArray;
 
 
@@ -431,7 +714,7 @@ typedef std::vector<std::string> tStringArray;
 // table.AddRow(rightStyle, 1.345, 0, 543, "wow");
 // 
 // table.renderWidth = 80;
-// std::cout << table;
+// zout << table;
 
 class Table
 {

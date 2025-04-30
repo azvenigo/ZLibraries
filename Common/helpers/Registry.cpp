@@ -3,6 +3,7 @@
 #include <iostream>
 #include <fstream>
 #include "helpers/StringHelpers.h"
+#include "helpers/LoggingHelpers.h"
 
 using namespace std;
 
@@ -18,7 +19,7 @@ namespace REG
         std::ifstream inFile(msRegistryFilename);
         if (!inFile)
         {
-            cout << "WARNING: Cannot open registry file:" << msRegistryFilename.c_str() << "\n";
+            zout << "WARNING: Cannot open registry file:" << msRegistryFilename.c_str() << "\n";
             return false;
         }
 

@@ -212,7 +212,7 @@ namespace CLP
                     selectionend = mText.size();
 
                     // show history window
-                    historyWin.mbVisible = true;
+                    historyWin.SetVisible(true);
                     historyWin.positionCaption[Position::CT] = "History";
                     historyWin.positionCaption[Position::RB] = "[ESC-Cancel] [ENTER-Select] [DEL-Delete Entry]";
                     historyWin.mMinWidth = ScreenW();
@@ -358,13 +358,13 @@ namespace CLP
             rawCommandBuf.AddUndoEntry();
             rawCommandBuf.HandlePaste(GetSelection());
             mEntries.clear();
-            mbVisible = false;
+            SetVisible(false);
             bHandled = true;
         }
             break;
         case VK_ESCAPE:
             mEntries.clear();
-            mbVisible = false;
+            SetVisible(false);
             rawCommandBuf.ClearSelection();
             bHandled = true;
             break;
@@ -401,7 +401,7 @@ namespace CLP
                     mEntries = commandHistory;
                     if (mEntries.empty())
                     {
-                        mbVisible = false;
+                        SetVisible(false);
                         rawCommandBuf.ClearSelection();
                     }
                 }
@@ -564,7 +564,7 @@ namespace CLP
                 rawCommandBuf.AddUndoEntry();
                 rawCommandBuf.HandlePaste(CommandLineParser::EncloseWhitespaces(mPath + selection));
                 mEntries.clear();
-                mbVisible = false;
+                SetVisible(false);
                 return true;
             }
         }
@@ -988,20 +988,20 @@ namespace CLP
         // If mode..... popup modes list
         if (enteredParams.empty())
         {
-            popupListWin.mbVisible = true;
+            popupListWin.SetVisible();
             popupListWin.positionCaption[Position::CT] = "Commands";
             popupListWin.SetEntries(availableModes, sText, anchor.X, anchor.Y);
         }
         else if (sText == enteredParams[0].sParamText && !availableModes.empty())
         {
-            popupListWin.mbVisible = true;
+            popupListWin.SetVisible();
             popupListWin.positionCaption[Position::CT] = "Commands";
             popupListWin.SetEntries(availableModes, sText, anchor.X, anchor.Y);
         }
         else if (sText[0] == '-')
         {
             popupListWin.positionCaption[Position::CT] = "Options";
-            popupListWin.mbVisible = true;
+            popupListWin.SetVisible();
             popupListWin.SetEntries(availableNamedParams, sText, anchor.X, anchor.Y);
         }
         else
@@ -1015,7 +1015,7 @@ namespace CLP
                     {
                         if (popupFolderListWin.Scan(CommandLineParser::StripEnclosure(sText), anchor.X, anchor.Y+1))
                         {
-                            popupFolderListWin.mbVisible = true;
+                            popupFolderListWin.SetVisible();
                         }
                     }
                 }
@@ -1515,20 +1515,6 @@ namespace CLP
             return kErrorAbort;
         }
 
-        int MY_HOTKEY_ID = 1;
-
-        if (!RegisterHotKey(NULL, MY_HOTKEY_ID, MOD_CONTROL, 'V'))
-        {
-            std::cerr << "Error registering hotkey" << std::endl;
-            return kErrorAbort;
-        }
-
-        if (!RegisterHotKey(NULL, MY_HOTKEY_ID, MOD_SHIFT, VK_INSERT))
-        {
-            std::cerr << "Error registering hotkey" << std::endl;
-            return kErrorAbort;
-        }
-
         if (!GetConsoleScreenBufferInfo(mhOutput, &screenInfo))
         {
             cerr << "Failed to get console info." << endl;
@@ -1580,14 +1566,14 @@ namespace CLP
 
 
         popupListWin.Init(Rect(w / 4, h / 4, w * 3 / 4, h * 3 / 4));
-        popupListWin.mbVisible = false;
+        popupListWin.SetVisible(false);
 
         historyWin.Init(Rect(w / 4, h / 4, w * 3 / 4, h * 3 / 4));
-        historyWin.mbVisible = false;
+        historyWin.SetVisible(false);
 
 
         popupFolderListWin.Init(Rect(w / 4, h / 4, w * 3 / 4, h * 3 / 4));
-        popupFolderListWin.mbVisible = false;
+        popupFolderListWin.SetVisible(false);
 
 
         LoadHistory();
@@ -1595,6 +1581,7 @@ namespace CLP
         backBuffer.resize(w*h);
         drawStateBuffer.resize(w * h);
         rawCommandBuf.Init(Rect(0, h - 4, w, h));
+        rawCommandBuf.SetVisible();
 
 
         if (!sCommandLine.empty())
@@ -1628,7 +1615,7 @@ namespace CLP
             MSG msg;
             if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
             {
-                if (msg.message == WM_HOTKEY && msg.wParam == MY_HOTKEY_ID)
+                if (msg.message == WM_HOTKEY && (msg.wParam == CTRL_V_HOTKEY || msg.wParam == SHIFT_INSERT_HOTKEY))
                 {
                     rawCommandBuf.AddUndoEntry();
                     rawCommandBuf.HandlePaste(GetTextFromClipboard());
@@ -1696,6 +1683,9 @@ namespace CLP
                 }
             }
         }
+
+        UnregisterHotKey(nullptr, CTRL_V_HOTKEY);
+        UnregisterHotKey(nullptr, SHIFT_INSERT_HOTKEY);
 
         AddToHistory(rawCommandBuf.GetText());
         SaveHistory();

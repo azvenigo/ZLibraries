@@ -34,13 +34,15 @@ void SampleLoop(int id)
         iterations += id;
         if (iterations % 10 == 0)
         {
-            zout << "WARNING: This is a warning";
+            zout << "WARNING: This is a warning\n";
             std::this_thread::sleep_for(std::chrono::microseconds(120000 * (rand() % 10)));
+//            return;
         }
         if (iterations % 21 == 0)
         {
-            zout << "ERROR: This is an error";
+            zout << "ERROR: This is an error\n";
             std::this_thread::sleep_for(std::chrono::microseconds(120000 * (rand() % 10)));
+//            return;
         }
 
         std::this_thread::sleep_for(std::chrono::microseconds(50000*(rand()%10)));
@@ -68,15 +70,28 @@ int main(int argc, char* argv[])
     }                
     
     std::thread worker1(SampleLoop, 1);
-    std::thread worker2(SampleLoop, 2);
+//    std::thread worker2(SampleLoop, 2);
 
-    cout << "running\n";
+    zout << "running\n";
     CommandLineMonitor monitor;
     monitor.Start();
 
+    zout << "Warning 1\n";
+
+    zout << "      ***Warning*** 2\n";
+
+    zout << "      nada 3           \n";
+
+    zout << "      nada 4           \n";
+    while (!monitor.IsDone())
+    {
+        std::this_thread::sleep_for(std::chrono::microseconds(1000));
+    }
+    monitor.End();
+
     bQuit = true;
     worker1.join();
-    worker2.join();
+//    worker2.join();
     zout << "Done.";
 
     return 0;

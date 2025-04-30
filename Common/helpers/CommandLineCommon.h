@@ -71,6 +71,8 @@ typedef std::list<std::string> tStringList;
 
 namespace CLP
 {
+    const int CTRL_V_HOTKEY = 1;
+    const int SHIFT_INSERT_HOTKEY = 2;
 
     enum eResponse : uint32_t
     {
@@ -316,9 +318,12 @@ namespace CLP
 
         virtual bool OnKey(int keycode, char c) { return false; }
 
+        virtual void SetVisible(bool bVisible = true) { mbVisible = bVisible; }
         virtual void SetArea(const Rect& r);
         void GetArea(Rect& r);
         void GetInnerArea(Rect& r);  // adjusted for frame
+
+
 
         void ClearScreenBuffer();
 
@@ -411,10 +416,11 @@ namespace CLP
 
     public:
         TextEditWin() : bMultiline(false) {}
+        ~TextEditWin();
 
         void SetText(const std::string& text);
 
-        void Show();
+        virtual void SetVisible(bool bVisible = true);
 
         void DrawClippedText(int64_t x, int64_t y, std::string text, ZAttrib attributes = WHITE_ON_BLACK, bool bWrap = true, bool bHighlightSelection = true, Rect* pClip = nullptr);
 
@@ -446,7 +452,8 @@ namespace CLP
 
         void AddUndoEntry();
         void Undo();
-
+        void HookHotkeys();
+        void UnhookHotkeys();
 
         tUndoEntryList mUndoEntryList;
 
@@ -464,6 +471,12 @@ namespace CLP
         int64_t firstVisibleRow = 0;
         int64_t selectionstart = -1;
         int64_t selectionend = -1;
+
+#ifdef _WIN64
+        bool    bHotkeyHooked = false;
+#endif
+
+
     };
 
 

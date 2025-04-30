@@ -111,7 +111,7 @@ bool BlockScanner::Scan(string sourcePath, string scanPath, uint64_t nBlockSize,
     mbSelfScan = scanPath.empty();
     if (mbSelfScan)
     {
-        cout << "Performing self scan for dupes.\n";
+        zout << "Performing self scan for dupes.\n";
         mSearchPath = sourcePath;
     }
 
@@ -127,8 +127,8 @@ bool BlockScanner::Scan(string sourcePath, string scanPath, uint64_t nBlockSize,
 
     mpSharedMemPool = new SharedMemPool(nThreads, nBlockSize);  // TBD, make scoped ptr
 
-    cout << "\n";
-    cout << "* Indexing Source:" << mSourcePath << "\n";
+    zout << "\n";
+    zout << "* Indexing Source:" << mSourcePath << "\n";
 
     uint64_t nStartCompute = GetUSSinceEpoch();
     ComputeMetadata();
@@ -162,8 +162,8 @@ bool BlockScanner::Scan(string sourcePath, string scanPath, uint64_t nBlockSize,
     }
     
 
-    cout << "\n";
-    cout << "* Searching Dest:" << mSearchPath << "\n";
+    zout << "\n";
+    zout << "* Searching Dest:" << mSearchPath << "\n";
 
 
     uint64_t nTotalDataSearched = 0;
@@ -225,7 +225,7 @@ bool BlockScanner::Scan(string sourcePath, string scanPath, uint64_t nBlockSize,
 
 
 
-        cout << "Scanning file: " << scanPath << "\n";
+        zout << "Scanning file: " << scanPath << "\n";
 
         scanFile.read((char*)pScanFileData, (streamsize)nScanFileSize);
 
@@ -275,7 +275,7 @@ bool BlockScanner::Scan(string sourcePath, string scanPath, uint64_t nBlockSize,
             int64_t nTime = GetUSSinceEpoch();
             if (LOG::gnVerbosityLevel > LVL_DEFAULT && nTime - nReportTime > kReportCadence)
             {
-                cout << "Searching: " << nTotalDataSearched / (1024 * 1024) << "/" << mnSearchDataSize / (1024 * 1024) << "MiB (" << std::fixed << std::setprecision(2) << (double)nTotalDataSearched * 100.0 / (double)mnSearchDataSize << "%)\n";
+                zout << "Searching: " << nTotalDataSearched / (1024 * 1024) << "/" << mnSearchDataSize / (1024 * 1024) << "MiB (" << std::fixed << std::setprecision(2) << (double)nTotalDataSearched * 100.0 / (double)mnSearchDataSize << "%)\n";
                 nReportTime = nTime;
             }
 
@@ -296,8 +296,8 @@ bool BlockScanner::Scan(string sourcePath, string scanPath, uint64_t nBlockSize,
 
     uint64_t nIndexMBPerSec = mnSourceDataSize / (nEndCompute - nStartCompute);
     uint64_t nSearchMBPerSec = mnSearchDataSize / (nEndSearch - nStartSearch);
-    cout << "Time to Index:  " << (nEndCompute - nStartCompute) / 1000 << "ms. \t" << nIndexMBPerSec << " MiB/s\n";
-    cout << "Time to Search: " << (nEndSearch - nStartSearch) / 1000 << "ms. \t" << nSearchMBPerSec << " MiB/s\n";
+    zout << "Time to Index:  " << (nEndCompute - nStartCompute) / 1000 << "ms. \t" << nIndexMBPerSec << " MiB/s\n";
+    zout << "Time to Search: " << (nEndSearch - nStartSearch) / 1000 << "ms. \t" << nSearchMBPerSec << " MiB/s\n";
 
 
     delete mpSharedMemPool;
@@ -356,8 +356,8 @@ void BlockScanner::ComputeMetadata()
 
     if (LOG::gnVerbosityLevel > LVL_DEFAULT)
     {
-        cout << "Source file count:" << pathList.size() << "\n";
-        cout << "Source data size:" << mnSourceDataSize << "\n";
+        zout << "Source file count:" << pathList.size() << "\n";
+        zout << "Source data size:" << mnSourceDataSize << "\n";
     }
 
 
@@ -430,7 +430,7 @@ void BlockScanner::ComputeMetadata()
                 int64_t nTime = GetUSSinceEpoch();
                 if (LOG::gnVerbosityLevel > LVL_DEFAULT && nTime - nReportTime > kReportCadence)
                 {
-                    cout << "Indexing: " << nTotalScanned / (1024 * 1024) << "/" << mnSourceDataSize / (1024 * 1024) << "MiB (" << std::fixed << std::setprecision(2) << (double)nTotalScanned * 100.0 / (double)mnSourceDataSize << "%)\n";
+                    zout << "Indexing: " << nTotalScanned / (1024 * 1024) << "/" << mnSourceDataSize / (1024 * 1024) << "MiB (" << std::fixed << std::setprecision(2) << (double)nTotalScanned * 100.0 / (double)mnSourceDataSize << "%)\n";
                     nReportTime = nTime;
                 }
             }
@@ -456,7 +456,7 @@ void BlockScanner::ComputeMetadata()
     {
         for (int i = 0; i < 256; i++)
         {
-            cout << "rolling hashes:[" << i << "]:" << mChecksumToBlockMap[i].size() << "\n";
+            zout << "rolling hashes:[" << i << "]:" << mChecksumToBlockMap[i].size() << "\n";
 
 
             typedef std::pair<int64_t, int64_t> tHashesAndCountPair;
@@ -473,9 +473,9 @@ void BlockScanner::ComputeMetadata()
             for (auto h : hashesAndCounts)
             {
                 if (h.second > 1)
-                    cout << "hash:" << h.first << "count:" << h.second << "\n";
+                    zout << "hash:" << h.first << "count:" << h.second << "\n";
             }
-            cout << "done.";
+            zout << "done.";
         }
     }
 #endif
@@ -538,7 +538,7 @@ int64_t BlockScanner::GetRollingChecksum(const uint8_t* pData, size_t dataLength
 //#define DEBUG_SEARCH
 SearchJobResult BlockScanner::SearchProc(const string& sSearchFilename, uint8_t* pDataToScan, uint64_t nDataLength, uint64_t nBlockSize, uint64_t nStartOffset, uint64_t nEndOffset, BlockScanner* pScanner)
 {
-//    cout << "Scanning from:" << job->nStartOffset << " to:" << job->nEndOffset << "\n";
+//    zout << "Scanning from:" << job->nStartOffset << " to:" << job->nEndOffset << "\n";
 
     SearchJobResult result;
     result.mnBytesSearched = nEndOffset-nStartOffset;
@@ -588,7 +588,7 @@ SearchJobResult BlockScanner::SearchProc(const string& sSearchFilename, uint8_t*
         if (nUSSpendLookingUpRollingHash - nLastReportRollingHashTime > 1000000)
         {
             nLastReportRollingHashTime = nUSSpendLookingUpRollingHash;
-            cout << "Time spent searching for rolling hash:" << nUSSpendLookingUpRollingHash << "\n";
+            zout << "Time spent searching for rolling hash:" << nUSSpendLookingUpRollingHash << "\n";
         }
 #endif
 
@@ -608,7 +608,7 @@ SearchJobResult BlockScanner::SearchProc(const string& sSearchFilename, uint8_t*
             if (nUSSpentComputingSHA - nLastReportComputingSHA > 1000000)
             {
                 nLastReportComputingSHA = nUSSpentComputingSHA;
-                cout << "Time spent computing SHA256:" << nUSSpentComputingSHA << "\n";
+                zout << "Time spent computing SHA256:" << nUSSpentComputingSHA << "\n";
             }
 #endif
 
@@ -621,7 +621,7 @@ SearchJobResult BlockScanner::SearchProc(const string& sSearchFilename, uint8_t*
             {
                 if (sha256.operator==(block.mSHA256))
                 {
-//                    cout << "True match found offset: " << nOffset << "  Source:" << block.mpPath << " offset :" << block.mnOffset << "\n";
+//                    zout << "True match found offset: " << nOffset << "  Source:" << block.mpPath << " offset :" << block.mnOffset << "\n";
 
                     bool bSelfMatch = (pScanner->mbSelfScan && block.mpPath == pSearchFilename && block.mnOffset == nOffset);  // if self scan, ignore matches for the same file at the same offset
 
@@ -697,9 +697,9 @@ const char* BlockScanner::UniquePath(const string& sPath)
 
 void BlockScanner::DumpReport()
 {
-    cout << "**************************************************************\n";
-    cout << "*                         Report                             *\n";
-    cout << "**************************************************************\n";
+    zout << "**************************************************************\n";
+    zout << "*                         Report                             *\n";
+    zout << "**************************************************************\n";
 
     uint64_t nTotalReusableBytes = 0;
     uint64_t nMergedBlocks = 0;
@@ -710,7 +710,7 @@ void BlockScanner::DumpReport()
     if (std::filesystem::is_directory(mSourcePath))
     {
         sCommonSource = mSourcePath;
-        cout << "Source Base: " << sCommonSource << "\n";
+        zout << "Source Base: " << sCommonSource << "\n";
     }
 
     if (!mSearchPath.empty())
@@ -718,7 +718,7 @@ void BlockScanner::DumpReport()
         if (std::filesystem::is_directory(mSearchPath))
         {
             sCommonDest = mSearchPath;
-            cout << "Search Base: " << sCommonDest << "\n";
+            zout << "Search Base: " << sCommonDest << "\n";
         }
     }
 
@@ -761,26 +761,26 @@ void BlockScanner::DumpReport()
         {
             if (fullFileMatches.size() > 0)
             {
-                cout << "\n*Full File Matched Results*\n";
+                zout << "\n*Full File Matched Results*\n";
                 table.AddRow("src_path", "dst_path", "bytes");
 
                 for (auto result : fullFileMatches)
                 {
                     table.AddRow(result.sourceFile.substr(commonSourceChars), result.destFile.substr(commonDestChars), result.nMatchingBytes);
                 }
-                cout << table;
+                zout << table;
                 table.Clear();
             }
 
             if (partialMatches.size() > 0)
             {
-                cout << "\n*Partial File Matched Results*\n";
+                zout << "\n*Partial File Matched Results*\n";
                 table.AddRow("src_path", "src_offset", "dst_path", "dst_offset", "bytes");
                 for (auto result : partialMatches)
                 {
                     table.AddRow(result.sourceFile.substr(commonSourceChars), result.nSourceOffset, result.destFile.substr(commonDestChars), result.nDestinationOffset, result.nMatchingBytes);
                 }
-                cout << table;
+                zout << table;
                 table.Clear();
             }
         }
@@ -792,7 +792,7 @@ void BlockScanner::DumpReport()
     table.SetBorders("*", "*", "*", "*", ":");
     table.defaultStyle = Table::Style(COL_GREEN, Table::RIGHT, Table::TIGHT, 1);
 
-    cout << "\n*Summary*\n";
+    zout << "\n*Summary*\n";
     table.AddRow("Source bytes", (uint64_t)mnSourceDataSize);
     table.AddRow("Search bytes", (uint64_t)mnSearchDataSize);
 
@@ -811,13 +811,13 @@ void BlockScanner::DumpReport()
     }
     table.AddRow("Unfound bytes", mnSearchDataSize - nTotalReusableBytes);
 
-    cout << table;
+    zout << table;
 
     if (LOG::gnVerbosityLevel > LVL_DEFAULT)
     {
-        cout << "\n*Debug Metrics*\n";
-        cout << std::left << std::setw(24) << "SHA Hashes Checked:" << mTotalSHAHashesChecked << "\n";
-        cout << std::left << std::setw(24) << "Rolling Hashes Checked:" << mTotalRollingHashesChecked << "\n";
-        cout << std::left << std::setw(24) << "Threads:" << mThreads << "\n";
+        zout << "\n*Debug Metrics*\n";
+        zout << std::left << std::setw(24) << "SHA Hashes Checked:" << mTotalSHAHashesChecked << "\n";
+        zout << std::left << std::setw(24) << "Rolling Hashes Checked:" << mTotalRollingHashesChecked << "\n";
+        zout << std::left << std::setw(24) << "Threads:" << mThreads << "\n";
     }
 }

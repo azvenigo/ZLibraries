@@ -16,6 +16,7 @@
 #include "helpers/FNMatch.h"
 #include "helpers/ThreadPool.h"
 #include "helpers/ZZFileAPI.h"
+#include "helpers/LoggingHelpers.h"
 
 using namespace std;
 
@@ -85,10 +86,10 @@ void ZipJob::RunCompressionJob(void* pContext)
         return;
     }
 
-    cout << "Running Compression Job.\n";
-    cout << "Package: " << pZipJob->msPackageURL << "\n";
-    cout << "Path:    " << pZipJob->msBaseFolder << "\n";
-    cout << "Pattern: " << pZipJob->msPattern << "\n";
+    zout << "Running Compression Job.\n";
+    zout << "Package: " << pZipJob->msPackageURL << "\n";
+    zout << "Path:    " << pZipJob->msBaseFolder << "\n";
+    zout << "Pattern: " << pZipJob->msPattern << "\n";
 
 
     if (!std::filesystem::exists(pZipJob->msBaseFolder))
@@ -118,12 +119,12 @@ void ZipJob::RunCompressionJob(void* pContext)
     for (auto it : std::filesystem::recursive_directory_iterator(compressFolder))
     {
         if (pZipJob->mbVerbose)
-            cout << "Found:" << it;
+            zout << "Found:" << it;
 
         if (FNMatch(pZipJob->msPattern, it.path().generic_string().c_str()))
         {
             if (pZipJob->mbVerbose)
-                cout << "...matches.\n";
+                zout << "...matches.\n";
 
             cCDFileHeader fileHeader;
             fileHeader.mFileName = it.path().generic_string();
@@ -139,18 +140,18 @@ void ZipJob::RunCompressionJob(void* pContext)
         {
             nTotalFilesSkipped++;
             if (pZipJob->mbVerbose)
-                cout << "...no match. Skipping.\n";
+                zout << "...no match. Skipping.\n";
         }
     }
 
     if (filesToCompress.size() == 0)
     {
-        cout << "Found no matching files to compress. Aborting.\n";
+        zout << "Found no matching files to compress. Aborting.\n";
         pZipJob->mJobStatus.mStatus = JobStatus::kFinished;
         return;
     }
 
-    cout << "Found " << filesToCompress.size() << " files.  Total size: " << FormatFriendlyBytes(nTotalBytes, SH::kMiB) << " (" << nTotalBytes << " bytes)\n";
+    zout << "Found " << filesToCompress.size() << " files.  Total size: " << FormatFriendlyBytes(nTotalBytes, SH::kMiB) << " (" << nTotalBytes << " bytes)\n";
     pZipJob->mJobProgress.Reset();
     pZipJob->mJobProgress.AddBytesToProcess(nTotalBytes);
     
@@ -158,45 +159,45 @@ void ZipJob::RunCompressionJob(void* pContext)
     for (auto fileHeader : filesToCompress)
     {
         if (pZipJob->mbVerbose)
-            cout << "Adding to Zip File: " << fileHeader.mFileName << "\n";
+            zout << "Adding to Zip File: " << fileHeader.mFileName << "\n";
         zipAPI.AddToZipFile(fileHeader.mFileName, pZipJob->msBaseFolder, &pZipJob->mJobProgress);
     }
 
-    cout << "Finished\n";
+    zout << "Finished\n";
 
 
     cZipCD& zipCD = zipAPI.GetZipCD();
 
-    cout << "[==============================================================]\n";
-    cout << "Total Files Skipped:               " << nTotalFilesSkipped << "\n";
-    cout << "Total Files Added:                 " << zipCD.GetNumTotalFiles() << "\n";
-    cout << "Total Folders Added:               " << zipCD.GetNumTotalFolders() << "\n";
+    zout << "[==============================================================]\n";
+    zout << "Total Files Skipped:               " << nTotalFilesSkipped << "\n";
+    zout << "Total Files Added:                 " << zipCD.GetNumTotalFiles() << "\n";
+    zout << "Total Folders Added:               " << zipCD.GetNumTotalFolders() << "\n";
 
 
     uint64_t nTotalUncompressed = zipCD.GetTotalUncompressedBytes();
     uint64_t nTotalCompressed = zipCD.GetTotalCompressedBytes();
 
-    cout << "Total Bytes Read from Disk:        " << nTotalUncompressed << "\n";
-    cout << "Total Compressed Bytes:            " << zipCD.GetTotalCompressedBytes() << "\n";
+    zout << "Total Bytes Read from Disk:        " << nTotalUncompressed << "\n";
+    zout << "Total Compressed Bytes:            " << zipCD.GetTotalCompressedBytes() << "\n";
 
 
     if (zipCD.GetTotalUncompressedBytes() > 0)
     {
         float fCompressionRatio = ((float) (nTotalCompressed/1024) / (float) (nTotalUncompressed/1024));
 
-        std::ios cout_state(nullptr);   // store precision
-        cout_state.copyfmt(std::cout);
-        cout << "Compression Ratio:                 " << setprecision(2) << fCompressionRatio << "\n";
+//        std::ios cout_state(nullptr);   // store precision
+//        cout_state.copyfmt(zout);
+        zout << "Compression Ratio:                 " << setprecision(2) << fCompressionRatio << "\n";
 
-        std::cout.copyfmt(cout_state);  // restore precision
+//        zout.copyfmt(cout_state);  // restore precision
     }
 
-    cout << "[--------------------------------------------------------------]\n";
+    zout << "[--------------------------------------------------------------]\n";
 
-    cout << "Total Time Taken:                  " << pZipJob->mJobProgress.GetElapsedTimeMS()/1000 << "s\n";
-    cout << "Compression Speed:                 " << FormatFriendlyBytes(pZipJob->mJobProgress.GetBytesPerSecond(), SH::kMiB) << "/s \n";
+    zout << "Total Time Taken:                  " << pZipJob->mJobProgress.GetElapsedTimeMS()/1000 << "s\n";
+    zout << "Compression Speed:                 " << FormatFriendlyBytes(pZipJob->mJobProgress.GetBytesPerSecond(), SH::kMiB) << "/s \n";
 
-    cout << "[==============================================================]\n";
+    zout << "[==============================================================]\n";
 
 
 
@@ -328,17 +329,17 @@ void ZipJob::RunDiffJob(void* pContext)
     bool bAllMatch = (nDifferentFiles == 0 && nSourceOnlyFiles == 0 && nTargetOnlyFiles == 0);
 
     // Write formatted header
-    cout << StartPageHeader(stringFormat);
-    cout << StartSection(stringFormat);
-    cout << FormatStrings(stringFormat, "ZiP Package", "Path");
-    cout << FormatStrings(stringFormat, pZipJob->msPackageURL, pZipJob->msBaseFolder);
-    cout << EndSection(stringFormat);
+    zout << StartPageHeader(stringFormat);
+    zout << StartSection(stringFormat);
+    zout << FormatStrings(stringFormat, "ZiP Package", "Path");
+    zout << FormatStrings(stringFormat, pZipJob->msPackageURL, pZipJob->msBaseFolder);
+    zout << EndSection(stringFormat);
 
     // If any files are different then show a breakdown of differences
     if (!bAllMatch)
     {
-        cout << StartSection(stringFormat);
-        cout << FormatStrings(stringFormat, "Package Only (Missing from destination folder)", "Path Only (Not in package)");
+        zout << StartSection(stringFormat);
+        zout << FormatStrings(stringFormat, "Package Only (Missing from destination folder)", "Path Only (Not in package)");
 
         // Source Only
         for (auto &resultIt : diffResults)
@@ -348,7 +349,7 @@ void ZipJob::RunDiffJob(void* pContext)
             {
             case DiffTaskResult::kDirPackageOnly:
             case DiffTaskResult::kFilePackageOnly:
-                cout << FormatStrings(stringFormat, diffResult.mFilename, ""); // second column is blank
+                zout << FormatStrings(stringFormat, diffResult.mFilename, ""); // second column is blank
                 break;
             default: break;
             }
@@ -362,38 +363,38 @@ void ZipJob::RunDiffJob(void* pContext)
             {
             case DiffTaskResult::kDirPathOnly:
             case DiffTaskResult::kFilePathOnly:
-                cout << FormatStrings(stringFormat, "", diffResult.mFilename, ""); // first column is blank
+                zout << FormatStrings(stringFormat, "", diffResult.mFilename, ""); // first column is blank
                 break;
             default: break;
             }
         }
 
-        cout << EndSection(stringFormat);
+        zout << EndSection(stringFormat);
     }
 
-    cout << StartSection(stringFormat);
-    cout << StartDelimiter(stringFormat, 5) << "Diff Summary" << EndDelimiter(stringFormat);
+    zout << StartSection(stringFormat);
+    zout << StartDelimiter(stringFormat, 5) << "Diff Summary" << EndDelimiter(stringFormat);
 
-    cout << FormatStrings(stringFormat, "Matching Dirs: ", to_string(nMatchDirs));
-    cout << FormatStrings(stringFormat, "Matching Files: ", to_string(nMatchFiles), " Size:", to_string(nMatchFileBytes));
+    zout << FormatStrings(stringFormat, "Matching Dirs: ", to_string(nMatchDirs));
+    zout << FormatStrings(stringFormat, "Matching Files: ", to_string(nMatchFiles), " Size:", to_string(nMatchFileBytes));
 
     if (bAllMatch)
     {
-        cout << FormatStrings(stringFormat, "** ALL MATCH **");
+        zout << FormatStrings(stringFormat, "** ALL MATCH **");
     }
     else
     {
-        cout << FormatStrings(stringFormat, "Different Files: ", to_string(nDifferentFiles), " Size:", to_string(nDifferentFilesSourceBytes));
+        zout << FormatStrings(stringFormat, "Different Files: ", to_string(nDifferentFiles), " Size:", to_string(nDifferentFilesSourceBytes));
 
-        cout << FormatStrings(stringFormat, "Package Only Dirs: ", to_string(nSourceOnlyDirs));
-        cout << FormatStrings(stringFormat, "Path Only Dirs: ", to_string(nTargetOnlyDirs));
+        zout << FormatStrings(stringFormat, "Package Only Dirs: ", to_string(nSourceOnlyDirs));
+        zout << FormatStrings(stringFormat, "Path Only Dirs: ", to_string(nTargetOnlyDirs));
 
-        cout << FormatStrings(stringFormat, "Package Only Files: ", to_string(nSourceOnlyFiles), " Size:", to_string(nSourceOnlyFileBytes));
-        cout << FormatStrings(stringFormat, "Path Only Files: ", to_string(nTargetOnlyFiles), " Size:", to_string(nTargetOnlyFileBytes));
+        zout << FormatStrings(stringFormat, "Package Only Files: ", to_string(nSourceOnlyFiles), " Size:", to_string(nSourceOnlyFileBytes));
+        zout << FormatStrings(stringFormat, "Path Only Files: ", to_string(nTargetOnlyFiles), " Size:", to_string(nTargetOnlyFileBytes));
     }
 
-    cout << EndSection(stringFormat);
-    cout << EndPageFooter(stringFormat);
+    zout << EndSection(stringFormat);
+    zout << EndPageFooter(stringFormat);
 
     pZipJob->mJobStatus.mStatus = JobStatus::kFinished;
 }
@@ -401,13 +402,13 @@ void ZipJob::RunDiffJob(void* pContext)
 bool ZipJob::FileNeedsUpdate(const string& sPath, uint64_t nComparedFileSize, uint32_t nComparedFileCRC)
 {
     if (mbVerbose)
-        cout << "Verifying file " << sPath;
+        zout << "Verifying file " << sPath;
 
     shared_ptr<cZZFile> pLocalFile;
     if (!cZZFile::Open(sPath, cZZFile::ZZFILE_READ, pLocalFile, mbVerbose))	// If no local file it clearly needs to be updated
     {
         if (mbVerbose)
-            cout << "...missing. NEEDS UPDATE.\n";
+            zout << "...missing. NEEDS UPDATE.\n";
         return true;
     }
 
@@ -415,7 +416,7 @@ bool ZipJob::FileNeedsUpdate(const string& sPath, uint64_t nComparedFileSize, ui
     if (nFileSize != nComparedFileSize)	// if the file size is different no need to do a CRC calc
     {
         if (mbVerbose)
-            cout << "...size on disk:" << nFileSize << " package:" << nComparedFileSize << ". NEEDS UPDATE.\n";
+            zout << "...size on disk:" << nFileSize << " package:" << nComparedFileSize << ". NEEDS UPDATE.\n";
         return true;
     }
 
@@ -435,12 +436,12 @@ bool ZipJob::FileNeedsUpdate(const string& sPath, uint64_t nComparedFileSize, ui
     if (nCRC != nComparedFileCRC)
     {
         if (mbVerbose)
-            cout << "...CRC on disk:" << nCRC << " package:" << nComparedFileCRC << ". NEEDS UPDATE.\n";
+            zout << "...CRC on disk:" << nCRC << " package:" << nComparedFileCRC << ". NEEDS UPDATE.\n";
         return true;
     }
 
     if (mbVerbose)
-        cout << "...matches.\n";
+        zout << "...matches.\n";
 
     return false;
 }
@@ -454,11 +455,11 @@ void ZipJob::RunDecompressionJob(void* pContext)
 
     if (pZipJob->mbVerbose)
     {
-        cout << "Running Deompression Job.\n";
-        cout << "Package: " << pZipJob->msPackageURL << "\n";
-        cout << "Path:    " << pZipJob->msBaseFolder << "\n";
-        cout << "Pattern: " << pZipJob->msPattern << "\n";
-        cout << "Threads: " << pZipJob->mnThreads << "\n";
+        zout << "Running Deompression Job.\n";
+        zout << "Package: " << pZipJob->msPackageURL << "\n";
+        zout << "Path:    " << pZipJob->msBaseFolder << "\n";
+        zout << "Pattern: " << pZipJob->msPattern << "\n";
+        zout << "Threads: " << pZipJob->mnThreads << "\n";
     }
 
 
@@ -486,7 +487,7 @@ void ZipJob::RunDecompressionJob(void* pContext)
     string sPattern = pZipJob->msPattern;
 
     // Create folder structure and build list of files that match pattern
-    cout << "Creating Folders.\n";
+    zout << "Creating Folders.\n";
     for (tCDFileHeaderList::iterator it = zipCD.mCDFileHeaderList.begin(); it != zipCD.mCDFileHeaderList.end(); it++)
     {
         cCDFileHeader& cdFileHeader = *it;
@@ -494,7 +495,7 @@ void ZipJob::RunDecompressionJob(void* pContext)
         if (FNMatch(sPattern, cdFileHeader.mFileName))
         {
             if (pZipJob->mbVerbose)
-                cout << "Pattern: \"" << sPattern.c_str() << "\" File: \"" << cdFileHeader.mFileName.c_str() << "\" matches. \n";
+                zout << "Pattern: \"" << sPattern.c_str() << "\" File: \"" << cdFileHeader.mFileName.c_str() << "\" matches. \n";
 
             std::filesystem::path fullPath(pZipJob->msBaseFolder);
             fullPath.append(cdFileHeader.mFileName);
@@ -508,7 +509,7 @@ void ZipJob::RunDecompressionJob(void* pContext)
         else
         {
             if (pZipJob->mbVerbose)
-                cout << "File Skipped: \"" << cdFileHeader.mFileName.c_str() << "\"\n";
+                zout << "File Skipped: \"" << cdFileHeader.mFileName.c_str() << "\"\n";
             nTotalFilesSkipped++;
         }
     }
@@ -531,7 +532,7 @@ void ZipJob::RunDecompressionJob(void* pContext)
             if (!filesystem::is_directory(fullPath.parent_path()))
             {
                 if (pZipJob->mbVerbose)
-                    cout << "Creating Path: \"" << fullPath.parent_path() << "\"\n";
+                    zout << "Creating Path: \"" << fullPath.parent_path() << "\"\n";
                 std::filesystem::create_directories(fullPath.parent_path());
             }
 
@@ -594,7 +595,7 @@ void ZipJob::RunDecompressionJob(void* pContext)
         nTotalBytesDownloaded += taskResult.mBytesDownloaded;
         nTotalWrittenToDisk += taskResult.mBytesWrittenToDisk;
 
-        //		cout << taskResult << "\n";
+        //		zout << taskResult << "\n";
     }
 
 
@@ -608,16 +609,16 @@ void ZipJob::RunDecompressionJob(void* pContext)
         pZipJob->mJobStatus.mStatus = JobStatus::eJobStatus::kError;
 
         
-    cout << "[==============================================================]\n";
-    cout << "Total Files Skipped:               " << nTotalFilesSkipped << "\n";
+    zout << "[==============================================================]\n";
+    zout << "Total Files Skipped:               " << nTotalFilesSkipped << "\n";
 
     if (!pZipJob->mbSkipCRC)
     {
-        cout << "Total Files Verified:              " << nTotalFilesUpToDate << "\n";
-        cout << "Total Bytes Verified:              " << FormatFriendlyBytes(nTotalBytesVerified);
+        zout << "Total Files Verified:              " << nTotalFilesUpToDate << "\n";
+        zout << "Total Bytes Verified:              " << FormatFriendlyBytes(nTotalBytesVerified);
         if (nTotalTimeOnFileVerification > 0)
-            cout << " (Rate:" << (nTotalBytesVerified / 1024) / (nTotalTimeOnFileVerification / 1000) << "MB/s)";
-        cout << "\n";
+            zout << " (Rate:" << (nTotalBytesVerified / 1024) / (nTotalTimeOnFileVerification / 1000) << "MB/s)";
+        zout << "\n";
     }
 
     bool bIsHTTPJob = (pZipJob->msPackageURL.substr(0, 4) == "http");  // if the url starts with "http" then we're downloading 
@@ -626,44 +627,44 @@ void ZipJob::RunDecompressionJob(void* pContext)
     if (nTotalBytesDownloaded > 0 || nTotalFilesUpdated > 0)
     {
 
-        cout << "Total Files Extracted:             " << nTotalFilesUpdated << "\n";
-        cout << "Total Folders Created:             " << nTotalFoldersCreated << "\n";
-        cout << "Total Errors:                      " << nTotalErrors << "\n";
+        zout << "Total Files Extracted:             " << nTotalFilesUpdated << "\n";
+        zout << "Total Folders Created:             " << nTotalFoldersCreated << "\n";
+        zout << "Total Errors:                      " << nTotalErrors << "\n";
 
         if (bIsHTTPJob)
-            cout << "Total Downloaded:                  ";
+            zout << "Total Downloaded:                  ";
         else
-            cout << "Total Bytes Extracted:             ";
+            zout << "Total Bytes Extracted:             ";
 
-        cout << FormatFriendlyBytes(nTotalBytesDownloaded);
+        zout << FormatFriendlyBytes(nTotalBytesDownloaded);
         
         if (diffMS > 0)
-            cout << " (Rate:" << (nTotalBytesDownloaded / 1024) / (diffMS) << "MB/s)";
+            zout << " (Rate:" << (nTotalBytesDownloaded / 1024) / (diffMS) << "MB/s)";
 
-        cout << "\n";
+        zout << "\n";
 
 
-        cout << "Total Uncompressed Bytes Written:  " << FormatFriendlyBytes(nTotalWrittenToDisk);
+        zout << "Total Uncompressed Bytes Written:  " << FormatFriendlyBytes(nTotalWrittenToDisk);
         
         if (diffMS > 0)
-            cout << " (Rate:" << (nTotalWrittenToDisk / 1024) / (diffMS) << "MB/s)";
+            zout << " (Rate:" << (nTotalWrittenToDisk / 1024) / (diffMS) << "MB/s)";
 
-        cout << "\n";
+        zout << "\n";
     }
     else
     {
         if (bIsHTTPJob)
-            cout << "No files needed to be downloaded.\n";
+            zout << "No files needed to be downloaded.\n";
         else
-            cout << "No files needed to be extracted.\n";
+            zout << "No files needed to be extracted.\n";
     }
 
     if (pZipJob->mbVerbose)
     {
-        cout << "[--------------------------------------------------------------]\n";
-        cout << "Total Job Time:                    " << diffMS << "\n";
-        cout << "Threads:                           " << pZipJob->mnThreads << "\n";
-        cout << "[==============================================================]\n";
+        zout << "[--------------------------------------------------------------]\n";
+        zout << "Total Job Time:                    " << diffMS << "\n";
+        zout << "Threads:                           " << pZipJob->mnThreads << "\n";
+        zout << "[==============================================================]\n";
     }
 
     pZipJob->mJobStatus.mStatus = JobStatus::kFinished;
@@ -677,9 +678,9 @@ void ZipJob::RunListJob(void* pContext)
     string sName = pZipJob->msName;
     string sPassword = pZipJob->msPassword;
 
-    cout << "List files in Package: " << sURL << "\n";
+    zout << "List files in Package: " << sURL << "\n";
     if (!pZipJob->msPattern.empty())
-        cout << "Files that match pattern: \"" << pZipJob->msPattern << "\"\n";
+        zout << "Files that match pattern: \"" << pZipJob->msPattern << "\"\n";
 
     shared_ptr<cZZFile> pZZFile;
     if (!cZZFile::Open(sURL, cZZFile::ZZFILE_READ, pZZFile,  pZipJob->mbVerbose))
@@ -695,7 +696,7 @@ void ZipJob::RunListJob(void* pContext)
         return;
     }
 
-    zipCD.DumpCD(cout, pZipJob->msPattern, pZipJob->mbVerbose, pZipJob->mOutputFormat);
+    zipCD.DumpCD(zout, pZipJob->msPattern, pZipJob->mbVerbose, pZipJob->mOutputFormat);
 
 
 
@@ -714,7 +715,7 @@ bool ZipJob::Join()
         std::chrono::milliseconds elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds> (std::chrono::system_clock::now() - timeOfLastReport);
         if ((uint64_t)elapsed_ms.count() > kMSBetweenReports && mJobProgress.GetEstimatedSecondsRemaining() > kMSBetweenReports/1000) // don't report any more if there's less than 2 seconds remaining
         {
-            cout << mJobProgress.GetPercentageComplete() << "% Completed. Elapsed:" << mJobProgress.GetElapsedTimeMS() / 1000 << "s Remaining:~" << mJobProgress.GetEstimatedSecondsRemaining() << "s Rate:" << FormatFriendlyBytes(mJobProgress.GetBytesPerSecond(), SH::kMiB) << "/s Completed:" << FormatFriendlyBytes(mJobProgress.GetBytesProcessed(), SH::kMiB) << " of " << FormatFriendlyBytes(mJobProgress.GetBytesToProcess(), SH::kMiB) << " \n";
+            zout << mJobProgress.GetPercentageComplete() << "% Completed. Elapsed:" << mJobProgress.GetElapsedTimeMS() / 1000 << "s Remaining:~" << mJobProgress.GetEstimatedSecondsRemaining() << "s Rate:" << FormatFriendlyBytes(mJobProgress.GetBytesPerSecond(), SH::kMiB) << "/s Completed:" << FormatFriendlyBytes(mJobProgress.GetBytesProcessed(), SH::kMiB) << " of " << FormatFriendlyBytes(mJobProgress.GetBytesToProcess(), SH::kMiB) << " \n";
             timeOfLastReport = std::chrono::system_clock::now();
         }
     }
@@ -727,7 +728,7 @@ bool ZipJob::Join()
     }
 
     if (mbVerbose)
-        cout << mJobStatus << "\n";
+        zout << mJobStatus << "\n";
 
     mWorkers.clear();
 

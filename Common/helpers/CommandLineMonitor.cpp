@@ -28,9 +28,12 @@ namespace CLP
 
     void LogWin::SetVisible(bool bVisible)
     {
+        if (mbVisible != bVisible)
+            invalid = true;
+
         mbVisible = bVisible;
-        gLogOut.outputToFallback = !bVisible;
-        gLogErr.outputToFallback = !bVisible;
+        LOG::gLogOut.m_outputToFallback = !bVisible;
+        LOG::gLogErr.m_outputToFallback = !bVisible;
 
         if (bVisible)
         {
@@ -48,9 +51,9 @@ namespace CLP
         if (!mbVisible)
             return;
 
-        if (lastReportedLogCount != gLogger.getCount())
+        if (lastReportedLogCount != LOG::gLogger.getCount())
         {
-            lastReportedLogCount = gLogger.getCount();
+            lastReportedLogCount = LOG::gLogger.getCount();
             invalid = true;
         }
 
@@ -75,17 +78,17 @@ namespace CLP
                 
             if (viewAtEnd)
             {
-                entries = gLogger.tail(drawHeight, sFilter);
+                entries = LOG::gLogger.tail(drawHeight, sFilter);
                 topLogEntryTimestamp = 0;
                 if (!entries.empty())
                 {
                     topLogEntryTimestamp = entries[0].time;
-                    mTopVisibleRow = gLogger.getCount() - drawHeight;
+                    mTopVisibleRow = LOG::gLogger.getCount() - drawHeight;
                 }
             }
             else
             {
-                gLogger.getEntries(mTopVisibleRow, drawHeight, entries, sFilter);
+                LOG::gLogger.getEntries(mTopVisibleRow, drawHeight, entries, sFilter);
             }
 
             positionCaption[ConsoleWin::Position::LT] = "Info Window";
@@ -93,31 +96,50 @@ namespace CLP
             Table logtail;
             if (mTopVisibleRow > 0)
                 logtail.borders[Table::TOP].clear();    // if there are lines above the top of the window, no top table border
-            if (mTopVisibleRow + drawHeight < (int64_t)gLogger.getCount())
+            if (mTopVisibleRow + drawHeight < (int64_t)LOG::gLogger.getCount())
                 logtail.borders[Table::BOTTOM].clear(); // if there are lines below the bottom of the window, no bottom table border
 
             for (const auto& e : entries)
             {
-                Table::Style cellStyle;
                 Table::tCellArray row;
+                Table::Style cellStyle;
                 if (viewCountEnabled)
                     row.push_back(SH::FromInt(e.counter));
                 if (viewTimestamp)
                     row.push_back(LOG::usToDateTime(e.time));
-                if (viewColorWarningsAndErrors)
+
+                if (ContainsAnsiSequences(e.text))
+                {
+                    cellStyle = Table::Style(COL_CUSTOM_STYLE);
+                }
+                else if (viewColorWarningsAndErrors)
                 {
                     if (SH::Contains(e.text, "error", false))
+                    {
                         cellStyle = Table::Style(COL_RED);
+                    }
                     else if (SH::Contains(e.text, "warning", false))
+                    {
                         cellStyle = Table::Style(COL_ORANGE);
+                    }
+
                 }
+#ifdef _DEBUG
+                validateAnsiSequences(e.text);
+#endif
                 row.push_back(Table::Cell(e.text, cellStyle));
+#ifdef _DEBUG
+                validateAnsiSequences(Table::Cell(e.text, cellStyle).StyledOut(e.text.length()));
+#endif
 
                 logtail.AddRow(row);
             }
 
             logtail.AlignWidth(drawWidth, logtail);
             mText = (string)logtail;
+#ifdef _DEBUG
+            validateAnsiSequences(mText);
+#endif
 
             UpdateCaptions();
         }
@@ -156,7 +178,7 @@ namespace CLP
         else
             positionCaption[ConsoleWin::Position::LB] = "Filter:\"" + sFilter + "\"";
 
-        positionCaption[ConsoleWin::Position::RT] = "Log lines (" + SH::FromInt(mTopVisibleRow + 1) + "/" + SH::FromInt(gLogger.getCount()) + ")";
+        positionCaption[ConsoleWin::Position::RT] = "Log lines (" + SH::FromInt(mTopVisibleRow + 1) + "/" + SH::FromInt(LOG::gLogger.getCount()) + ")";
         positionCaption[ConsoleWin::Position::RB] = "[UP/DOWN][PAGE Up/Down][HOME/END]";
     }
 
@@ -170,16 +192,17 @@ namespace CLP
         Rect drawArea;
         GetInnerArea(drawArea);
 
+
         DrawClippedAnsiText(drawArea.l, drawArea.t, mText, true, &drawArea);
         int64_t h = drawArea.b - drawArea.t;
 
-        int64_t logCount = (int64_t)gLogger.getCount();
+        int64_t logCount = (int64_t)LOG::gLogger.getCount();
         if (logCount > h)
         {
             ZAttrib bg(MAKE_BG(0xff555555));
             ZAttrib thumb(MAKE_BG(0xffbbbbbb));
             Rect sb(drawArea.r - 1, drawArea.t, drawArea.r, drawArea.b);
-            DrawScrollbar(sb, 0, gLogger.getCount()-h, mTopVisibleRow, bg, thumb);
+            DrawScrollbar(sb, 0, LOG::gLogger.getCount()-h, mTopVisibleRow, bg, thumb);
         }
 
         ConsoleWin::RenderToBackBuf(backBuf);
@@ -195,7 +218,7 @@ namespace CLP
         bool bCTRLHeld = GetKeyState(VK_CONTROL) & 0x800;
 
 
-        int64_t entryCount = gLogger.getCount();
+        int64_t entryCount = LOG::gLogger.getCount();
 
         if (keycode == VK_UP)
         {
@@ -269,7 +292,7 @@ namespace CLP
                 {
                     textEntryWin.Clear(ZAttrib(0xff666699ffffffff));
                     textEntryWin.SetArea(Rect(mX, mY + mHeight, mX + mWidth - 1, mY + mHeight+1));
-                    textEntryWin.Show();
+                    textEntryWin.SetVisible();
                     invalid = true;
                 }
                 bHandled = true;
@@ -327,6 +350,8 @@ namespace CLP
             cout << "\033[?25l";
         }
 
+        COORD savePos = gLastCursorPos;
+
         for (int64_t y = 0; y < ScreenH(); y++)
         {
             for (int64_t x = 0; x < ScreenW(); x++)
@@ -339,13 +364,16 @@ namespace CLP
             }
         }
 
+        SetCursorPosition(savePos);
+
         drawStateBuffer = backBuffer;
         bScreenChanged = false;
 
 
 //        if (bCursorHidden && !bCursorShouldBeHidden)
+        if (textEntryWin.mbVisible)
         {
-            cout << "\033[?25h";
+            cout << "\033[?25h";    // visible cursor
         }
     }
 
@@ -413,7 +441,7 @@ namespace CLP
             logWin.SetVisible(false);
             RestoreConsoleState();
 
-            LOG::tLogEntries entries = gLogger.tail(ScreenH());
+            LOG::tLogEntries entries = LOG::gLogger.tail(ScreenH());
             for (const auto& entry : entries)
             {
                 cout << entry.text << std::endl;
@@ -423,42 +451,11 @@ namespace CLP
     }
 
 
-
-    void CommandLineMonitor::Start()
+    void CommandLineMonitor::ThreadProc(CommandLineMonitor* pCLM)
     {
-        mbVisible = false;
-        mbDone = false;
-        mbCanceled = false;
-
-        // Get the handle to the standard input
-        mhInput = GetStdHandle(STD_INPUT_HANDLE);
-        mhOutput = GetStdHandle(STD_OUTPUT_HANDLE);
-        if (mhInput == INVALID_HANDLE_VALUE || mhOutput == INVALID_HANDLE_VALUE)
-        {
-            cerr << "Failed to get standard input/output handle." << endl;
-            return;
-        }
-
-        int MY_HOTKEY_ID = 1;
-
-        if (!RegisterHotKey(NULL, MY_HOTKEY_ID, MOD_CONTROL, 'V'))
-        {
-            std::cerr << "Error registering hotkey" << std::endl;
-            return;
-        }
-
-        if (!RegisterHotKey(NULL, MY_HOTKEY_ID, MOD_SHIFT, VK_INSERT))
-        {
-            std::cerr << "Error registering hotkey" << std::endl;
-            return;
-        }
-
-        if (!GetConsoleScreenBufferInfo(mhOutput, &screenInfo))
-        {
-            cerr << "Failed to get console info." << endl;
-            return;
-        }
-
+        // Main loop to read input events
+        INPUT_RECORD inputRecord[128];
+        DWORD numEventsRead;
 
         SHORT w = ScreenW();
         SHORT h = ScreenH();
@@ -474,52 +471,46 @@ namespace CLP
         //WriteConsoleOutput(mhOutput, &blank[0], screenInfo.dwSize, { 0, 0 }, &smallrect);
 
 
-        // Set console mode to allow reading mouse and key events
-        DWORD mode;
-        if (!GetConsoleMode(mhInput, &mode))
-        {
-            cerr << "Failed to get console mode." << endl;
-            return;
-        }
-        mode |= ENABLE_MOUSE_INPUT | ENABLE_EXTENDED_FLAGS | ENABLE_WINDOW_INPUT | ENABLE_VIRTUAL_TERMINAL_PROCESSING;
-        mode &= ~ENABLE_PROCESSED_INPUT;
-
-        //mode |= ENABLE_PROCESSED_INPUT;
-        if (!SetConsoleMode(mhInput, mode))
-        {
-            cerr << "Failed to set console mode." << endl;
-            return;
-        }
-
-        // Main loop to read input events
-        INPUT_RECORD inputRecord[128];
-        DWORD numEventsRead;
-
-        backBuffer.resize(w*h);
-        drawStateBuffer.resize(w * h);
+        pCLM->backBuffer.resize(w*h);
+        pCLM->drawStateBuffer.resize(w * h);
 
         ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
         // Clear the raw command buffer and param buffers
         //UpdateFromConsoleSize(true);
 
-        while (!mbDone && !mbCanceled)
+        while (!pCLM->mbDone && !pCLM->mbCanceled)
         {
             logWin.Update();
 
-            if (mbVisible)
+            if (textEntryWin.mbVisible)
             {
-                UpdateFromConsoleSize(bScreenChanged);  // force update if the screen changed
-                UpdateDisplay();
+                if (GetConsoleWindow() == GetForegroundWindow())
+                {
+                    textEntryWin.HookHotkeys();
+                }
+                else
+                {
+                    textEntryWin.UnhookHotkeys();
+                }
+            }
+
+            if (pCLM->mbVisible)
+            {
+                pCLM->UpdateFromConsoleSize(bScreenChanged);  // force update if the screen changed
+                pCLM->UpdateDisplay();
             }
 
             // Check for hotkey events
             MSG msg;
             if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
             {
-                if (msg.message == WM_HOTKEY && msg.wParam == MY_HOTKEY_ID)
+                if (msg.message == WM_HOTKEY && (msg.wParam == CTRL_V_HOTKEY || msg.wParam == SHIFT_INSERT_HOTKEY))
                 {
-                    textEntryWin.AddUndoEntry();
-                    textEntryWin.HandlePaste(GetTextFromClipboard());
+                    if (textEntryWin.mbVisible)
+                    {
+                        textEntryWin.AddUndoEntry();
+                        textEntryWin.HandlePaste(GetTextFromClipboard());
+                    }
                 }
                 else
                 {
@@ -560,7 +551,7 @@ namespace CLP
 
                             if (textEntryWin.mbCanceled || textEntryWin.mbDone)
                             {
-                                textEntryWin.mbVisible = false;
+                                textEntryWin.SetVisible(false);
                                 textEntryWin.mbCanceled = false;
                                 textEntryWin.mbDone = false;
                                 bHandled = true;
@@ -569,27 +560,77 @@ namespace CLP
                         }
                         if (logWin.mbVisible && logWin.mbCanceled)
                         {
-                            SetMonitorVisible(!mbVisible);
+                            pCLM->SetMonitorVisible(!pCLM->mbVisible);
                             bHandled = true;
                             bScreenChanged = true;
                         }
 
                         if (keycode == VK_ESCAPE && !bHandled)
                         {
-                            mbDone = true;
+                            pCLM->mbDone = true;
                             bScreenChanged = true;
                         }
                         else if (keycode == VK_F1)
                         {
-                            SetMonitorVisible(!mbVisible);
+                            pCLM->SetMonitorVisible(!pCLM->mbVisible);
                         }
                     }
                 }
             }
         }
 
-        if (mbVisible)
-            SetMonitorVisible(false);
+        if (pCLM->mbVisible)
+            pCLM->SetMonitorVisible(false);
+    }
+
+
+    void CommandLineMonitor::Start()
+    {
+        mbVisible = false;
+        mbDone = false;
+        mbCanceled = false;
+
+        // Get the handle to the standard input
+        mhInput = GetStdHandle(STD_INPUT_HANDLE);
+        mhOutput = GetStdHandle(STD_OUTPUT_HANDLE);
+        if (mhInput == INVALID_HANDLE_VALUE || mhOutput == INVALID_HANDLE_VALUE)
+        {
+            cerr << "Failed to get standard input/output handle." << endl;
+            return;
+        }
+
+        if (!GetConsoleScreenBufferInfo(mhOutput, &screenInfo))
+        {
+            cerr << "Failed to get console info." << endl;
+            return;
+        }
+
+
+
+        // Set console mode to allow reading mouse and key events
+        DWORD mode;
+        if (!GetConsoleMode(mhInput, &mode))
+        {
+            cerr << "Failed to get console mode." << endl;
+            return;
+        }
+        mode |= ENABLE_MOUSE_INPUT | ENABLE_EXTENDED_FLAGS | ENABLE_WINDOW_INPUT | ENABLE_VIRTUAL_TERMINAL_PROCESSING;
+        mode &= ~ENABLE_PROCESSED_INPUT;
+
+        //mode |= ENABLE_PROCESSED_INPUT;
+        if (!SetConsoleMode(mhInput, mode))
+        {
+            cerr << "Failed to set console mode." << endl;
+            return;
+        }
+
+        monitorthread = thread(ThreadProc, this);
+    }
+
+    void CommandLineMonitor::End()
+    {
+        mbDone = true;
+        monitorthread.join();
     }
 
 };

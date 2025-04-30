@@ -17,6 +17,7 @@
 #include <vector>
 #include <assert.h>
 #include "helpers/StringHelpers.h"
+#include "helpers/LoggingHelpers.h"
 #include <filesystem>
 
 using namespace std;
@@ -413,7 +414,7 @@ bool cHTTPFile::OpenInternal(string sURL, bool bWrite, bool bAppend, bool bVerbo
 
 
     if (bVerbose)
-        cout << "Opened HTTP server_host:\"" << msHost << "\"\n server_path:\"" << msPath << "\"\n";
+        zout << "Opened HTTP server_host:\"" << msHost << "\"\n server_path:\"" << msPath << "\"\n";
 
     return true;
 }
@@ -426,8 +427,8 @@ bool cHTTPFile::Close()
 {
     if (mbVerbose)
     {
-        cout << "Total HTTP Requests:" << gnTotalRequestsIssued << "\n";
-        cout << "Total HTTP bytes requested:" << gnTotalHTTPBytesRequested << "\n";
+        zout << "Total HTTP Requests:" << gnTotalRequestsIssued << "\n";
+        zout << "Total HTTP bytes requested:" << gnTotalHTTPBytesRequested << "\n";
     }
 
     curl_share_cleanup(mpCurlShare);
@@ -472,7 +473,7 @@ bool cHTTPFile::Read(int64_t nOffset, int64_t nBytes, uint8_t* pDestination, int
             cacheLine->Get(nOffset, (int32_t)nBytes, pDestination);      // this may block if the line is pending
             nBytesRead = nBytes;
 
-            //            cout << "HTTP Data read from cache...Requested:" << nBytes << "b at offset:" << nOffset << "\n";
+            //            zout << "HTTP Data read from cache...Requested:" << nBytes << "b at offset:" << nOffset << "\n";
             return true;
         }
 
@@ -481,7 +482,7 @@ bool cHTTPFile::Read(int64_t nOffset, int64_t nBytes, uint8_t* pDestination, int
         if (nOffset + cacheLine->mnBufferData + nUnfullfilledBytes >= mnFileSize)
         {
             nUnfullfilledBytes = mnFileSize - nOffset - cacheLine->mnBufferData;
-            cout << "cache filling nUnfullfilledBytes:" << nUnfullfilledBytes << "\n" << std::flush;
+            zout << "cache filling nUnfullfilledBytes:" << nUnfullfilledBytes << "\n" << std::flush;
         }
 
         assert(!cacheLine->mbCommitted);
@@ -555,7 +556,7 @@ bool cHTTPFile::Read(int64_t nOffset, int64_t nBytes, uint8_t* pDestination, int
     // if the request can be cached
     if (bUseCache)
     {
-        //cout << "committed " << nBytesToRequest << "b to cache offset:" << cacheLine->mnBaseOffset << ". Returning:" << nBytes << "\n";
+        //zout << "committed " << nBytesToRequest << "b to cache offset:" << cacheLine->mnBaseOffset << ". Returning:" << nBytes << "\n";
         // cache the retrieved results
         memcpy(pDestination, cacheLine->mData, nBytes);
         cacheLine->Commit((int32_t)nBytesToRequest);     // this commits the data to the cache line and frees any waiting requests on it

@@ -46,8 +46,13 @@ namespace CLP
         CommandLineMonitor();
 
         void Start();
+        void End();
+        bool IsDone() const { return mbDone; } 
 
     private:
+
+        static void ThreadProc(CommandLineMonitor* pCLM);
+
         void UpdateFromConsoleSize(bool bForce = false);
         void UpdateDisplay();
         void DrawToScreen();
@@ -55,6 +60,8 @@ namespace CLP
 
         tConsoleBuffer backBuffer;      // for double buffering
         tConsoleBuffer drawStateBuffer; // for rendering only delta
+
+        std::thread monitorthread;
 
         bool mbVisible;
         bool mbDone;

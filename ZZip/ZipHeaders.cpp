@@ -16,6 +16,7 @@
 #include <iomanip>
 #include "helpers/FNMatch.h"
 #include "helpers/StringHelpers.h"
+#include "helpers/LoggingHelpers.h"
 
 using namespace std;
 
@@ -91,7 +92,7 @@ bool cLocalFileHeader::ParseRaw(uint8_t* pBuffer, uint32_t& nNumBytesProcessed)
     mLocalFileTag = *((uint32_t*)pBuffer);
     if (mLocalFileTag != kZipLocalFileHeaderTag)
     {
-        cout << "Couldn't read LocalFileHeader signature.\n";
+        zout << "Couldn't read LocalFileHeader signature.\n";
         return false;
     }
 
@@ -190,7 +191,7 @@ bool cLocalFileHeader::Read(cZZFile& file, uint64_t nOffsetToLocalFileHeader, ui
     if (!file.Read(nOffsetToLocalFileHeader, nLocalFileHeaderRawSize, pBuffer, nNumRead))
     {
         delete[] pBuffer;
-        cout << "Couldn't read LocalFileHeader\n";
+        zout << "Couldn't read LocalFileHeader\n";
         return false;
     }
 
@@ -233,7 +234,7 @@ bool cLocalFileHeader::Write(cZZFile& file, uint64_t nOffsetToLocalFileHeader)
 
     if (!bSuccess)
     {
-        cout << "cLocalFileHeader::Write - Failure to write LocalFileHeader!\n";
+        zout << "cLocalFileHeader::Write - Failure to write LocalFileHeader!\n";
         return false;
     }
 
@@ -250,7 +251,7 @@ bool cEndOfCDRecord::ParseRaw(uint8_t* pBuffer, uint32_t& nNumBytesProcessed)
     mEndOfCDRecTag = *((uint32_t*)pBuffer);
     if (mEndOfCDRecTag != kZipEndofCDTag)
     {
-        cout << "Couldn't parse EndOfCDRecord\n";
+        zout << "Couldn't parse EndOfCDRecord\n";
         return false;
     }
 
@@ -285,7 +286,7 @@ bool cEndOfCDRecord::Write(cZZFile& file)
 
     if (!bSuccess)
     {
-        cout << "cEndOfCDRecord::Write - Failure to write cEndOfCDRecord!\n";
+        zout << "cEndOfCDRecord::Write - Failure to write cEndOfCDRecord!\n";
         return false;
     }
 
@@ -324,7 +325,7 @@ bool cZip64EndOfCDRecord::ParseRaw(uint8_t* pBuffer, uint32_t& nNumBytesProcesse
 
     if (mZip64EndOfCDRecTag != kZip64EndofCDTag)
     {
-        cout << "Couldn't parse Zip64EndOfCDRecord\n";
+        zout << "Couldn't parse Zip64EndOfCDRecord\n";
         return false;
     }
 
@@ -377,7 +378,7 @@ bool cZip64EndOfCDRecord::Write(cZZFile& file)
 
     if (!bSuccess)
     {
-        cout << "cCDFileHeader::Write - Failure to write CDFileHeader!\n";
+        zout << "cCDFileHeader::Write - Failure to write CDFileHeader!\n";
         return false;
     }
 
@@ -411,7 +412,7 @@ bool cZip64EndOfCDLocator::ParseRaw(uint8_t* pBuffer, uint32_t& nNumBytesProcess
     mZip64EndOfCDLocatorTag = *((uint32_t*)pBuffer);
     if (mZip64EndOfCDLocatorTag != kZip64EndofCDLocatorTag)
     {
-        cout << "Couldn't parse CD Header Tag\n";
+        zout << "Couldn't parse CD Header Tag\n";
         return false;
     }
 
@@ -435,7 +436,7 @@ bool cZip64EndOfCDLocator::Write(cZZFile& file)
 
     if (!bSuccess)
     {
-        cout << "cZip64EndOfCDLocator::Write - Failure to write cZip64EndOfCDLocator!\n";
+        zout << "cZip64EndOfCDLocator::Write - Failure to write cZip64EndOfCDLocator!\n";
         return false;
     }
 
@@ -457,7 +458,7 @@ bool cCDFileHeader::ParseRaw(uint8_t* pBuffer, uint32_t& nNumBytesProcessed)
     mCDTag = *((uint32_t*)pBuffer);
     if (mCDTag != kZipCDTag)
     {
-        cout << "Couldn't parse CD Header Tag\n";
+        zout << "Couldn't parse CD Header Tag\n";
         return false;
     }
 
@@ -516,12 +517,12 @@ bool cCDFileHeader::ParseRaw(uint8_t* pBuffer, uint32_t& nNumBytesProcessed)
         }
         else if (nTag == kZipExtraFieldUnicodePathTag)
         {
-            cout << "found unicode path tag";
+            zout << "found unicode path tag";
             // TBD. Add unicode path parsing/handling
         }
         else if (nTag == kZipExtraFieldUnicodeCommentTag)
         {
-            cout << "found unicode comment tag";
+            zout << "found unicode comment tag";
             // TBD. Add unicode comment parsing/handling
         }
 
@@ -573,7 +574,7 @@ bool cCDFileHeader::Write(cZZFile& file)
 
     if (!bSuccess)
     {
-        cout << "cCDFileHeader::Write - Failure to write CDFileHeader!\n";
+        zout << "cCDFileHeader::Write - Failure to write CDFileHeader!\n";
         return false;
     }
 
@@ -650,7 +651,7 @@ bool cZipCD::Init(cZZFile& zzFile)
     if (!zzFile.Read(nSeekPosition, nReadSizeofCDRec, pBuf, nBytesRead))
     {
         delete[] pBuf;
-        cout << "Failed to read " << nReadSizeofCDRec << " bytes for End of CD Record.\n";
+        zout << "Failed to read " << nReadSizeofCDRec << " bytes for End of CD Record.\n";
         return false;
     }
 
@@ -671,7 +672,7 @@ bool cZipCD::Init(cZZFile& zzFile)
     if (!bFoundEndOfCDRecord)
     {
         delete[] pBuf;
-        cout << "Couldn't find End of CD Tag\n";
+        zout << "Couldn't find End of CD Tag\n";
         return false;
     }
 
@@ -684,7 +685,7 @@ bool cZipCD::Init(cZZFile& zzFile)
         if (*pTag == kZip64EndofCDLocatorTag)
         {
             // Found 
-            //            cout << "Found kZip64EndofCDLocatorTag.\n";
+            //            zout << "Found kZip64EndofCDLocatorTag.\n";
             uint32_t nNumBytesProcessed = 0;
             mZip64EndOfCDLocator.ParseRaw(pBuf + nSeek, nNumBytesProcessed);
             bFoundZip64EndOfCDLocator = true;
@@ -700,7 +701,7 @@ bool cZipCD::Init(cZZFile& zzFile)
             uint32_t* pTag = (uint32_t*)(pBuf + nSeek);
             if (*pTag == kZip64EndofCDTag)
             {
-                //                cout << "Found kZip64EndofCDTag.\n";
+                //                zout << "Found kZip64EndofCDTag.\n";
                 uint32_t nNumBytesProcessed = 0;
                 mZip64EndOfCDRecord.ParseRaw(pBuf + nSeek, nNumBytesProcessed);
 
@@ -726,7 +727,7 @@ bool cZipCD::Init(cZZFile& zzFile)
     const uint32_t kMaxReasonableCDBytes = 64 * 1024 * 1024;    // 64 megs ought to be far far beyond anything we'd ever encounter
     if ((uint32_t)nCDBytes > kMaxReasonableCDBytes)
     {
-        cout << "CD Size read as " << nCDBytes << " which exceeds the maximum accepted of " << kMaxReasonableCDBytes << ".  If this assumpiton was unreasonable then the author of this code humbly apologizes.\n";
+        zout << "CD Size read as " << nCDBytes << " which exceeds the maximum accepted of " << kMaxReasonableCDBytes << ".  If this assumpiton was unreasonable then the author of this code humbly apologizes.\n";
         return false;
     }
 
@@ -737,7 +738,7 @@ bool cZipCD::Init(cZZFile& zzFile)
     if (!zzFile.Read(nOffsetOfCD, (uint32_t)nCDBytes, pBuf, nBytesRead))
     {
         delete[] pBuf;
-        cout << "Failed to read " << nCDBytes << " bytes for the CD.\n";
+        zout << "Failed to read " << nCDBytes << " bytes for the CD.\n";
         return false;
     }
 
@@ -750,7 +751,7 @@ bool cZipCD::Init(cZZFile& zzFile)
         uint32_t nNumBytesProcessed = 0;
 
         fileHeader.ParseRaw(pBuf + nBufOffset, nNumBytesProcessed);
-        //        cout << "read header for file \"" << fileHeader.mFileName << "\" at offset " << (uint32_t) (nBufOffset + nOffsetOfCD) << fileHeader.ToString() << "\n";
+        //        zout << "read header for file \"" << fileHeader.mFileName << "\" at offset " << (uint32_t) (nBufOffset + nOffsetOfCD) << fileHeader.ToString() << "\n";
         nBufOffset += nNumBytesProcessed;
 
         mCDFileHeaderList.push_back(fileHeader);
@@ -949,7 +950,7 @@ bool cZipCD::Write(cZZFile& file)
     for (tCDFileHeaderList::iterator it = mCDFileHeaderList.begin(); it != mCDFileHeaderList.end(); it++)
     {
         cCDFileHeader& cdFileHeader = *it;
-        //cout << "writing header for file \"" << cdFileHeader.mFileName << "\" at offset " << file.tellg() << cdFileHeader.ToString() << "\n";
+        //zout << "writing header for file \"" << cdFileHeader.mFileName << "\" at offset " << file.tellg() << cdFileHeader.ToString() << "\n";
         bSuccess &= cdFileHeader.Write(file);
     }
 

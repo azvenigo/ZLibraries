@@ -17,7 +17,7 @@ using namespace CLP;
 bool Overwrite(const std::string& sSourcePath, const std::string& sDestPath, int64_t nSourceOffset, int64_t nDestOffset, int64_t nBytes, bool bVerbose)
 {
     if (bVerbose)
-        cout << "Overwriting " << nBytes << " from " << sSourcePath << ":" << nSourceOffset << " into " << sDestPath << ":" << nDestOffset << "\n";
+        zout << "Overwriting " << nBytes << " from " << sSourcePath << ":" << nSourceOffset << " into " << sDestPath << ":" << nDestOffset << "\n";
 
     std::ifstream srcFile;
     srcFile.open(sSourcePath, ios::binary);
@@ -114,7 +114,7 @@ bool CopyBytes(std::ifstream& inFile, std::ofstream& outFile, int64_t nBytes)
 bool Extract(const std::string& sSourcePath, const std::string& sDestPath, int64_t nSourceOffset, int64_t nBytes, bool bVerbose)
 {
     if (bVerbose)
-        cout << "Extracting " << nBytes << " from " << sSourcePath << " to " << sDestPath << "\n";
+        zout << "Extracting " << nBytes << " from " << sSourcePath << " to " << sDestPath << "\n";
 
     std::ifstream srcFile;
     srcFile.open(sSourcePath, ios::binary);
@@ -158,7 +158,7 @@ bool Extract(const std::string& sSourcePath, const std::string& sDestPath, int64
 bool Insert(const std::string& sSourcePath, const std::string& sDestPath, int64_t nSourceOffset, int64_t nDestOffset, int64_t nBytes, bool bVerbose)
 {
     if (bVerbose)
-        cout << "Inserting " << nBytes << " from " << sSourcePath << ":" << nSourceOffset << " to " << sDestPath << ":" << nDestOffset << "\n";
+        zout << "Inserting " << nBytes << " from " << sSourcePath << ":" << nSourceOffset << " to " << sDestPath << ":" << nDestOffset << "\n";
 
 
     std::ifstream srcFile;
@@ -195,7 +195,7 @@ bool Insert(const std::string& sSourcePath, const std::string& sDestPath, int64_
     std::filesystem::path tempFilename(sDestPath + "_tmp");
 
     if (bVerbose)
-        cout << "Creating temporary file " << tempFilename << "\n";
+        zout << "Creating temporary file " << tempFilename << "\n";
 
     std::ofstream tmpDstFile;
     tmpDstFile.open(tempFilename, ios::binary);
@@ -208,7 +208,7 @@ bool Insert(const std::string& sSourcePath, const std::string& sDestPath, int64_
     // copy the data from the destination file into the temporary file up until the insertion point
 
     if (bVerbose)
-        cout << "Copying " << nDestOffset << " bytes from begining of original destination file.\n";
+        zout << "Copying " << nDestOffset << " bytes from begining of original destination file.\n";
 
     dstFileInput.seekg(0, std::ios::beg);
     tmpDstFile.seekp(0, std::ios::beg);
@@ -218,7 +218,7 @@ bool Insert(const std::string& sSourcePath, const std::string& sDestPath, int64_
 
 
     if (bVerbose)
-        cout << "Copying " << nBytes << " bytes from source file at offset " << nSourceOffset << "\n";
+        zout << "Copying " << nBytes << " bytes from source file at offset " << nSourceOffset << "\n";
     srcFile.seekg(nSourceOffset, std::ios::beg);
     if (!CopyBytes(srcFile, tmpDstFile, nBytes))
         return false;
@@ -227,7 +227,7 @@ bool Insert(const std::string& sSourcePath, const std::string& sDestPath, int64_
     int64_t nRemainingDestBytes = nDestFileSizeBeforeInsert - nDestOffset;
 
     if (bVerbose)
-        cout << "Copying remaining " << nRemainingDestBytes << " from original destination file.\n";
+        zout << "Copying remaining " << nRemainingDestBytes << " from original destination file.\n";
 
     if (!CopyBytes(dstFileInput, tmpDstFile, nRemainingDestBytes))
         return false;
@@ -239,15 +239,15 @@ bool Insert(const std::string& sSourcePath, const std::string& sDestPath, int64_
     std::filesystem::path renamedDestFilename(sDestPath + "_old");
 
     if (bVerbose)
-        cout << "renaming " << sDestPath << " to " << renamedDestFilename << "\n";
+        zout << "renaming " << sDestPath << " to " << renamedDestFilename << "\n";
     std::filesystem::rename(sDestPath, renamedDestFilename);
 
     if (bVerbose)
-        cout << "renaming " << tempFilename << " to " << sDestPath << "\n";
+        zout << "renaming " << tempFilename << " to " << sDestPath << "\n";
     std::filesystem::rename(tempFilename, sDestPath);
 
     if (bVerbose)
-        cout << "removing " << renamedDestFilename << "\n";
+        zout << "removing " << renamedDestFilename << "\n";
     std::filesystem::remove(renamedDestFilename);
     
 
@@ -280,7 +280,7 @@ bool Dump(const std::string& sSourcePath, int64_t nSourceOffset, int64_t nBytes,
     {
         nBytes = nSourceSize - nSourceOffset;
         if (bVerbose)
-            cout << "Returning " << nBytes << " only due to reaching end of file.\n";
+            zout << "Returning " << nBytes << " only due to reaching end of file.\n";
     }
 
     uint8_t* pBuf = new uint8_t[nBytes];
@@ -332,9 +332,9 @@ bool Hash(const std::string sSourcePath)
 
     sha256Hash.Final();
 
-    cout << "Hashes of \"" << sSourcePath << "\":\n";
-    cout << "SHA256:0x" << sha256Hash.ToString() << "\n";
-    cout << "CRC32: 0x" << std::uppercase << std::hex << crc32 << std::dec << "\n";
+    zout << "Hashes of \"" << sSourcePath << "\":\n";
+    zout << "SHA256:0x" << sha256Hash.ToString() << "\n";
+    zout << "CRC32: 0x" << std::uppercase << std::hex << crc32 << std::dec << "\n";
 
     delete[] pBuf;
     return true;
@@ -343,7 +343,7 @@ bool Hash(const std::string sSourcePath)
 bool Diff(const std::string& sFile1, const std::string& sFile2, bool bVerbose)
 {
     if (bVerbose)
-        cout << "Diffing FILE1:" << sFile1 << " vs FILE2:" << sFile2 << "\n";
+        zout << "Diffing FILE1:" << sFile1 << " vs FILE2:" << sFile2 << "\n";
 
     std::ifstream file1;
     file1.open(sFile1, ios::binary);
@@ -367,9 +367,9 @@ bool Diff(const std::string& sFile1, const std::string& sFile2, bool bVerbose)
 
     if (nFile1Size != nFile2Size)
     {
-        cout << "FILE1 Size: " << nFile1Size << "\n";
-        cout << "FILE2 Size: " << nFile2Size << "\n";
-        cout << "Result: DIFFERENT\n";
+        zout << "FILE1 Size: " << nFile1Size << "\n";
+        zout << "FILE2 Size: " << nFile2Size << "\n";
+        zout << "Result: DIFFERENT\n";
 
         return true;
     }
@@ -402,7 +402,7 @@ bool Diff(const std::string& sFile1, const std::string& sFile2, bool bVerbose)
         }
 
         if (bVerbose)
-            cout << "Comparing offset: " << nFile1Size - nBytesLeft << "\n";
+            zout << "Comparing offset: " << nFile1Size - nBytesLeft << "\n";
 
         if (memcmp(pBuf1, pBuf2, nBytesToRead) != 0)
         {
@@ -415,13 +415,13 @@ bool Diff(const std::string& sFile1, const std::string& sFile2, bool bVerbose)
 
     if (bSame)
     {
-        cout << "Result: SAME\n";
+        zout << "Result: SAME\n";
         if (bVerbose)
-            cout << "All " << nFile1Size << " bytes match.\n";
+            zout << "All " << nFile1Size << " bytes match.\n";
     }
     else
     {
-        cout << "Result: DIFFERENT\n";
+        zout << "Result: DIFFERENT\n";
     }
 
     delete[] pBuf1;
@@ -462,7 +462,7 @@ int main(int argc, char* argv[])
 
     table.AddRow("blah", 123, "blah blah blah");
     table.renderWidth = 16;
-    std::cout << table;
+    zout << table;
     
     */
 
@@ -496,7 +496,7 @@ int main(int argc, char* argv[])
     parser.RegisterParam("copy", ParamDesc("BYTES", &nBytes, CLP::kPositional | CLP::kRequired, "Number of bytes to copy."));
     parser.RegisterParam("copy", ParamDesc("overwrite", &bOverwrite, CLP::kNamed , "Overwrites bytes in the destination file (rather than inserting)"));
 
-    parser.RegisterMode("dump", "Dump byte range to cout");
+    parser.RegisterMode("dump", "Dump byte range to zout");
     parser.RegisterParam("dump", ParamDesc("FILE", &sSourcePath, CLP::kPositional | CLP::kRequired | CLP::kPath | CLP::kExistingPath, "File to read from"));
     parser.RegisterParam("dump", ParamDesc("OFFSET", &nSourceOffset, CLP::kPositional, "Starting offset"));
     parser.RegisterParam("dump", ParamDesc("BYTES", &nBytes, CLP::kPositional, "Number of bytes to dump."));
@@ -508,7 +508,7 @@ int main(int argc, char* argv[])
     parser.RegisterParam("extract", ParamDesc("DEST_FILE", &sDestPath, CLP::kPositional | CLP::kRequired | CLP::kPath, "File to create"));
     parser.RegisterParam("extract", ParamDesc("SOURCE_OFFSET", &nSourceOffset, CLP::kPositional | CLP::kRequired, "Source offset"));
     parser.RegisterParam("extract", ParamDesc("BYTES", &nBytes, CLP::kPositional | CLP::kRequired, "Number of bytes to extract"));
-    parser.RegisterParam("extract", ParamDesc("dump", &bDumpAfterExtract, CLP::kNamed, "Dump extracted bytes to cout after extraction."));
+    parser.RegisterParam("extract", ParamDesc("dump", &bDumpAfterExtract, CLP::kNamed, "Dump extracted bytes to zout after extraction."));
 
 
     parser.RegisterMode("hash", "Compute SHA256 & CRC32 hashes of file.");
@@ -565,7 +565,7 @@ int main(int argc, char* argv[])
     }
 
 
-    std::cout << "Done.\n";
+    zout << "Done.\n";
 
     return 0;
 }
