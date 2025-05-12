@@ -31,12 +31,18 @@ namespace CLP
     class RawEntryWin : public TextEditWin
     {
     public:
+        RawEntryWin() 
+        {
+            bMultiline = true;
+        }
         bool OnKey(int keycode, char c);
         void Paint(tConsoleBuffer& backBuf);
         friend class CommandLineEditor;
         bool GetParameterUnderIndex(int64_t index, size_t& outStart, size_t& outEnd, std::string& outParam, ParamDesc** ppPD = nullptr);
         bool HandleParamContext();
-        virtual COORD LocalCursorToGlobal(COORD cursor);
+    protected:
+        virtual COORD TextIndexToCursor(int64_t i);
+        virtual int64_t CursorToTextIndex(COORD coord);
 
     };
 

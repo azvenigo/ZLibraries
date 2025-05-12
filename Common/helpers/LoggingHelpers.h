@@ -17,15 +17,13 @@
 #include <thread>
 #include <mutex>
 
-#ifdef _DEBUG
 #include "StringHelpers.h"
-#endif
 
 #define ENABLE_ANSI_OUT
 #ifdef ENABLE_ANSI_OUT
 
 #define COL_CUSTOM_STYLE "[CUSTOMSTYLE]"
-#define COL_RESET   "\033[37m"
+#define COL_RESET   "\033[0m"
 #define COL_BLACK   "\033[30m"
 #define COL_RED     "\033[31m"
 #define COL_GREEN   "\033[32m"

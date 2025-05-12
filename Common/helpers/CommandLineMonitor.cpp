@@ -193,7 +193,7 @@ namespace CLP
         GetInnerArea(drawArea);
 
 
-        DrawClippedAnsiText(drawArea.l, drawArea.t, mText, true, &drawArea);
+        DrawClippedAnsiText(drawArea, mText, true, &drawArea);
         int64_t h = drawArea.b - drawArea.t;
 
         int64_t logCount = (int64_t)LOG::gLogger.getCount();
@@ -357,7 +357,7 @@ namespace CLP
             for (int64_t x = 0; x < ScreenW(); x++)
             {
                 int64_t i = (y * ScreenW()) + x;
-                if (bScreenChanged || backBuffer[i] != drawStateBuffer[i])
+                if (bScreenInvalid || backBuffer[i] != drawStateBuffer[i])
                 {
                     DrawAnsiChar(x, y, backBuffer[i].c, backBuffer[i].attrib);
                 }
@@ -367,7 +367,7 @@ namespace CLP
         SetCursorPosition(savePos);
 
         drawStateBuffer = backBuffer;
-        bScreenChanged = false;
+        bScreenInvalid = false;
 
 
 //        if (bCursorHidden && !bCursorShouldBeHidden)
@@ -389,7 +389,7 @@ namespace CLP
         if ((newScreenInfo.dwSize.X != screenInfo.dwSize.X || newScreenInfo.dwSize.Y != screenInfo.dwSize.Y) || bForce)
         {
             screenInfo = newScreenInfo;
-            bScreenChanged = true;
+            bScreenInvalid = true;
 
             SHORT w = ScreenW();
             SHORT h = ScreenH();
@@ -447,7 +447,7 @@ namespace CLP
                 cout << entry.text << std::endl;
             }
         }
-        bScreenChanged = true;
+        bScreenInvalid = true;
     }
 
 
@@ -496,7 +496,7 @@ namespace CLP
 
             if (pCLM->mbVisible)
             {
-                pCLM->UpdateFromConsoleSize(bScreenChanged);  // force update if the screen changed
+                pCLM->UpdateFromConsoleSize(bScreenInvalid);  // force update if the screen changed
                 pCLM->UpdateDisplay();
             }
 
@@ -555,20 +555,20 @@ namespace CLP
                                 textEntryWin.mbCanceled = false;
                                 textEntryWin.mbDone = false;
                                 bHandled = true;
-                                bScreenChanged = true;
+                                bScreenInvalid = true;
                             }
                         }
                         if (logWin.mbVisible && logWin.mbCanceled)
                         {
                             pCLM->SetMonitorVisible(!pCLM->mbVisible);
                             bHandled = true;
-                            bScreenChanged = true;
+                            bScreenInvalid = true;
                         }
 
                         if (keycode == VK_ESCAPE && !bHandled)
                         {
                             pCLM->mbDone = true;
-                            bScreenChanged = true;
+                            bScreenInvalid = true;
                         }
                         else if (keycode == VK_F1)
                         {

@@ -8,6 +8,7 @@
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #include "helpers/StringHelpers.h"
+#include "helpers/LoggingHelpers.h"
 #include <stdint.h>
 #include <inttypes.h>
 #include <assert.h>
@@ -74,7 +75,15 @@ string	SH::FromInt(int64_t nVal)
 
 double SH::ToDouble(string sVal)
 {
-    return stod(sVal, NULL);
+    try
+    {
+        return stod(sVal, NULL);
+    }
+    catch (...)
+    {
+    }
+
+    return 0;
 }
 
 string	SH::FromDouble(double fVal, int64_t nPrecision)
@@ -233,49 +242,56 @@ bool SH::Contains(const string& a, const string& sub, bool bCaseSensitive)
 // Supports trailing scaling labels  (k, kb, kib, m, mb, mib, etc.)
 int64_t SH::ToInt(string sReadable)
 {
-    makeupper(sReadable);
-
-    // strip any commas in case human readable string has those
-    sReadable.erase(remove(sReadable.begin(), sReadable.end(), ','), sReadable.end());
-
-
-    // Determine if this is a hex value
-    int32_t nNumberBase = 10;
-    if (sReadable.substr(0, 2) == "0X")
+    try
     {
-        nNumberBase = 16;
-        sReadable = sReadable.substr(2);
-    }
+        makeupper(sReadable);
+
+        // strip any commas in case human readable string has those
+        sReadable.erase(remove(sReadable.begin(), sReadable.end(), ','), sReadable.end());
 
 
-    int32_t nReadableLength = (int32_t)sReadable.length();
-
-    // count how many chars in the trailing label (if any)
-    int32_t nLabelChars = 0;
-    for (int32_t i = nReadableLength - 1; i >= 0; i--)
-    {
-        char c = sReadable[i];
-        if (nNumberBase == 10 && (c < 'A' || c > 'Z'))
-            break;
-        if (nNumberBase == 16 && (c < 'G' || c > 'Z'))
-            break;
-
-        nLabelChars++;
-    }
-
-    for (int i = 0; i < sizeEntryTableSize; i++)
-    {
-        const sSizeEntry& entry = sizeEntryTable[i];
-
-        if (sReadable.substr(nReadableLength - nLabelChars).compare(entry.label) == 0)
+        // Determine if this is a hex value
+        int32_t nNumberBase = 10;
+        if (sReadable.substr(0, 2) == "0X")
         {
-            int64_t nOut = strtoll(sReadable.substr(0, nReadableLength - nLabelChars).c_str(), NULL, nNumberBase);
-            return nOut * entry.value;
+            nNumberBase = 16;
+            sReadable = sReadable.substr(2);
         }
+
+
+        int32_t nReadableLength = (int32_t)sReadable.length();
+
+        // count how many chars in the trailing label (if any)
+        int32_t nLabelChars = 0;
+        for (int32_t i = nReadableLength - 1; i >= 0; i--)
+        {
+            char c = sReadable[i];
+            if (nNumberBase == 10 && (c < 'A' || c > 'Z'))
+                break;
+            if (nNumberBase == 16 && (c < 'G' || c > 'Z'))
+                break;
+
+            nLabelChars++;
+        }
+
+        for (int i = 0; i < sizeEntryTableSize; i++)
+        {
+            const sSizeEntry& entry = sizeEntryTable[i];
+
+            if (sReadable.substr(nReadableLength - nLabelChars).compare(entry.label) == 0)
+            {
+                int64_t nOut = strtoll(sReadable.substr(0, nReadableLength - nLabelChars).c_str(), NULL, nNumberBase);
+                return nOut * entry.value;
+            }
+        }
+
+        return strtoll(sReadable.c_str(), NULL, nNumberBase);
+    }
+    catch (...)
+    {
     }
 
-    int64_t nOut = strtoll(sReadable.c_str(), NULL, nNumberBase);
-    return nOut;
+    return 0;
 }
 
 string SH::ToUserReadable(double fValue, size_t precision)

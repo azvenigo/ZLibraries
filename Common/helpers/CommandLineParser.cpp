@@ -200,7 +200,7 @@ namespace CLP
             string sPath(CommandLineParser::StripEnclosure(sValue));
             if (fs::exists(sPath))
             {
-                sFailMessage = "Error: " + sPath + " not exist";
+                sFailMessage = "Error: " + sPath + " must not exist but does.";
                 if (bOutputError)
                     cerr << CLP::ErrorStyle << sFailMessage << CLP::ResetStyle << "\n";
                 return false;

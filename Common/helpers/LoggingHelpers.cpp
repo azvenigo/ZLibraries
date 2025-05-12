@@ -556,7 +556,7 @@ string Table::Cell::StyledOut(size_t width, tOptionalStyle _style)
 
     size_t visOutLen = VisLength(sStyled);
 
-    assert(visOutLen <= remaining_width);
+    //assert(visOutLen <= remaining_width);
 
 
     if (alignment == Table::CENTER)

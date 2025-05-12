@@ -242,7 +242,7 @@ namespace CLP
     std::vector<CHAR_INFO> originalConsoleBuf;
     CONSOLE_SCREEN_BUFFER_INFO originalScreenInfo;
     CONSOLE_SCREEN_BUFFER_INFO screenInfo;
-    bool bScreenChanged = false;
+    bool bScreenInvalid = true;
     COORD gLastCursorPos = { -1, -1 };
 
 
@@ -355,7 +355,7 @@ namespace CLP
 
 
 
-    void ConsoleWin::DrawClippedAnsiText(int64_t x, int64_t y, std::string ansitext, bool bWrap, Rect* pClip)
+    void ConsoleWin::DrawClippedAnsiText(const Rect& r, std::string ansitext, bool bWrap, Rect* pClip)
     {
 
 #ifdef _DEBUG
@@ -363,13 +363,13 @@ namespace CLP
 #endif
 
 
-        int64_t cursorX = x;
-        int64_t cursorY = y;
+        int64_t cursorX = r.l;
+        int64_t cursorY = r.t;
 
         ZAttrib attrib(WHITE);
 
-        CLP::Rect drawArea;
-        GetInnerArea(drawArea);
+//        CLP::Rect drawArea;
+//        GetInnerArea(drawArea);
 
         for (size_t i = 0; i < ansitext.length(); i++)
         {
@@ -381,16 +381,16 @@ namespace CLP
             else
             {
                 char c = ansitext[i];
-                if ((c == '\n' || cursorX > drawArea.r) && bWrap)
+                if ((c == '\n' || cursorX > r.r) && bWrap)
                 {
-                    cursorX = drawArea.l;
+                    cursorX = r.l;
                     cursorY++;
                 }
                 else
                 {
                     DrawCharClipped(c, cursorX, cursorY, attrib, pClip);
                     cursorX++;
-                    if (cursorX >= drawArea.r && !bWrap)
+                    if (cursorX >= r.r && !bWrap)
                         break;
                 }
             }
@@ -456,6 +456,39 @@ namespace CLP
         }
     }
 
+    int64_t ConsoleWin::GetTextOutputRows(std::string text, int64_t w)
+    {
+        if (VisLength(text) == 0)   // if no visible text
+            return 0;
+
+        int64_t rows = 1;
+        int64_t x = 0;
+        int64_t y = 1;
+        ZAttrib attrib;
+        for (size_t i = 0; i < text.length(); i++)
+        {
+            size_t skiplength = attrib.FromAnsi(&text[i]);
+            if (skiplength > 0)
+            {
+                i += skiplength - 1;    // -1 so that the i++ above will be correct
+            }
+            else
+            {
+                char c = text[i];
+                if (c == '\n' || x >= w)
+                {
+                    x = 0;
+                    y++;
+                    rows = std::max<int64_t>(rows, y);
+                }
+                else
+                {
+                    x++;
+                }
+            }
+        }
+        return rows;
+    }
 
 
     void ConsoleWin::GetCaptionPosition(string& caption, ConsoleWin::Position pos, int64_t& x, int64_t& y)
@@ -505,7 +538,7 @@ namespace CLP
                 int64_t x = 0;
                 int64_t y = 0;
                 GetCaptionPosition(caption, Position(pos), x, y);
-                DrawClippedText(x, y, caption, kAttribCaption, false);
+                DrawClippedText(Rect(x, y, mWidth, mHeight), caption, kAttribCaption, false);
             }
         }
     }
@@ -626,40 +659,32 @@ namespace CLP
     {
         assert(strings.size() == colWidths.size() && colWidths.size() == attribs.size());
 
-        int64_t rowsDrawn = 0;
-        for (int i = 0; i < strings.size() - 1; i++)
+        // compute how many rows is required to draw all strings in the fixed columns
+        int64_t rowsRequired = 0;
+        for (int i = 0; i < strings.size(); i++)
         {
-            DrawClippedText(x, y, strings[i], attribs[i], false, pClip);
+            rowsRequired = std::max<int64_t>(rowsRequired, GetTextOutputRows(strings[i], colWidths[i]));
+        }
+
+        for (int i = 0; i < strings.size(); i++)
+        {
+            DrawClippedText(Rect(x, y, x+colWidths[i], mHeight), strings[i], attribs[i], true, pClip);
             x += colWidths[i];
         }
 
-        // draw final column
-        int64_t finalCol = strings.size() - 1;
-        string sDraw = strings[finalCol];
-
-        // draw as many rows as needed to
-        int64_t remainingColumnWidth = screenInfo.srWindow.Right - x;
-        while (remainingColumnWidth > 0 && sDraw.length())
-        {
-            DrawClippedText(x, y, sDraw.substr(0, remainingColumnWidth), attribs[finalCol], false, pClip);
-            y++;
-            sDraw = sDraw.substr(std::min<int64_t>(remainingColumnWidth, (int64_t)sDraw.length()));
-            rowsDrawn++;
-        }
-
-        return rowsDrawn;
+        return rowsRequired;
     }
 
-    void ConsoleWin::DrawClippedText(int64_t x, int64_t y, std::string text, ZAttrib attributes, bool bWrap, Rect* pClip)
+    void ConsoleWin::DrawClippedText(const Rect& r, std::string text, ZAttrib attributes, bool bWrap, Rect* pClip)
     {
-        COORD cursor((SHORT)x, (SHORT)y);
+        COORD cursor((SHORT)r.l, (SHORT)r.t);
 
         for (size_t textindex = 0; textindex < text.size(); textindex++)
         {
             char c = text[textindex];
             if (c == '\n' && bWrap)
             {
-                cursor.X = 0;
+                cursor.X = (SHORT)r.l;
                 cursor.Y++;
             }
             else
@@ -668,8 +693,16 @@ namespace CLP
             }
 
             cursor.X++;
-            if (cursor.X >= mWidth && !bWrap)
-                break;
+            if (cursor.X >= r.r)
+            {
+                if (bWrap)
+                {
+                    cursor.X = (SHORT)r.l;
+                    cursor.Y++;
+                }
+                else
+                    break;
+            }
         }
     }
 
@@ -685,7 +718,7 @@ namespace CLP
         GetInnerArea(drawArea);
 
         int64_t firstDrawRow = mTopVisibleRow - 1;
-        DrawClippedAnsiText(drawArea.l, -firstDrawRow, mText, true, &drawArea);
+        DrawClippedAnsiText(Rect(drawArea.l, -firstDrawRow, drawArea.r, drawArea.b), mText, true, &drawArea);
 
         ConsoleWin::RenderToBackBuf(backBuf);
     }

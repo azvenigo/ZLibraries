@@ -164,11 +164,34 @@ namespace CLP
         return nullptr;
     }
 
-
-    COORD RawEntryWin::LocalCursorToGlobal(COORD cursor)
+    COORD RawEntryWin::TextIndexToCursor(int64_t i)
     {
-        return COORD(cursor.X + (SHORT)mX + (SHORT)(CLP::appName.length() + 1), cursor.Y + (SHORT)mY);
+        if (i > (int64_t)(mText.size()))
+            i = (int64_t)(mText.size());
+
+        i += CLP::appName.length() + 1; // adjust for visible appname plus space
+
+        if (mWidth > 0)
+        {
+            COORD c;
+            c.X = (SHORT)(i) % mWidth;
+            c.Y = (SHORT)((i / mWidth) - firstVisibleRow);
+            return c;
+        }
+
+        return COORD(0, 0);
     }
+
+    int64_t RawEntryWin::CursorToTextIndex(COORD coord)
+    {
+        int64_t i = (coord.Y + firstVisibleRow) * mWidth + coord.X - CLP::appName.length() - 1; // adjust for visible app name plus space
+        if (i < 0)
+            return 0;
+        if (i > (int64_t)mText.length())
+            return mText.length();
+        return i;
+    }
+
 
     bool RawEntryWin::GetParameterUnderIndex(int64_t index, size_t& outStart, size_t& outEnd, string& outParam, ParamDesc** ppPD)
     {
@@ -192,8 +215,9 @@ namespace CLP
     {
         bool bCTRLHeld = GetKeyState(VK_CONTROL) & 0x800;
         bool bSHIFTHeld = GetKeyState(VK_SHIFT) & 0x800;
-
         bool bHandled = false;
+
+        bScreenInvalid = true;
 
         do
         {
@@ -266,7 +290,7 @@ namespace CLP
             if (drawrow > 0 && drawrow < mHeight-1)
             {
                 string s = entry;
-                DrawClippedText(drawArea.l, drawrow, s, kAttribListBoxEntry, false, &drawArea);
+                DrawClippedText(Rect(drawArea.l, drawrow, drawArea.r, drawrow+1), s, kAttribListBoxEntry, false, &drawArea);
                 if (selection == mSelection)
                     Fill(Rect(drawArea.l, drawrow, drawArea.r, drawrow + 1), kAttribListBoxSelectedEntry);
     //                DrawClippedText(1, drawrow, s, kAttribListBoxSelectedEntry);
@@ -298,6 +322,7 @@ namespace CLP
         bool bHandled = false;
         bool bCTRLHeld = GetKeyState(VK_CONTROL) & 0x800;
         bool bSHIFTHeld = GetKeyState(VK_SHIFT) & 0x800;
+        bScreenInvalid = true;
 
         switch (keycode)
         {
@@ -385,6 +410,7 @@ namespace CLP
     {
         bool bCTRLHeld = GetKeyState(VK_CONTROL) & 0x800;
         bool bSHIFTHeld = GetKeyState(VK_SHIFT) & 0x800;
+        bScreenInvalid = true;
 
         switch (keycode)
         {
@@ -420,7 +446,8 @@ namespace CLP
         mAnchorB = anchor_b;
         mWidth = 0;
         mHeight = 0;
-        
+        bScreenInvalid = true;
+
         // find nearest selection from the entries
 
         size_t longestMatch = selectionSearch.length();
@@ -528,6 +555,7 @@ namespace CLP
         bool bHandled = false;
         bool bCTRLHeld = GetKeyState(VK_CONTROL) & 0x800;
         bool bSHIFTHeld = GetKeyState(VK_SHIFT) & 0x800;
+        bScreenInvalid = true;
 
         switch (keycode)
         {
@@ -601,7 +629,7 @@ namespace CLP
         Rect r;
         GetInnerArea(r);
 
-        DrawClippedAnsiText(r.l, r.t, mText, true, &r);
+        DrawClippedAnsiText(r, mText, true, &r);
 
         ConsoleWin::RenderToBackBuf(backBuf);
     }
@@ -627,17 +655,17 @@ namespace CLP
             string sHighlight = "\033[38;2;" + SH::FromInt(highlightAttrib.r) + ";" + SH::FromInt(highlightAttrib.g) + ";" + SH::FromInt(highlightAttrib.b) + "m"; //forground color
             sHighlight += "\033[48;2;" + SH::FromInt(highlightAttrib.br) + ";" + SH::FromInt(highlightAttrib.bg) + ";" + SH::FromInt(highlightAttrib.bb) + "m"; //background color
 
-            sDrawString = SH::replaceTokens(sDrawString, sHighlightParam, sHighlight + sHighlightParam + COL_BLACK);
+            sDrawString = SH::replaceTokens(sDrawString, sHighlightParam, sHighlight + sHighlightParam + mClearAttrib.ToAnsi());
         }
 
 
 
-        DrawClippedAnsiText(r.l, r.t, sDrawString, true, &r);
+        DrawClippedAnsiText(r, sDrawString, true, &r);
 
         ConsoleWin::RenderToBackBuf(backBuf);
     }
 
-    void ParamListWin::Paint(tConsoleBuffer& backBuf)
+/*    void ParamListWin::Paint(tConsoleBuffer& backBuf)
     {
         if (!pCLP)
             return;
@@ -663,18 +691,19 @@ namespace CLP
             // compute column widths
 
             const int kColName = 0;
-            const int kColEntry = 1;
-            const int kColUsage = 2;
+            //const int kColEntry = 1;
+            //const int kColUsage = 2;
+            const int kColUsage = 1;
 
             vector<size_t> colWidths;
-            colWidths.resize(3);
+            colWidths.resize(2);
             colWidths[kColName] = 16;
-            colWidths[kColEntry] = 12;
-            colWidths[kColUsage] = ScreenW() - (colWidths[kColName] + colWidths[kColEntry]);
+            //colWidths[kColEntry] = 12;
+            colWidths[kColUsage] = ScreenW() - (colWidths[kColName]);
             for (int paramindex = 0; paramindex < enteredParams.size(); paramindex++)
             {
-                string sText(enteredParams[paramindex].sParamText);
-                colWidths[kColEntry] = std::max<size_t>(sText.length(), colWidths[kColEntry]);
+                //string sText(enteredParams[paramindex].sParamText);
+                //colWidths[kColEntry] = std::max<size_t>(sText.length(), colWidths[kColEntry]);
 
                 ParamDesc* pPD = enteredParams[paramindex].pRelatedDesc;
                 if (pPD)
@@ -687,12 +716,13 @@ namespace CLP
             for (auto& i : colWidths)   // pad all cols
                 i += 2;
 
-            tStringArray strings(3);
-            tAttribArray attribs(3);
+            tStringArray strings(2);
+            tAttribArray attribs(2);
 
             size_t row = drawArea.t;
            
 
+            ZAttrib entryAttrib = kGoodParam;
             if (availableModes.empty())
             {
             }
@@ -704,13 +734,13 @@ namespace CLP
                 strings[kColName] = "COMMAND";
                 attribs[kColName] = kRawText;
 
-                strings[kColEntry] = sMode;
-                attribs[kColUsage] = kRawText;
+//                strings[kColEntry] = sMode;
+//                attribs[kColUsage] = kRawText;
 
                 bool bModePermitted = availableModes.empty() || std::find(availableModes.begin(), availableModes.end(), sMode) != availableModes.end(); // if no modes registered or (if there are) if the first param matches one
                 if (bModePermitted)
                 {
-                    attribs[kColEntry] = kGoodParam;
+//                    attribs[kColEntry] = kGoodParam;
 
                     if (pCLP)
                     {
@@ -720,11 +750,16 @@ namespace CLP
                 }
                 else
                 {
-                    attribs[kColName] = kUnknownParam;
+                 //   attribs[kColName] = kUnknownParam;
+                    entryAttrib = kUnknownParam;
                     strings[kColName] = "UNKNOWN COMMAND ";
                 }
 
                 row += DrawFixedColumnStrings(drawArea.l, row, strings, colWidths, attribs, &drawArea);
+                //row += DrawFixedColumnStrings(drawArea.l, row, sText, colWidths, attribs, &drawArea);
+                DrawClippedText(drawArea.l, row, sMode, entryAttrib, false, &drawArea);
+                row++;
+
             }
 
 
@@ -739,8 +774,10 @@ namespace CLP
 
             for (auto& param : posParams)
             {
+                ZAttrib entryAttrib = kUnknownParam;
+
                 attribs[kColName] = kRawText;
-                attribs[kColEntry] = kUnknownParam;
+//                attribs[kColEntry] = kUnknownParam;
                 attribs[kColUsage] = kRawText;
 
                 //                strings[kColName] = "[" + SH::FromInt(param.positionalindex) + "]";
@@ -753,26 +790,32 @@ namespace CLP
                     if (param.pRelatedDesc->DoesValueSatisfy(param.sParamText, sFailMessage))
                     {
                         strings[kColUsage] = param.pRelatedDesc->msUsage;
-                        attribs[kColEntry] = kGoodParam;
+//                        attribs[kColEntry] = kGoodParam;
+                        kUnknownParam = kGoodParam;
                     }
                     else
                     {
                         strings[kColUsage] = sFailMessage;
-                        attribs[kColEntry] = kBadParam;
+//                        attribs[kColEntry] = kBadParam;
+                        kUnknownParam = kBadParam;
                         attribs[kColUsage] = kBadParam;
                     }
                 }
                 else
                 {
                     strings[kColName] = "";
-                    attribs[kColEntry] = kUnknownParam;
+//                    attribs[kColEntry] = kUnknownParam;
+                    entryAttrib = kUnknownParam;
                     strings[kColUsage] = "Unexpected parameter";
                     attribs[kColUsage] = kUnknownParam;
                 }
 
-                strings[kColEntry] = param.sParamText;
+//                strings[kColEntry] = param.sParamText;
 
                 row += DrawFixedColumnStrings(drawArea.l, row, strings, colWidths, attribs, &drawArea);
+                DrawClippedText(drawArea.l, row, param.sParamText, entryAttrib, false, &drawArea);
+                row++;
+
             }
 
 
@@ -780,6 +823,8 @@ namespace CLP
 
             if (!namedParams.empty())
             {
+                ZAttrib entryAttrib = kUnknownParam;
+
                 row++;
                 sSection = "-named params-" + string(ScreenW(), '-');
                 DrawClippedText(drawArea.l, row++, sSection, kAttribSection, false, &drawArea);
@@ -787,7 +832,9 @@ namespace CLP
                 for (auto& param : namedParams)
                 {
                     attribs[kColName] = kRawText;
-                    attribs[kColEntry] = kUnknownParam;
+                    //attribs[kColEntry] = kUnknownParam;
+                    entryAttrib = kUnknownParam;
+
                     attribs[kColUsage] = kRawText;
 
                     strings[kColName] = "-";
@@ -801,28 +848,33 @@ namespace CLP
                         if (param.pRelatedDesc->DoesValueSatisfy(sValue, sFailMessage))
                         {
                             strings[kColName] += param.pRelatedDesc->msName;
-                            attribs[kColEntry] = kGoodParam;
+                            //attribs[kColEntry] = kGoodParam;
+                            entryAttrib = kGoodParam;
                             strings[kColUsage] = param.pRelatedDesc->msUsage;
                         }
                         else
                         {
                             strings[kColName] += param.pRelatedDesc->msName;
-                            attribs[kColEntry] = kBadParam;
+                            //attribs[kColEntry] = kBadParam;
+                            entryAttrib = kBadParam;
                             strings[kColUsage] = sFailMessage;
                             attribs[kColUsage] = kBadParam;
                         }
                     }
                     else
                     {
-                        attribs[kColEntry] = kUnknownParam;
+                        //attribs[kColEntry] = kUnknownParam;
+                        entryAttrib = kUnknownParam;
                         strings[kColUsage] = "Unknown parameter";
                         attribs[kColUsage] = kUnknownParam;
                     }
 
 
-                    strings[kColEntry] = param.sParamText;
+//                    strings[kColEntry] = param.sParamText;
 
                     row += DrawFixedColumnStrings(drawArea.l, row, strings, colWidths, attribs, &drawArea);
+                    DrawClippedText(drawArea.l, row, param.sParamText, entryAttrib, false, &drawArea);
+                    row++;
                 }
             }
         }
@@ -841,9 +893,255 @@ namespace CLP
 
         return;
     }
+    */
+
+void ParamListWin::Paint(tConsoleBuffer& backBuf)
+{
+    if (!pCLP)
+        return;
+
+    ConsoleWin::BasePaint();
+
+    Rect drawArea;
+    GetInnerArea(drawArea);
+
+    string sRaw(rawCommandBuf.GetText());
+
+    size_t rows = std::max<size_t>(1, (sRaw.size() + ScreenW() - 1) / ScreenW());
+    //        rawCommandBufTopRow = screenBufferInfo.dwSize.Y - rows;
+
+
+            ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+            // if the command line is bigger than the screen, show the last n rows that fit
+
+
+    if (!enteredParams.empty())   // if there are params entered
+    {
+        // compute column widths
+
+        const int kColName = 0;
+        const int kColEntry = 1;
+        const int kColUsage = 2;
+
+
+        const size_t kMinColWidth = 12;
+        vector<size_t> colWidths;
+        colWidths.resize(3);
+        colWidths[kColName] = kMinColWidth;
+        colWidths[kColEntry] = kMinColWidth;
+        for (int paramindex = 0; paramindex < enteredParams.size(); paramindex++)
+        {
+            string sText(enteredParams[paramindex].sParamText);
+            colWidths[kColEntry] = std::max<size_t>(sText.length(), colWidths[kColEntry]);
+
+            ParamDesc* pPD = enteredParams[paramindex].pRelatedDesc;
+            if (pPD)
+            {
+                colWidths[kColName] = std::max<size_t>(pPD->msName.length(), colWidths[kColName]);
+//                colWidths[kColUsage] = std::max<size_t>(pPD->msUsage.length(), colWidths[kColUsage]);
+            }
+        }
+
+        for (auto& i : colWidths)   // pad all cols
+            i += 2;
+
+        // if there's enough room for the final column
+        if (colWidths[kColName] + colWidths[kColEntry] < (ScreenW()-kMinColWidth))
+        {
+            colWidths[kColUsage] = ScreenW() - (colWidths[kColName] + colWidths[kColEntry]);
+        }
+        else
+        {
+            colWidths[kColUsage] = kMinColWidth;
+            colWidths[kColEntry] = ScreenW() - (colWidths[kColName]+kMinColWidth);
+
+        }
+
+
+        tStringArray strings(3);
+        tAttribArray attribs(3);
+
+        size_t row = drawArea.t;
+
+
+
+        if (availableModes.empty())
+        {
+        }
+        else
+        {
+            // first param is command
+            string sMode = CLP::GetMode();
+
+            strings[kColName] = "COMMAND";
+            attribs[kColName] = kRawText;
+
+            strings[kColEntry] = sMode;
+            attribs[kColUsage] = kRawText;
+
+            bool bModePermitted = availableModes.empty() || std::find(availableModes.begin(), availableModes.end(), sMode) != availableModes.end(); // if no modes registered or (if there are) if the first param matches one
+            if (bModePermitted)
+            {
+                attribs[kColEntry] = kGoodParam;
+
+                if (pCLP)
+                {
+                    strings[kColUsage] = pCLP->GetModeDescription(sMode);
+                    //                    mpCLP->GetCommandLineExample(msMode, strings[kColUsage]);
+                }
+            }
+            else
+            {
+                attribs[kColName] = kUnknownParam;
+
+                strings[kColName] = "UNKNOWN COMMAND ";
+            }
+
+            row += DrawFixedColumnStrings(drawArea.l, row, strings, colWidths, attribs, &drawArea);
+
+
+
+
+        }
+
+
+
+        // next list positional params
+        row++;
+        string sSection = "-positional params-" + string(ScreenW(), '-');
+        DrawClippedText(Rect(drawArea.l, row, drawArea.r, row+1), sSection, kAttribSection, false, &drawArea);
+        row++;
+
+        tEnteredParams posParams = GetPositionalEntries();
+
+        for (auto& param : posParams)
+        {
+
+
+            attribs[kColName] = kRawText;
+            attribs[kColEntry] = kUnknownParam;
+            attribs[kColUsage] = kRawText;
+
+            //                strings[kColName] = "[" + SH::FromInt(param.positionalindex) + "]";
+
+            string sFailMessage;
+            if (param.pRelatedDesc)
+            {
+                strings[kColName] = param.pRelatedDesc->msName;
+
+                if (param.pRelatedDesc->DoesValueSatisfy(param.sParamText, sFailMessage))
+                {
+                    strings[kColUsage] = param.pRelatedDesc->msUsage;
+                    attribs[kColEntry] = kGoodParam;
+
+                }
+                else
+                {
+                    strings[kColUsage] = sFailMessage;
+                    attribs[kColEntry] = kBadParam;
+
+                    attribs[kColUsage] = kBadParam;
+                }
+            }
+            else
+            {
+                strings[kColName] = "";
+                attribs[kColEntry] = kUnknownParam;
+
+                strings[kColUsage] = "Unexpected parameter";
+                attribs[kColUsage] = kUnknownParam;
+            }
+
+            strings[kColEntry] = param.sParamText;
+
+            row += DrawFixedColumnStrings(drawArea.l, row, strings, colWidths, attribs, &drawArea);
+
+
+
+        }
+
+
+        tEnteredParams namedParams = GetNamedEntries();
+
+        if (!namedParams.empty())
+        {
+
+
+            row++;
+            sSection = "-named params-" + string(ScreenW(), '-');
+            DrawClippedText(Rect(drawArea.l, row, drawArea.r, row+1), sSection, kAttribSection, false, &drawArea);
+            row++;
+
+            for (auto& param : namedParams)
+            {
+                attribs[kColName] = kRawText;
+                attribs[kColEntry] = kUnknownParam;
+
+
+                attribs[kColUsage] = kRawText;
+
+                strings[kColName] = "-";
+                string sFailMessage;
+                if (param.pRelatedDesc)
+                {
+                    string sName;
+                    string sValue;
+                    pCLE->ParseParam(param.sParamText, sName, sValue);
+
+                    if (param.pRelatedDesc->DoesValueSatisfy(sValue, sFailMessage))
+                    {
+                        strings[kColName] += param.pRelatedDesc->msName;
+                        attribs[kColEntry] = kGoodParam;
+
+                        strings[kColUsage] = param.pRelatedDesc->msUsage;
+                    }
+                    else
+                    {
+                        strings[kColName] += param.pRelatedDesc->msName;
+                        attribs[kColEntry] = kBadParam;
+
+                        strings[kColUsage] = sFailMessage;
+                        attribs[kColUsage] = kBadParam;
+                    }
+                }
+                else
+                {
+                    attribs[kColEntry] = kUnknownParam;
+
+                    strings[kColUsage] = "Unknown parameter";
+                    attribs[kColUsage] = kUnknownParam;
+                }
+
+
+                strings[kColEntry] = param.sParamText;
+
+                row += DrawFixedColumnStrings(drawArea.l, row, strings, colWidths, attribs, &drawArea);
+
+
+            }
+        }
+    }
+    else
+    {
+        // no commands entered
+        Table commandsTable = pCLP->GetCommandsTable();
+        commandsTable.AlignWidth(ScreenW());
+        string sCommands = commandsTable;
+        DrawClippedAnsiText(drawArea, sCommands, true, &drawArea);
+    }
+
+    ConsoleWin::RenderToBackBuf(backBuf);
+
+    //        AnsiColorWin::Paint(backBuf);
+
+    return;
+}
+
 
     void CommandLineEditor::UpdateDisplay()
     {
+        assert(bScreenInvalid);
         DrawToScreen();
 
 /*        static int count = 1;
@@ -863,6 +1161,8 @@ namespace CLP
 
     bool FolderList::Scan(std::string sSelectedPath, int64_t anchor_l, int64_t anchor_b)
     {
+        bScreenInvalid = true;
+
         string sPath = FindClosestParentPath(sSelectedPath);
         if (!fs::exists(sPath))
             return false;
@@ -971,6 +1271,8 @@ namespace CLP
         size_t start = string::npos;
         size_t end = string::npos;
         string sText;
+        bScreenInvalid = true;
+
 
         int64_t cursorIndex = CursorToTextIndex(mLocalCursorPos);
         GetParameterUnderIndex(cursorIndex, start, end, sText);
@@ -1125,6 +1427,7 @@ namespace CLP
         size_t startIndex;
         size_t endIndex;
         ParamDesc* pPD = nullptr;
+        usageBuf.sHighlightParam.clear();
         if (rawCommandBuf.GetParameterUnderIndex(rawCommandBuf.CursorToTextIndex(rawCommandBuf.mLocalCursorPos), startIndex, endIndex, sParamUnderCursor, &pPD))
         {
             string sExample;
@@ -1140,8 +1443,6 @@ namespace CLP
             {
                 if (pCLP->IsRegisteredMode(sParamUnderCursor))
                     usageBuf.sHighlightParam = sParamUnderCursor;
-                else
-                    usageBuf.sHighlightParam.clear();
             }
         }
     }
@@ -1190,7 +1491,7 @@ namespace CLP
             for (int64_t x = 0; x < ScreenW(); x++)
             {
                 int64_t i = (y * ScreenW()) + x;
-                if (bScreenChanged || backBuffer[i] != drawStateBuffer[i])
+                if (bScreenInvalid || backBuffer[i] != drawStateBuffer[i])
                 {
                     if (!bCursorHidden)
                     {
@@ -1198,16 +1499,16 @@ namespace CLP
                         cout << "\033[?25l";
                     }
 
-                    bScreenChanged = true;
+//                    bScreenInvalid = true;
                     if (backBuffer[i] != drawStateBuffer[i])
                         DrawAnsiChar(x, y, backBuffer[i].c, backBuffer[i].attrib);
                 }
             }
         }
 
-        if (bScreenChanged)
+        if (bScreenInvalid)
         {
-            bScreenChanged = false;
+            bScreenInvalid = false;
             drawStateBuffer = backBuffer;
             rawCommandBuf.UpdateCursorPos(rawCommandBuf.mLocalCursorPos);
         }
@@ -1363,6 +1664,8 @@ namespace CLP
         if (mLastParsedText == sText)
             return;
 
+        bScreenInvalid = true;
+
         mLastParsedText = sText;
 
         enteredParams = ParamsFromText(mLastParsedText);
@@ -1389,7 +1692,7 @@ namespace CLP
         if ((newScreenInfo.dwSize.X != screenInfo.dwSize.X || newScreenInfo.dwSize.Y != screenInfo.dwSize.Y) || bForce)
         {
             screenInfo = newScreenInfo;
-            bScreenChanged = true;
+            bScreenInvalid = true;
 
             SHORT w = ScreenW();
             SHORT h = ScreenH();
@@ -1443,6 +1746,7 @@ namespace CLP
         string sText;
         helpWin.Init(Rect(0, 1, ScreenW(), ScreenH()));
         helpWin.Clear(kAttribHelpBG, true);
+        bScreenInvalid = true;
 
         Rect drawArea;
         helpWin.GetInnerArea(drawArea);
@@ -1575,7 +1879,7 @@ namespace CLP
         popupFolderListWin.Init(Rect(w / 4, h / 4, w * 3 / 4, h * 3 / 4));
         popupFolderListWin.SetVisible(false);
 
-
+         
         LoadHistory();
 
         backBuffer.resize(w*h);
@@ -1609,7 +1913,15 @@ namespace CLP
         {
             UpdateFromConsoleSize();
             UpdateParams();
-            UpdateDisplay();
+            if (bScreenInvalid)
+            {
+                UpdateDisplay();
+                bScreenInvalid = false;
+            }
+            else
+            {
+                std::this_thread::sleep_for(std::chrono::microseconds(10000));
+            }
 
             // Check for hotkey events
             MSG msg;
@@ -1619,6 +1931,7 @@ namespace CLP
                 {
                     rawCommandBuf.AddUndoEntry();
                     rawCommandBuf.HandlePaste(GetTextFromClipboard());
+                    bScreenInvalid = true;
                 }
                 else
                 {
@@ -1651,6 +1964,8 @@ namespace CLP
                     }
                     else if (inputRecord[i].EventType == KEY_EVENT && inputRecord[i].Event.KeyEvent.bKeyDown)
                     {
+                        bScreenInvalid = true;
+
                         int keycode = inputRecord[i].Event.KeyEvent.wVirtualKeyCode;
                         char c = inputRecord[i].Event.KeyEvent.uChar.AsciiChar;
 
@@ -1679,7 +1994,8 @@ namespace CLP
                         }
                     }
 
-                    UpdateUsageWin();
+                    if (bScreenInvalid)
+                        UpdateUsageWin();
                 }
             }
         }
@@ -1737,6 +2053,8 @@ namespace CLP
                     commandHistory.pop_front();
             }
 
+            bScreenInvalid = true;
+
             return true;
         }
 
@@ -1774,6 +2092,8 @@ namespace CLP
         }
 
         commandHistory.emplace_back(sCommandLine);
+        bScreenInvalid = true;
+
         return true;
     }
 

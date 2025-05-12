@@ -57,11 +57,19 @@ int main(int argc, char* argv[])
     zout << "in the app now." << 12.7 << "\n";
 
     string sFilename;
+    float fPercent = 1.0f;
+    string sMood;
 
     CommandLineParser parser;
     parser.RegisterAppDescription("Test App for CommandLineMonitor");
 
-    parser.RegisterParam(ParamDesc("SAMPLEPARAMETER", &sFilename,  CLP::kOptional, "anything"));
+    parser.RegisterParam(ParamDesc("PATH", &sFilename,  CLP::kRequired|CLP::kNoExistingPath, "This must be a path that does not exist."));
+
+    parser.RegisterParam(ParamDesc("PERCENT", &fPercent, CLP::kOptional, "Some floating point number", -1.2f, 7.8f));
+
+    parser.RegisterParam(ParamDesc("MOOD", &sMood, CLP::kOptional | CLP::kNamed, "Pick one", {"sad", "happy", "mad", "bored"}));
+
+
     bool bParseSuccess = parser.Parse(argc, argv);
     if (!bParseSuccess)
     {
