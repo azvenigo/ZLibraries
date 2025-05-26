@@ -943,18 +943,21 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
             }
         }
 
-        for (auto& i : colWidths)   // pad all cols
-            i += 2;
+//        for (auto& i : colWidths)   // pad all cols
+//            i += 2;
+
+
+        int64_t paddedScreenW = ScreenW() - 2;  // 1 char between each of the three columns
 
         // if there's enough room for the final column
-        if (colWidths[kColName] + colWidths[kColEntry] < (ScreenW()-kMinColWidth))
+        if (colWidths[kColName] + colWidths[kColEntry] < (paddedScreenW-kMinColWidth))
         {
-            colWidths[kColUsage] = ScreenW() - (colWidths[kColName] + colWidths[kColEntry]);
+            colWidths[kColUsage] = paddedScreenW - (colWidths[kColName] + colWidths[kColEntry]);
         }
         else
         {
             colWidths[kColUsage] = kMinColWidth;
-            colWidths[kColEntry] = ScreenW() - (colWidths[kColName]+kMinColWidth);
+            colWidths[kColEntry] = paddedScreenW - (colWidths[kColName]+kMinColWidth);
 
         }
 
@@ -998,7 +1001,7 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
                 strings[kColName] = "UNKNOWN COMMAND ";
             }
 
-            row += DrawFixedColumnStrings(drawArea.l, row, strings, colWidths, attribs, &drawArea);
+            row += DrawFixedColumnStrings(drawArea.l, row, strings, colWidths, 1, attribs, &drawArea);
 
 
 
@@ -1055,7 +1058,7 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
 
             strings[kColEntry] = param.sParamText;
 
-            row += DrawFixedColumnStrings(drawArea.l, row, strings, colWidths, attribs, &drawArea);
+            row += DrawFixedColumnStrings(drawArea.l, row, strings, colWidths, 1, attribs, &drawArea);
 
 
 
@@ -1104,19 +1107,21 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
                         strings[kColUsage] = sFailMessage;
                         attribs[kColUsage] = kBadParam;
                     }
+
+                    strings[kColEntry] = sValue;
                 }
                 else
                 {
                     attribs[kColEntry] = kUnknownParam;
+                    strings[kColEntry] = param.sParamText;
 
                     strings[kColUsage] = "Unknown parameter";
                     attribs[kColUsage] = kUnknownParam;
                 }
 
 
-                strings[kColEntry] = param.sParamText;
 
-                row += DrawFixedColumnStrings(drawArea.l, row, strings, colWidths, attribs, &drawArea);
+                row += DrawFixedColumnStrings(drawArea.l, row, strings, colWidths, 1, attribs, &drawArea);
 
 
             }
@@ -1830,6 +1835,36 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
         SHORT h = ScreenH();
 
 
+
+
+
+        HANDLE hOutput = GetStdHandle(STD_OUTPUT_HANDLE);
+        DWORD outputMode;
+        GetConsoleMode(hOutput, &outputMode);
+        outputMode |= ENABLE_VIRTUAL_TERMINAL_PROCESSING;
+        SetConsoleMode(hOutput, outputMode);
+
+
+        // Set console mode to allow reading mouse and key events
+        DWORD mode;
+        if (!GetConsoleMode(mhInput, &mode))
+        {
+            cerr << "Failed to get console mode." << endl;
+            return kErrorAbort;
+        }
+        mode |= /*ENABLE_MOUSE_INPUT |*/ ENABLE_EXTENDED_FLAGS | ENABLE_WINDOW_INPUT;
+        mode &= ~ENABLE_PROCESSED_INPUT;
+
+        if (!SetConsoleMode(mhInput, mode))
+        {
+            cerr << "Failed to set console mode." << endl;
+            return kErrorAbort;
+        }
+
+
+
+
+
         SaveConsoleState();
         std::vector<CHAR_INFO> blank(w * h);
         for (int i = 0; i < blank.size(); i++)
@@ -1840,23 +1875,6 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
         SMALL_RECT smallrect(0, 0, w, h);
         WriteConsoleOutput(mhOutput, &blank[0], screenInfo.dwSize, { 0, 0 }, &smallrect);
 
-
-        // Set console mode to allow reading mouse and key events
-        DWORD mode;
-        if (!GetConsoleMode(mhInput, &mode))
-        {
-            cerr << "Failed to get console mode." << endl;
-            return kErrorAbort;
-        }
-        mode |= ENABLE_MOUSE_INPUT | ENABLE_EXTENDED_FLAGS | ENABLE_WINDOW_INPUT | ENABLE_VIRTUAL_TERMINAL_PROCESSING;
-        mode &= ~ENABLE_PROCESSED_INPUT;
-
-        //mode |= ENABLE_PROCESSED_INPUT;
-        if (!SetConsoleMode(mhInput, mode))
-        {
-            cerr << "Failed to set console mode." << endl;
-            return kErrorAbort;
-        }
 
         // Main loop to read input events
         INPUT_RECORD inputRecord[128];
@@ -1940,62 +1958,59 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
                 }
             }
 
-            if (PeekConsoleInput(mhInput, inputRecord, 128, &numEventsRead) && numEventsRead > 0)
+            DWORD numEventsAvailable;
+            if (GetNumberOfConsoleInputEvents(mhInput, &numEventsAvailable) && numEventsAvailable > 0)
             {
-//                UpdateDisplay();
-
-                for (DWORD i = 0; i < numEventsRead; i++)
+                if (ReadConsoleInput(mhInput, inputRecord, 128, &numEventsRead) && numEventsRead > 0)
                 {
-                    if (!ReadConsoleInput(mhInput, inputRecord, 1, &numEventsRead))
+                    for (DWORD i = 0; i < numEventsRead; i++)
                     {
-                        cerr << "Failed to read console input." << endl;
-                        return kErrorAbort;
-                    }
+                        if (inputRecord[i].EventType == MOUSE_EVENT)
+                        {
+                            MOUSE_EVENT_RECORD mer = inputRecord[i].Event.MouseEvent;
+                            if (mer.dwEventFlags == 0 && mer.dwButtonState == FROM_LEFT_1ST_BUTTON_PRESSED)
+                            {
+                                COORD coord = mer.dwMousePosition;
+                                coord.Y -= (SHORT)(rawCommandBuf.mY-1);
+                                rawCommandBuf.UpdateCursorPos(coord);
+                                bScreenInvalid = true;
+                            }
+                        }
+                        else if (inputRecord[i].EventType == KEY_EVENT && inputRecord[i].Event.KeyEvent.bKeyDown)
+                        {
+                            bScreenInvalid = true;
 
-                    if (inputRecord[i].EventType == MOUSE_EVENT)
-                    {
-                        MOUSE_EVENT_RECORD mer = inputRecord[i].Event.MouseEvent;
-                        if (mer.dwEventFlags == 0 && mer.dwButtonState == FROM_LEFT_1ST_BUTTON_PRESSED)
-                        {
-                            COORD coord(mer.dwMousePosition);
-                            coord.Y -= (SHORT)rawCommandBuf.mY;       // to raw buffer coordinates
-                            rawCommandBuf.UpdateCursorPos(coord);
-                        }
-                    }
-                    else if (inputRecord[i].EventType == KEY_EVENT && inputRecord[i].Event.KeyEvent.bKeyDown)
-                    {
-                        bScreenInvalid = true;
+                            int keycode = inputRecord[i].Event.KeyEvent.wVirtualKeyCode;
+                            char c = inputRecord[i].Event.KeyEvent.uChar.AsciiChar;
 
-                        int keycode = inputRecord[i].Event.KeyEvent.wVirtualKeyCode;
-                        char c = inputRecord[i].Event.KeyEvent.uChar.AsciiChar;
-
-                        if (popupListWin.mbVisible)
-                        {
-                            popupListWin.OnKey(keycode, c);
-                        }
-                        else if (historyWin.mbVisible)
-                        {
-                            historyWin.OnKey(keycode, c);
-                        }
-                        else if (popupFolderListWin.mbVisible)
-                        {
-                            popupFolderListWin.OnKey(keycode, c);
-                        }
-                        else if (helpWin.mbVisible)
-                        {
-                            helpWin.OnKey(keycode, c);
-                        }
-                        else
-                        {
-                            if (keycode == VK_F1)
-                                ShowHelp();
+                            if (popupListWin.mbVisible)
+                            {
+                                popupListWin.OnKey(keycode, c);
+                            }
+                            else if (historyWin.mbVisible)
+                            {
+                                historyWin.OnKey(keycode, c);
+                            }
+                            else if (popupFolderListWin.mbVisible)
+                            {
+                                popupFolderListWin.OnKey(keycode, c);
+                            }
+                            else if (helpWin.mbVisible)
+                            {
+                                helpWin.OnKey(keycode, c);
+                            }
                             else
-                                rawCommandBuf.OnKey(keycode, c);
+                            {
+                                if (keycode == VK_F1)
+                                    ShowHelp();
+                                else
+                                    rawCommandBuf.OnKey(keycode, c);
+                            }
                         }
-                    }
 
-                    if (bScreenInvalid)
-                        UpdateUsageWin();
+                        if (bScreenInvalid)
+                            UpdateUsageWin();
+                    }
                 }
             }
         }

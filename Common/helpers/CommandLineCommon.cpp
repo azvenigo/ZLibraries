@@ -655,7 +655,7 @@ namespace CLP
 
 
 
-    int64_t ConsoleWin::DrawFixedColumnStrings(int64_t x, int64_t y, tStringArray& strings, vector<size_t>& colWidths, tAttribArray attribs, Rect* pClip)
+    int64_t ConsoleWin::DrawFixedColumnStrings(int64_t x, int64_t y, tStringArray& strings, vector<size_t>& colWidths, int64_t padding, tAttribArray attribs, Rect* pClip)
     {
         assert(strings.size() == colWidths.size() && colWidths.size() == attribs.size());
 
@@ -669,7 +669,7 @@ namespace CLP
         for (int i = 0; i < strings.size(); i++)
         {
             DrawClippedText(Rect(x, y, x+colWidths[i], mHeight), strings[i], attribs[i], true, pClip);
-            x += colWidths[i];
+            x += colWidths[i]+padding;
         }
 
         return rowsRequired;

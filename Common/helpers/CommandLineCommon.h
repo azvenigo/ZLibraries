@@ -308,7 +308,7 @@ namespace CLP
 
         void DrawClippedText(const Rect& r, std::string text, ZAttrib attributes = WHITE_ON_BLACK, bool bWrap = true, Rect* pClip = nullptr);
         void DrawClippedAnsiText(const Rect& r, std::string ansitext, bool bWrap = true, Rect* pClip = nullptr);
-        int64_t DrawFixedColumnStrings(int64_t x, int64_t y, tStringArray& strings, std::vector<size_t>& colWidths, tAttribArray attribs, Rect* pClip = nullptr); // returns rows drawn
+        int64_t DrawFixedColumnStrings(int64_t x, int64_t y, tStringArray& strings, std::vector<size_t>& colWidths, int64_t padding, tAttribArray attribs, Rect* pClip = nullptr); // returns rows drawn
 
         void GetTextOuputRect(std::string text, int64_t& w, int64_t& h);
         int64_t GetTextOutputRows(std::string text, int64_t w); // returns required number of rows for a given width
