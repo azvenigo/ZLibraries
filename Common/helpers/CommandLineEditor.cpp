@@ -499,6 +499,13 @@ namespace CLP
         int64_t width = MH::Max(mMinWidth, mWidth); 
         int64_t height = mEntries.size()+2;
 
+        if ((int64_t)mEntries.size() > mHeight)
+        {
+            // scrollbar
+            width = MH::Max(mMinWidth+1, mWidth);
+        }
+
+
         int64_t topCaptionsWidth = positionCaption[ConsoleWin::Position::LT].length() + positionCaption[ConsoleWin::Position::CT].length() + positionCaption[ConsoleWin::Position::RT].length();
         int64_t bottomCaptionsWidth = positionCaption[ConsoleWin::Position::LB].length() + positionCaption[ConsoleWin::Position::CB].length() + positionCaption[ConsoleWin::Position::RB].length();
 
@@ -509,12 +516,6 @@ namespace CLP
         {
             if (width < (int64_t)entry.length()+2)
                 width = entry.length()+2;
-        }
-
-        if ((int64_t)mEntries.size() > mHeight)
-        {
-            // scrollbar
-            width++;
         }
 
         Rect r(mAnchorL, mAnchorB - height, mAnchorL + width, mAnchorB);
