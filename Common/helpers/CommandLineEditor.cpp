@@ -511,8 +511,11 @@ namespace CLP
                 width = entry.length()+2;
         }
 
-        // scrollbar
-        width++;
+        if ((int64_t)mEntries.size() > mHeight)
+        {
+            // scrollbar
+            width++;
+        }
 
         Rect r(mAnchorL, mAnchorB - height, mAnchorL + width, mAnchorB);
 
