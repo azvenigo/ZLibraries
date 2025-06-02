@@ -862,6 +862,7 @@ public:
     {
         size_t nMinTableWidth = GetMinWidthForTables(minW, tables...);
         ((tables.renderWidth = nMinTableWidth), ...);
+        renderWidth = nMinTableWidth;
     }
 
 

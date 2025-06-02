@@ -1,7 +1,7 @@
 #pragma once
 
 #include <string>
-//#include "CommandLineParser.h"
+#include "LoggingHelpers.h"
 #include "StringHelpers.h"
 #include <list>
 #include <assert.h>
@@ -73,6 +73,16 @@ namespace CLP
 {
     const int CTRL_V_HOTKEY = 1;
     const int SHIFT_INSERT_HOTKEY = 2;
+
+
+    // decorations
+    static Table::Style ResetStyle = Table::Style();
+    static Table::Style AppStyle = Table::Style(COL_YELLOW);
+    static Table::Style SectionStyle = Table::Style(COL_CYAN);
+    static Table::Style ParamStyle = Table::Style(COL_YELLOW);
+    static Table::Style WarningStyle = Table::Style(COL_ORANGE);
+    static Table::Style ErrorStyle = Table::Style(COL_RED);
+
 
     enum eResponse : uint32_t
     {
@@ -247,6 +257,8 @@ namespace CLP
     extern ZAttrib kUnknownParam;
     extern ZAttrib kAttribError;
     extern ZAttrib kAttribWarning;
+    extern ZAttrib kAttribScrollbarBG;
+    extern ZAttrib kAttribScrollbarThumb;
 
     struct Rect
     {
@@ -257,6 +269,9 @@ namespace CLP
             r = _r;
             b = _b;
         };
+
+        int64_t w() const { return r - l; }
+        int64_t h() const { return b - t; }
 
         int64_t l;
         int64_t t;
@@ -300,17 +315,18 @@ namespace CLP
         void Clear(ZAttrib attrib = 0, bool bGradient = false);
 
 
+        void Fill(char c, const Rect& r, ZAttrib attrib);
         void Fill(const Rect& r, ZAttrib attrib, bool bGradient = false);
         void Fill(ZAttrib attrib, bool bGradient = false);
 
-        void DrawCharClipped(char c, int64_t x, int64_t y, ZAttrib attrib = {}, Rect* pClip = nullptr);
+        void DrawCharClipped(char c, int64_t x, int64_t y, ZAttrib attrib = {}, const Rect* pClip = nullptr);
         void DrawCharClipped(char c, int64_t offset, ZAttrib attrib = {});
 
-        void DrawClippedText(const Rect& r, std::string text, ZAttrib attributes = WHITE_ON_BLACK, bool bWrap = true, Rect* pClip = nullptr);
-        void DrawClippedAnsiText(const Rect& r, std::string ansitext, bool bWrap = true, Rect* pClip = nullptr);
-        int64_t DrawFixedColumnStrings(int64_t x, int64_t y, tStringArray& strings, std::vector<size_t>& colWidths, int64_t padding, tAttribArray attribs, Rect* pClip = nullptr); // returns rows drawn
+        void DrawClippedText(const Rect& r, std::string text, ZAttrib attributes = WHITE_ON_BLACK, bool bWrap = true, const Rect* pClip = nullptr);
+        void DrawClippedAnsiText(const Rect& r, std::string ansitext, bool bWrap = true, const Rect* pClip = nullptr);
+        int64_t DrawFixedColumnStrings(int64_t x, int64_t y, tStringArray& strings, std::vector<size_t>& colWidths, int64_t padding, tAttribArray attribs, const Rect* pClip = nullptr); // returns rows drawn
 
-        void GetTextOuputRect(std::string text, int64_t& w, int64_t& h);
+        Rect GetTextOuputRect(std::string text);
         int64_t GetTextOutputRows(std::string text, int64_t w); // returns required number of rows for a given width
 
         void GetCaptionPosition(std::string& caption, Position pos, int64_t& x, int64_t& y);
@@ -340,6 +356,8 @@ namespace CLP
         bool enableFrame[Side::MAX_SIDES] = { 0 };
 
     protected:
+        void DrawScrollbar(const Rect& r, int64_t min, int64_t max, int64_t cur, ZAttrib bg, ZAttrib thumb);
+
         ZAttrib mClearAttrib = 0;
         bool mbGradient = false;
 
@@ -360,9 +378,9 @@ namespace CLP
         void Paint(tConsoleBuffer& backBuf);
         bool OnKey(int keycode, char c);
 
-        void DrawScrollbar(const Rect& r, int64_t min, int64_t max, int64_t cur, ZAttrib bg, ZAttrib thumb);
         virtual void UpdateCaptions();
 
+        bool bAutoScrollbar = true;
         int64_t mTopVisibleRow = 0;
         std::string mText;
     };
@@ -500,6 +518,15 @@ namespace CLP
     void RestoreConsoleState();
     //bool getANSIColorAttribute(const std::string& str, size_t offset, ZAttrib& attribute, size_t& length);
     void DrawAnsiChar(int64_t x, int64_t y, char c, ZAttrib ca);
+
+    std::string ExpandEnvVars(const std::string& s); // replaces any %var% with environment variables 
+    typedef std::pair<std::string, std::string> tKeyVal;
+    typedef std::list<tKeyVal> tKeyValList;
+    tKeyValList GetEnvVars();
+    void ShowEnvVars();
+
+
+    extern InfoWin  helpWin;        // popup help window
 
     extern CONSOLE_SCREEN_BUFFER_INFO screenInfo;
     extern bool bScreenInvalid;

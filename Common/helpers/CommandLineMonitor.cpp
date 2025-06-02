@@ -24,6 +24,7 @@ namespace CLP
 
     LogWin      logWin;
     TextEditWin textEntryWin;
+//    InfoWin     helpWin;        // popup help window
 
 
     void LogWin::SetVisible(bool bVisible)
@@ -199,10 +200,10 @@ namespace CLP
         int64_t logCount = (int64_t)LOG::gLogger.getCount();
         if (logCount > h)
         {
-            ZAttrib bg(MAKE_BG(0xff555555));
-            ZAttrib thumb(MAKE_BG(0xffbbbbbb));
+//            ZAttrib bg(MAKE_BG(0xff555555));
+//            ZAttrib thumb(MAKE_BG(0xffbbbbbb));
             Rect sb(drawArea.r - 1, drawArea.t, drawArea.r, drawArea.b);
-            DrawScrollbar(sb, 0, LOG::gLogger.getCount()-h, mTopVisibleRow, bg, thumb);
+            DrawScrollbar(sb, 0, LOG::gLogger.getCount()-h, mTopVisibleRow, kAttribScrollbarBG, kAttribScrollbarThumb);
         }
 
         ConsoleWin::RenderToBackBuf(backBuf);
@@ -342,14 +343,10 @@ namespace CLP
             logWin.Paint(backBuffer);
         if (textEntryWin.mbVisible)
             textEntryWin.Paint(backBuffer);
+        if (helpWin.mbVisible)
+            helpWin.Paint(backBuffer);
 
-
-//        if (!bCursorHidden)
-        {
-//            bCursorHidden = true;
-            cout << "\033[?25l";
-        }
-
+        cout << "\033[?25l";
         COORD savePos = gLastCursorPos;
 
         for (int64_t y = 0; y < ScreenH(); y++)
@@ -370,7 +367,7 @@ namespace CLP
         bScreenInvalid = false;
 
 
-//        if (bCursorHidden && !bCursorShouldBeHidden)
+        //        if (bCursorHidden && !bCursorShouldBeHidden)
         if (textEntryWin.mbVisible)
         {
             cout << "\033[?25h";    // visible cursor
@@ -416,6 +413,11 @@ namespace CLP
             logWin.SetArea(logWinRect);
 
             textEntryWin.SetArea(Rect(1, h-1, w-1, h));
+
+            helpWin.Clear(kAttribHelpBG, true);
+            helpWin.SetArea(Rect(0, 1, w, h));
+            helpWin.SetEnableFrame();
+            helpWin.bAutoScrollbar = true;
 
             UpdateDisplay();
         }
@@ -494,7 +496,7 @@ namespace CLP
                 }
             }
 
-            if (pCLM->mbVisible)
+            if (pCLM->mbVisible || helpWin.mbVisible)
             {
                 pCLM->UpdateFromConsoleSize(bScreenInvalid);  // force update if the screen changed
                 pCLM->UpdateDisplay();
@@ -539,7 +541,9 @@ namespace CLP
                         char c = inputRecord[i].Event.KeyEvent.uChar.AsciiChar;
 
                         bool bHandled = false;
-                        if (textEntryWin.mbVisible)
+                        if (helpWin.mbVisible)
+                            bHandled = helpWin.OnKey(keycode, c);
+                        if (textEntryWin.mbVisible && !bHandled)
                             bHandled = textEntryWin.OnKey(keycode, c);
                         if (logWin.mbVisible && !bHandled)
                             bHandled = logWin.OnKey(keycode, c);
@@ -573,6 +577,10 @@ namespace CLP
                         else if (keycode == VK_F1)
                         {
                             pCLM->SetMonitorVisible(!pCLM->mbVisible);
+                        }
+                        else if (keycode == VK_F2)
+                        {
+                            ShowEnvVars();
                         }
                     }
                 }

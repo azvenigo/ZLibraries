@@ -1,4 +1,4 @@
-#include <string>
+﻿#include <string>
 #include "CommandLineCommon.h"
 #include "LoggingHelpers.h"
 #include "StringHelpers.h"
@@ -12,8 +12,6 @@
 #endif
 
 using namespace std;
-
-
 
 size_t CLP::ZAttrib::FromAnsi(const char* pChars)
 {
@@ -235,6 +233,9 @@ namespace CLP
     ZAttrib kAttribError(RED);
     ZAttrib kAttribWarning(ORANGE);
 
+    ZAttrib kAttribScrollbarBG(BLACK|MAKE_BG(0xFF885700));
+    ZAttrib kAttribScrollbarThumb(WHITE|MAKE_BG(0xFFBBBBBB));
+
 
 
     HANDLE mhInput;
@@ -244,6 +245,8 @@ namespace CLP
     CONSOLE_SCREEN_BUFFER_INFO screenInfo;
     bool bScreenInvalid = true;
     COORD gLastCursorPos = { -1, -1 };
+
+    InfoWin  helpWin;
 
 
     void SetCursorPosition(COORD coord, bool bForce)
@@ -297,6 +300,54 @@ namespace CLP
     };
 
 
+    std::string ExpandEnvVars(const std::string& s)
+    {
+        DWORD size = ExpandEnvironmentStringsA(s.c_str(), nullptr, 0);
+        if (size == 0) 
+        {
+            return s; // Return original on error
+        }
+
+        std::string result(size - 1, '\0'); // size includes null terminator
+        DWORD actualSize = ExpandEnvironmentStringsA(s.c_str(), &result[0], size);
+
+        if (actualSize == 0 || actualSize > size) 
+        {
+            return s; // Return original on error
+        }
+
+        return result;
+    }
+
+    tKeyValList GetEnvVars()
+    {
+        tKeyValList keyVals;
+        LPCH envStrings = GetEnvironmentStrings();
+        if (envStrings)
+        {
+            LPCH current = envStrings;
+            while (*current != '\0')
+            {
+                std::string envVar(current);
+
+                // Find the '=' separator
+                size_t equalPos = envVar.find('=');
+                if (equalPos != std::string::npos && equalPos > 0)
+                {
+                    std::string key = envVar.substr(0, equalPos);
+                    std::string value = envVar.substr(equalPos + 1);
+                    keyVals.push_back({ key, value });
+                }
+
+                current += strlen(current) + 1;
+            }
+
+            FreeEnvironmentStrings(envStrings);
+        }
+
+        return keyVals;
+    }
+
 
     bool ConsoleWin::Init(const Rect& r)
     {
@@ -313,15 +364,13 @@ namespace CLP
         mX = r.l;
         mY = r.t;
 
-        int64_t newW = r.r - r.l;
-        int64_t newH = r.b - r.t;
-        if (mWidth != newW || mHeight != newH)
+        if (mWidth != r.w() || mHeight != r.h())
         {
-            if (newW > 0 && newH > 0)
+            if (r.w() > 0 && r.h() > 0)
             {
-                mBuffer.resize(newW * newH);
-                mWidth = newW;
-                mHeight = newH;
+                mBuffer.resize(r.w() * r.h());
+                mWidth = r.w();
+                mHeight = r.h();
                 Clear(mClearAttrib, mbGradient);
             }
 
@@ -355,21 +404,20 @@ namespace CLP
 
 
 
-    void ConsoleWin::DrawClippedAnsiText(const Rect& r, std::string ansitext, bool bWrap, Rect* pClip)
+    void ConsoleWin::DrawClippedAnsiText(const Rect& r, std::string ansitext, bool bWrap, const Rect* pClip)
     {
 
 #ifdef _DEBUG
         validateAnsiSequences(ansitext);
 #endif
 
+        if (!pClip)
+            pClip = &r;
 
         int64_t cursorX = r.l;
         int64_t cursorY = r.t;
 
         ZAttrib attrib(WHITE);
-
-//        CLP::Rect drawArea;
-//        GetInnerArea(drawArea);
 
         for (size_t i = 0; i < ansitext.length(); i++)
         {
@@ -381,7 +429,7 @@ namespace CLP
             else
             {
                 char c = ansitext[i];
-                if ((c == '\n' || cursorX > r.r) && bWrap)
+                if (c == '\n' && bWrap)
                 {
                     cursorX = r.l;
                     cursorY++;
@@ -390,9 +438,10 @@ namespace CLP
                 {
                     DrawCharClipped(c, cursorX, cursorY, attrib, pClip);
                     cursorX++;
-                    if (cursorX >= r.r && !bWrap)
-                        break;
                 }
+
+                if (cursorY > r.b || cursorY > pClip->b) // off the bottom of the viewing area
+                    break;
             }
         }
     }
@@ -424,10 +473,9 @@ namespace CLP
     }
 
 
-    void ConsoleWin::GetTextOuputRect(std::string text, int64_t& w, int64_t& h)
+    Rect ConsoleWin::GetTextOuputRect(std::string text)
     {
-        w = 0;
-        h = 0;
+        Rect area;
         int64_t x = 0;
         int64_t y = 0;
         ZAttrib attrib;
@@ -445,15 +493,16 @@ namespace CLP
                 {
                     x = 0;
                     y++;
-                    h = std::max<int64_t>(h, y);
+                    area.b = std::max<int64_t>(area.b, y);
                 }
                 else
                 {
                     x++;
-                    w = std::max<int64_t>(w, x);
+                    area.r = std::max<int64_t>(area.r, x);
                 }
             }
         }
+        return area;
     }
 
     int64_t ConsoleWin::GetTextOutputRows(std::string text, int64_t w)
@@ -596,6 +645,19 @@ namespace CLP
             positionCaption[pos].clear();
     }
 
+    void ConsoleWin::Fill(char c, const Rect& r, ZAttrib attrib)
+    {
+        for (int64_t y = r.t; y < r.b; y++)
+        {
+            for (int64_t x = r.l; x < r.r; x++)
+            {
+                size_t offset = y * mWidth + x;
+                mBuffer[offset].c = c;
+                mBuffer[offset].attrib = attrib;
+            }
+        }
+    }
+
 
     void ConsoleWin::Fill(const Rect& r, ZAttrib attrib, bool bGradient)
     {
@@ -621,7 +683,7 @@ namespace CLP
         return Fill(Rect(0, 0, mWidth, mHeight), attrib, bGradient);
     }
 
-    void ConsoleWin::DrawCharClipped(char c, int64_t x, int64_t y, ZAttrib attrib, Rect* pClip)
+    void ConsoleWin::DrawCharClipped(char c, int64_t x, int64_t y, ZAttrib attrib, const Rect* pClip)
     {
         if (pClip)
         {
@@ -655,7 +717,7 @@ namespace CLP
 
 
 
-    int64_t ConsoleWin::DrawFixedColumnStrings(int64_t x, int64_t y, tStringArray& strings, vector<size_t>& colWidths, int64_t padding, tAttribArray attribs, Rect* pClip)
+    int64_t ConsoleWin::DrawFixedColumnStrings(int64_t x, int64_t y, tStringArray& strings, vector<size_t>& colWidths, int64_t padding, tAttribArray attribs, const Rect* pClip)
     {
         assert(strings.size() == colWidths.size() && colWidths.size() == attribs.size());
 
@@ -675,7 +737,7 @@ namespace CLP
         return rowsRequired;
     }
 
-    void ConsoleWin::DrawClippedText(const Rect& r, std::string text, ZAttrib attributes, bool bWrap, Rect* pClip)
+    void ConsoleWin::DrawClippedText(const Rect& r, std::string text, ZAttrib attributes, bool bWrap, const Rect* pClip)
     {
         COORD cursor((SHORT)r.l, (SHORT)r.t);
 
@@ -714,60 +776,84 @@ namespace CLP
 
         ConsoleWin::BasePaint();
 
+        int64_t firstDrawRow = mTopVisibleRow - 1;
+
         Rect drawArea;
         GetInnerArea(drawArea);
+//        int64_t h = drawArea.b - drawArea.t;
+//        int64_t w = drawArea.r - drawArea.l;
 
-        int64_t firstDrawRow = mTopVisibleRow - 1;
-        DrawClippedAnsiText(Rect(drawArea.l, -firstDrawRow, drawArea.r, drawArea.b), mText, true, &drawArea);
+        Rect textArea = GetTextOuputRect(mText);
+        int64_t shiftX = 1;// drawArea.l;
+        int64_t shiftY = /*drawArea.t*/ - firstDrawRow;     // shift the text output so that the in-view text starts with the firstdrawrow
+
+        textArea.l += shiftX;
+        textArea.r += shiftX;
+        textArea.t += shiftY;
+        textArea.b += shiftY;
+
+        DrawClippedAnsiText(textArea, mText, true, &drawArea);
+
+        if (bAutoScrollbar)
+        {
+            int64_t nRows = GetTextOutputRows(mText, drawArea.w());
+            Rect sb(drawArea.r - 1, drawArea.t, drawArea.r, drawArea.b);
+            if (nRows > drawArea.h())
+                DrawScrollbar(sb, 0, nRows-drawArea.h()-1, mTopVisibleRow, kAttribScrollbarBG, kAttribScrollbarThumb);
+        }
 
         ConsoleWin::RenderToBackBuf(backBuf);
     }
 
 
 
-    void InfoWin::DrawScrollbar(const Rect& r, int64_t min, int64_t max, int64_t cur, ZAttrib bg, ZAttrib thumb)
+    void ConsoleWin::DrawScrollbar(const Rect& r, int64_t min, int64_t max, int64_t cur, ZAttrib bg, ZAttrib thumb)
     {
         if (!mbVisible)
             return;
 
-        bool bHorizontal = true;
-
-        int64_t sbSize = r.r - r.l;
-        if (r.b - r.t > sbSize)
-        {
-            sbSize = r.b - r.t;
-            bHorizontal = false;
-        }
+        bool bHorizontal = (r.r - r.l) > (r.b - r.t);
+        int64_t sbSize = bHorizontal ? (r.r - r.l) : (r.b - r.t);
 
         assert(sbSize > 0);
 
-        float fThumbRatio = (float)sbSize/(float)(max - min);
+        int64_t scrollRange = max - min + 1;  // 31 scroll positions (0 to 30)
+        if (scrollRange <= 1) {
+            Fill(r, thumb, false);
+            return;
+        }
 
-        int64_t thumbSize = std::max<int64_t>(1, (int64_t) ((float)(sbSize) * fThumbRatio)); // minimum 1 
-        thumbSize = std::min<int64_t>(sbSize, thumbSize);                                       // maximum the whole scrollbar
+        // Total content size = max scroll position + window size + 1
+        // If max scroll is 30 and window shows 48 lines, total content is 30 + 48 + 1 = 79
+        int64_t totalContentSize = max + sbSize + 1;  // 30 + 48 + 1 = 79
+
+        // Thumb size = (visible_content / total_content) * scrollbar_size
+        int64_t thumbSize = (sbSize * sbSize) / totalContentSize;  // (48 * 48) / 79 ≈ 29
+        thumbSize = std::max<int64_t>(1, thumbSize);
+        thumbSize = std::min<int64_t>(sbSize - 1, thumbSize);
 
         Fill(r, bg, false);
 
+        int64_t trackSize = sbSize - thumbSize;  // 48 - 29 = 19
+        if (trackSize <= 0) {
+            Fill(r, thumb, false);
+            return;
+        }
 
-        int64_t nUnscaledValRange = max - min;
-        double fNormalizedValue = (double)(cur - min) / nUnscaledValRange;
-        if (fNormalizedValue < 0.0)
-            fNormalizedValue = 0.0;
-        else if (fNormalizedValue > 1.0)
-            fNormalizedValue = 1.0;
+        // Position: cur ranges from 0 to 30, so normalize by dividing by 30
+        double fNormalizedValue = (double)(cur - min) / (double)(max - min);  // 14/30 ≈ 0.467
+        fNormalizedValue = std::clamp(fNormalizedValue, 0.0, 1.0);
 
         Rect rThumb;
-        if (bHorizontal)
-        {
-            rThumb.l = r.l + (int64_t) (fNormalizedValue * (float)((r.r - r.l) - thumbSize));
+        if (bHorizontal) {
+            rThumb.l = r.l + (int64_t)(fNormalizedValue * trackSize);
             rThumb.r = rThumb.l + thumbSize;
             rThumb.t = r.t;
             rThumb.b = r.b;
         }
-        else
-        {
-            rThumb.t = r.t + (int64_t) (fNormalizedValue * (float)((r.b - r.t) - thumbSize));
-            rThumb.b = rThumb.t + thumbSize;
+        else {
+            rThumb.t = r.t + (int64_t)(fNormalizedValue * trackSize);  // 0 + (0.467 * 19) ≈ 8
+            rThumb.b = rThumb.t + thumbSize;  // 8 + 29 = 37
             rThumb.l = r.l;
             rThumb.r = r.r;
         }
@@ -782,13 +868,11 @@ namespace CLP
         GetInnerArea(drawArea);
         int64_t drawHeight = drawArea.b - drawArea.t;
 
-        int64_t docWidth = 0;
-        int64_t docHeight = 0;
-        GetTextOuputRect(mText, docWidth, docHeight);
+        Rect textArea = GetTextOuputRect(mText);
 
-        if (docHeight > drawHeight)
+        if (textArea.h() > drawHeight)
         {
-            positionCaption[ConsoleWin::Position::RT] = "Lines (" + SH::FromInt(mTopVisibleRow + 1) + "-" + SH::FromInt(mTopVisibleRow + drawHeight) + "/" + SH::FromInt(docHeight) + ")";
+            positionCaption[ConsoleWin::Position::RT] = "Lines (" + SH::FromInt(mTopVisibleRow + 1) + "-" + SH::FromInt(mTopVisibleRow + drawHeight) + "/" + SH::FromInt(textArea.h()) + ")";
             positionCaption[ConsoleWin::Position::RB] = "[UP/DOWN][PAGE Up/Down][HOME/END]";
         }
         else
@@ -804,18 +888,16 @@ namespace CLP
         GetInnerArea(drawArea);
         int64_t drawHeight = drawArea.b - drawArea.t;
 
-        int64_t docWidth = 0;
-        int64_t docHeight = 0;
-        GetTextOuputRect(mText, docWidth, docHeight);
+        Rect docArea = GetTextOuputRect(mText);
 
-        if (keycode == VK_F1 || keycode == VK_ESCAPE)
+        if (keycode == VK_F1 || keycode == VK_F2 || keycode == VK_ESCAPE)
         {
             mText.clear();
             SetVisible(false);
             mbDone = true;
         }
 
-        if (docHeight > drawHeight)
+        if (docArea.h() > drawHeight)
         {
             if (keycode == VK_UP)
             {
@@ -844,14 +926,14 @@ namespace CLP
             }
             else if (keycode == VK_END)
             {
-                mTopVisibleRow = docHeight - drawHeight;
+                mTopVisibleRow = docArea.h() - drawHeight;
                 bHandled = true;
             }
 
             if (mTopVisibleRow < 0)
                 mTopVisibleRow = 0;
-            if (mTopVisibleRow > (docHeight - drawHeight))
-                mTopVisibleRow = (docHeight - drawHeight);
+            if (mTopVisibleRow > (docArea.h() - drawHeight))
+                mTopVisibleRow = (docArea.h() - drawHeight);
         }
 
         UpdateCaptions();
@@ -1517,6 +1599,77 @@ namespace CLP
         CloseClipboard();
         return true;
     }
+
+    void ShowEnvVars()
+    {
+        string sText;
+
+        SHORT w = ScreenW();
+        SHORT h = ScreenH();
+
+        if (w < 1)
+            w = 1;
+        if (h < 8)
+            h = 8;
+
+        helpWin.Init(Rect(0, 1, w, h));
+        helpWin.Clear(kAttribHelpBG, true);
+        helpWin.SetEnableFrame();
+        helpWin.bAutoScrollbar = true;
+        bScreenInvalid = true;
+
+
+
+
+
+
+        Rect drawArea;
+        helpWin.GetInnerArea(drawArea);
+        int64_t drawWidth = drawArea.r - drawArea.l - 2;
+
+
+        Table varTable;
+        varTable.defaultStyle.color = AnsiCol(0xFF888888);
+        varTable.SetBorders("+", "+", "+", "+");
+        //varTable.renderWidth = drawWidth;
+
+        varTable.AddRow(SectionStyle, "--var--", "--value--");
+
+        tKeyValList keyVals = GetEnvVars();
+        size_t longestKey = 0;
+        size_t longestVal = 0;
+        for (const auto& kv : keyVals)
+        {
+            longestKey = std::max<size_t>(longestKey, kv.first.length());
+            longestVal = std::max<size_t>(longestVal, kv.second.length());
+        }
+
+        size_t valueColW = drawWidth - longestKey - 6;
+        for (const auto& kv : keyVals)
+        {
+            string sKey = kv.first;
+            string sVal = kv.second;
+
+            size_t offset = 0;
+            while (offset < sVal.length())
+            {
+                string sFitVal = sVal.substr(offset, valueColW);
+                if (offset == 0) // first row
+                    varTable.AddRow(sKey, sFitVal);
+                else
+                    varTable.AddRow("", sFitVal);
+                offset += sFitVal.length();
+            }
+        }
+
+
+        varTable.AlignWidth(drawWidth/2);
+
+        helpWin.mText = (string)varTable;
+        helpWin.UpdateCaptions();
+    }
+
+
 
 };  // namespace CLP
 

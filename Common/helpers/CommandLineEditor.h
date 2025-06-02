@@ -115,6 +115,7 @@ namespace CLP
         void SaveConsoleState();
         void RestoreConsoleState();
         void ShowHelp();
+
         bool OutputCommandToConsole(const std::string& command);
 
 

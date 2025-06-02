@@ -27,7 +27,6 @@ namespace CLP
     ParamListWin    paramListBuf;   // parsed parameter list with additional info
     AnsiColorWin    topInfoBuf;
     UsageWin        usageBuf;       // simple one line drawing of usage
-    InfoWin         helpWin;        // popup help window
     ListboxWin      popupListWin;
     HistoryWin      historyWin;
     FolderList      popupFolderListWin;
@@ -300,6 +299,13 @@ namespace CLP
             selection++;
         }
 
+        if ((int64_t)mEntries.size() > mHeight)
+        {
+            Rect sb(drawArea);
+            sb.l = drawArea.r - 1;
+            DrawScrollbar(sb, 0, mEntries.size() - sb.h() - 1, mTopVisibleRow, kAttribScrollbarBG, kAttribScrollbarThumb);
+        }
+
     //    ConsoleWin::Paint(backBuf);
         ConsoleWin::RenderToBackBuf(backBuf);
 
@@ -504,6 +510,9 @@ namespace CLP
             if (width < (int64_t)entry.length()+2)
                 width = entry.length()+2;
         }
+
+        // scrollbar
+        width++;
 
         Rect r(mAnchorL, mAnchorB - height, mAnchorL + width, mAnchorB);
 
@@ -932,7 +941,7 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
         colWidths[kColEntry] = kMinColWidth;
         for (int paramindex = 0; paramindex < enteredParams.size(); paramindex++)
         {
-            string sText(enteredParams[paramindex].sParamText);
+            string sText(ExpandEnvVars(enteredParams[paramindex].sParamText));
             colWidths[kColEntry] = std::max<size_t>(sText.length(), colWidths[kColEntry]);
 
             ParamDesc* pPD = enteredParams[paramindex].pRelatedDesc;
@@ -1032,8 +1041,8 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
             if (param.pRelatedDesc)
             {
                 strings[kColName] = param.pRelatedDesc->msName;
-
-                if (param.pRelatedDesc->DoesValueSatisfy(param.sParamText, sFailMessage))
+                string sValue = ExpandEnvVars(param.sParamText);
+                if (param.pRelatedDesc->DoesValueSatisfy(sValue, sFailMessage))
                 {
                     strings[kColUsage] = param.pRelatedDesc->msUsage;
                     attribs[kColEntry] = kGoodParam;
@@ -1056,7 +1065,7 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
                 attribs[kColUsage] = kUnknownParam;
             }
 
-            strings[kColEntry] = param.sParamText;
+            strings[kColEntry] = ExpandEnvVars(param.sParamText);
 
             row += DrawFixedColumnStrings(drawArea.l, row, strings, colWidths, 1, attribs, &drawArea);
 
@@ -1113,7 +1122,7 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
                 else
                 {
                     attribs[kColEntry] = kUnknownParam;
-                    strings[kColEntry] = param.sParamText;
+                    strings[kColEntry] = ExpandEnvVars(param.sParamText);
 
                     strings[kColUsage] = "Unknown parameter";
                     attribs[kColUsage] = kUnknownParam;
@@ -1311,6 +1320,18 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
             popupListWin.SetVisible();
             popupListWin.SetEntries(availableNamedParams, sText, anchor.X, anchor.Y);
         }
+        else if (sText[0] == '%')
+        {
+            popupListWin.positionCaption[Position::CT] = "Vars";
+            popupListWin.SetVisible();
+
+            tKeyValList keyVals = GetEnvVars();
+            tStringList keys;
+            for (const auto& kv : keyVals)
+                keys.push_back('%' + kv.first + '%');
+
+            popupListWin.SetEntries(keys, sText, anchor.X, anchor.Y);
+        }
         else
         {
             // find param desc
@@ -1466,9 +1487,6 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
 
 
 
-
-
-
         if (helpWin.mbVisible)
         {
             //helpBuf.PaintToWindowsConsole(mhOutput);
@@ -1553,7 +1571,7 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
             if (nIndexOfColon != string::npos)
             {
                 outName = sParamText.substr(1, nIndexOfColon - 1).c_str();    // everything from first char to colon
-                outValue = sParamText.substr(nIndexOfColon + 1);    // everything after colon
+                outValue = ExpandEnvVars(sParamText.substr(nIndexOfColon + 1));    // everything after colon
             }
             else
             {
@@ -1647,9 +1665,10 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
                 param.positionalindex = positionalindex;
                 param.pRelatedDesc = GetParamDesc(sModeWhileParsing, positionalindex);
 
+                string sValue = ExpandEnvVars(param.sParamText);
                 if (!param.pRelatedDesc)       // unsatisfied positional parameter
                     param.drawAttributes = kBadParam;
-                else if (!param.pRelatedDesc->DoesValueSatisfy(param.sParamText, sFailMessage))     // positional param has descriptor but not in required range
+                else if (!param.pRelatedDesc->DoesValueSatisfy(sValue, sFailMessage))     // positional param has descriptor but not in required range
                     param.drawAttributes = kBadParam;
 
                 positionalindex++;
@@ -1782,6 +1801,7 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
         additionalHelp.AddRow(SectionStyle, "--Key Combo--", "--Action--");
 
         additionalHelp.AddRow(ParamStyle, "[F1]", "General help or contextual help (if first parameter is recognized command.)");
+        additionalHelp.AddRow(ParamStyle, "[F2]", "Show Environment Variables");
 
         additionalHelp.AddRow(ParamStyle, "[TAB]", "Context specific popup");
 
@@ -1811,7 +1831,6 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
         helpWin.mText = sText;
         helpWin.UpdateCaptions();
     }
-
 
     eResponse CommandLineEditor::Edit(const string& sCommandLine, std::string& outEditedCommandLine)
     {
@@ -2003,6 +2022,8 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
                             {
                                 if (keycode == VK_F1)
                                     ShowHelp();
+                                else if (keycode == VK_F2)
+                                    ShowEnvVars();
                                 else
                                     rawCommandBuf.OnKey(keycode, c);
                             }

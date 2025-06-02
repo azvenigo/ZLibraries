@@ -127,14 +127,6 @@ namespace CLP
     const static uint32_t kNoExistingPath       = 64;   // if set, must not have existing file/folder at this location
 
 
-// decorations
-    static Table::Style ResetStyle    = Table::Style();
-    static Table::Style AppStyle      = Table::Style(COL_YELLOW);
-    static Table::Style SectionStyle  = Table::Style(COL_CYAN);
-    static Table::Style ParamStyle    = Table::Style(COL_YELLOW);
-    static Table::Style WarningStyle  = Table::Style(COL_ORANGE);
-    static Table::Style ErrorStyle    = Table::Style(COL_RED);
-
     // array of colors
 
     [[maybe_unused]] static void ResetCols()            // reset colored output
