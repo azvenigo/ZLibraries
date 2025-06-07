@@ -1780,6 +1780,8 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
         helpWin.GetInnerArea(drawArea);
         int64_t drawWidth = drawArea.r - drawArea.l-2;
 
+        assert(drawWidth > 0);
+
 
         if (pCLP)
         {

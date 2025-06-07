@@ -56,7 +56,7 @@ namespace CLP
         void UpdateFromConsoleSize(bool bForce = false);
         void UpdateDisplay();
         void DrawToScreen();
-        void SetMonitorVisible(bool bVisible = true);
+        void UpdateVisibility();
 
         tConsoleBuffer backBuffer;      // for double buffering
         tConsoleBuffer drawStateBuffer; // for rendering only delta
@@ -64,6 +64,7 @@ namespace CLP
         std::thread monitorthread;
 
         bool mbVisible;
+        bool mbLastVisibleState;
         bool mbDone;
         bool mbCanceled;
     };

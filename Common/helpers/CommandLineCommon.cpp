@@ -895,6 +895,7 @@ namespace CLP
             mText.clear();
             SetVisible(false);
             mbDone = true;
+            return true;
         }
 
         if (docArea.h() > drawHeight)

@@ -33,18 +33,6 @@ namespace CLP
             invalid = true;
 
         mbVisible = bVisible;
-        LOG::gLogOut.m_outputToFallback = !bVisible;
-        LOG::gLogErr.m_outputToFallback = !bVisible;
-
-        if (bVisible)
-        {
-            cout << "\033[?25l";    // hide cursor
-        }
-        else
-        {
-            cout << "\033[?25h" << COL_WHITE << COL_BG_BLACK;    // show cursor, reset colors
-            RestoreConsoleState();
-        }
     }
 
     void LogWin::Update()
@@ -405,17 +393,20 @@ namespace CLP
             drawStateBuffer.resize(w * h);
 
 
-            logWin.Clear(kAttribHelpBG, true);
-
-            Rect logWinRect(1, 1, w - 1, h - 1);
+            Rect viewRect(0, 1, w, h);
+            Rect logWinRect(viewRect);
             if (textEntryWin.mbVisible)
+            {
                 logWinRect.b--;
-            logWin.SetArea(logWinRect);
+                textEntryWin.SetArea(Rect(logWinRect.l, logWinRect.b, logWinRect.r, logWinRect.b+1));
+            }
 
-            textEntryWin.SetArea(Rect(1, h-1, w-1, h));
+            logWin.Clear(kAttribHelpBG, true);
+            logWin.SetArea(logWinRect);
+            logWin.SetEnableFrame();
 
             helpWin.Clear(kAttribHelpBG, true);
-            helpWin.SetArea(Rect(0, 1, w, h));
+            helpWin.SetArea(viewRect);
             helpWin.SetEnableFrame();
             helpWin.bAutoScrollbar = true;
 
@@ -423,24 +414,20 @@ namespace CLP
         }
     }
 
-    void CommandLineMonitor::SetMonitorVisible(bool bVisible)
+    void CommandLineMonitor::UpdateVisibility()
     {
-        mbVisible = bVisible;
-        if (mbVisible)
+        if (mbVisible && mbLastVisibleState == false)
         {
             SaveConsoleState();
+            cout << "\033[?25l";    // hide cursor
 
-            string sText;
-            logWin.Init(Rect(0, 1, ScreenW(), ScreenH()));
-            logWin.SetEnableFrame();
-            logWin.Clear(kAttribHelpBG, true);
-
-            logWin.Update();
-            logWin.SetVisible(true);
+            bScreenInvalid = true;
         }
-        else
+
+        if (!mbVisible && mbLastVisibleState == true)
         {
             logWin.SetVisible(false);
+            cout << "\033[?25h" << COL_WHITE << COL_BG_BLACK;    // show cursor, reset colors
             RestoreConsoleState();
 
             LOG::tLogEntries entries = LOG::gLogger.tail(ScreenH());
@@ -448,8 +435,12 @@ namespace CLP
             {
                 cout << entry.text << std::endl;
             }
+            bScreenInvalid = true;
         }
-        bScreenInvalid = true;
+
+        LOG::gLogOut.m_outputToFallback = !mbVisible;
+        LOG::gLogErr.m_outputToFallback = !mbVisible;
+        mbLastVisibleState = mbVisible;
     }
 
 
@@ -482,6 +473,9 @@ namespace CLP
 
         while (!pCLM->mbDone && !pCLM->mbCanceled)
         {
+            pCLM->mbVisible = helpWin.mbVisible || logWin.mbVisible;
+
+            pCLM->UpdateVisibility();
             logWin.Update();
 
             if (textEntryWin.mbVisible)
@@ -496,7 +490,7 @@ namespace CLP
                 }
             }
 
-            if (pCLM->mbVisible || helpWin.mbVisible)
+            if (pCLM->mbVisible)
             {
                 pCLM->UpdateFromConsoleSize(bScreenInvalid);  // force update if the screen changed
                 pCLM->UpdateDisplay();
@@ -562,33 +556,31 @@ namespace CLP
                                 bScreenInvalid = true;
                             }
                         }
-                        if (logWin.mbVisible && logWin.mbCanceled)
-                        {
-                            pCLM->SetMonitorVisible(!pCLM->mbVisible);
-                            bHandled = true;
-                            bScreenInvalid = true;
-                        }
 
-                        if (keycode == VK_ESCAPE && !bHandled)
+                        if (!bHandled)
                         {
-                            pCLM->mbDone = true;
-                            bScreenInvalid = true;
-                        }
-                        else if (keycode == VK_F1)
-                        {
-                            pCLM->SetMonitorVisible(!pCLM->mbVisible);
-                        }
-                        else if (keycode == VK_F2)
-                        {
-                            ShowEnvVars();
+                            if (keycode == VK_ESCAPE)
+                            {
+                                pCLM->mbDone = true;
+                                pCLM->mbVisible = false;
+                                bScreenInvalid = true;
+                            }
+                            else if (keycode == VK_F1)
+                            {
+                                logWin.mbVisible = !logWin.mbVisible;
+                            }
+                            else if (keycode == VK_F2)
+                            {
+                                ShowEnvVars();
+                            }
                         }
                     }
                 }
             }
         }
 
-        if (pCLM->mbVisible)
-            pCLM->SetMonitorVisible(false);
+        pCLM->mbVisible = false;
+        pCLM->UpdateVisibility();
     }
 
 
