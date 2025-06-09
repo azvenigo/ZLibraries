@@ -377,6 +377,12 @@ namespace CLP
         }
     }
 
+    bool ConsoleWin::OnMouse(MOUSE_EVENT_RECORD event)
+    {
+        return false;
+    }
+
+
     void ConsoleWin::GetArea(Rect& r)
     {
         r.l = mX;
@@ -879,7 +885,32 @@ namespace CLP
         {
             positionCaption[ConsoleWin::Position::RT].clear();
         }
+
+        bScreenInvalid = true;
     }
+
+    bool InfoWin::OnMouse(MOUSE_EVENT_RECORD event)
+    {
+        COORD localcoord = event.dwMousePosition;
+        localcoord.X -= (SHORT)mX;
+        localcoord.Y -= (SHORT)mY;
+
+        if (event.dwEventFlags == MOUSE_WHEELED)
+        {
+            SHORT wheelDelta = HIWORD(event.dwButtonState);
+            if (wheelDelta < 0)
+            {
+                return OnKey(VK_DOWN, 4);
+            }
+            else
+            {
+                return OnKey(VK_UP, 4);
+            }
+        }
+
+        return ConsoleWin::OnMouse(event);
+    }
+
 
     bool InfoWin::OnKey(int keycode, char c)
     {
@@ -902,12 +933,12 @@ namespace CLP
         {
             if (keycode == VK_UP)
             {
-                mTopVisibleRow--;
+                mTopVisibleRow = mTopVisibleRow - 1 - c;
                 bHandled = true;
             }
             else if (keycode == VK_DOWN)
             {
-                mTopVisibleRow++;
+                mTopVisibleRow = mTopVisibleRow + 1 + c;
                 bHandled = true;
             }
             else if (keycode == VK_HOME)
@@ -940,6 +971,55 @@ namespace CLP
         UpdateCaptions();
 
         return bHandled;
+    }
+
+    bool TextEditWin::OnMouse(MOUSE_EVENT_RECORD event)
+    {
+        COORD localcoord = event.dwMousePosition;
+        localcoord.X -= (SHORT)mX;
+        localcoord.Y -= (SHORT)mY;
+
+//        cout << "over:" << localcoord.X << "," << localcoord.Y << " ";
+
+        if (event.dwEventFlags == 0)
+        {
+            if (event.dwButtonState == FROM_LEFT_1ST_BUTTON_PRESSED)
+            {
+                // left button down
+                UpdateCursorPos(localcoord);
+
+                selectionstart = (int)CursorToTextIndex(localcoord);
+                selectionend = selectionstart;
+                bScreenInvalid = true;
+                bMouseCapturing = true;
+                return true;
+            }
+            else if (event.dwButtonState == 0 && bMouseCapturing)
+            {
+                // left button up
+                selectionend = (int)CursorToTextIndex(localcoord);
+
+                if (selectionstart == selectionend)
+                {
+                    ClearSelection();
+                }
+
+                bScreenInvalid = true;
+                bMouseCapturing = false;
+                return true;
+            }
+        }
+        else if (event.dwEventFlags == MOUSE_MOVED)
+        {
+            // mouse moved
+            if (bMouseCapturing)
+            {
+                selectionend = (int)CursorToTextIndex(localcoord);
+                bScreenInvalid = true;
+            }
+        }
+
+        return false;
     }
 
 

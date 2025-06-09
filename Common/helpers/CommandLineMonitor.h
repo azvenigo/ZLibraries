@@ -50,6 +50,8 @@ namespace CLP
         bool IsDone() const { return mbDone; } 
 
     private:
+        bool OnKey(int keycode, char c);
+        bool OnMouse(MOUSE_EVENT_RECORD event);
 
         static void ThreadProc(CommandLineMonitor* pCLM);
 

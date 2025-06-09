@@ -443,6 +443,60 @@ namespace CLP
         mbLastVisibleState = mbVisible;
     }
 
+    bool CommandLineMonitor::OnKey(int keycode, char c)
+    {
+        bool bHandled = false;
+        if (helpWin.mbVisible)
+            bHandled = helpWin.OnKey(keycode, c);
+        if (textEntryWin.mbVisible && !bHandled)
+            bHandled = textEntryWin.OnKey(keycode, c);
+        if (logWin.mbVisible && !bHandled)
+            bHandled = logWin.OnKey(keycode, c);
+
+        if (textEntryWin.mbVisible)
+        {
+            if (textEntryWin.mbCanceled)
+                textEntryWin.SetText("");
+
+            if (textEntryWin.mbCanceled || textEntryWin.mbDone)
+            {
+                textEntryWin.SetVisible(false);
+                textEntryWin.mbCanceled = false;
+                textEntryWin.mbDone = false;
+                bScreenInvalid = true;
+                return true;
+            }
+        }
+
+        if (!bHandled)
+        {
+            if (keycode == VK_ESCAPE)
+            {
+                mbDone = true;
+                mbVisible = false;
+                bScreenInvalid = true;
+                return true;
+            }
+            else if (keycode == VK_F1)
+            {
+                logWin.mbVisible = !logWin.mbVisible;
+                return true;
+            }
+            else if (keycode == VK_F2)
+            {
+                ShowEnvVars();
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    bool CommandLineMonitor::OnMouse(MOUSE_EVENT_RECORD event)
+    {
+        return false;
+    }
+
 
     void CommandLineMonitor::ThreadProc(CommandLineMonitor* pCLM)
     {
@@ -527,53 +581,14 @@ namespace CLP
 
                     if (inputRecord[i].EventType == MOUSE_EVENT)
                     {
-                        MOUSE_EVENT_RECORD mer = inputRecord[i].Event.MouseEvent;
+                        MOUSE_EVENT_RECORD event = inputRecord[i].Event.MouseEvent;
+                        event.dwMousePosition.Y--;  // adjust for our coords
+
+                        pCLM->OnMouse(event);
                     }
                     else if (inputRecord[i].EventType == KEY_EVENT && inputRecord[i].Event.KeyEvent.bKeyDown)
                     {
-                        int keycode = inputRecord[i].Event.KeyEvent.wVirtualKeyCode;
-                        char c = inputRecord[i].Event.KeyEvent.uChar.AsciiChar;
-
-                        bool bHandled = false;
-                        if (helpWin.mbVisible)
-                            bHandled = helpWin.OnKey(keycode, c);
-                        if (textEntryWin.mbVisible && !bHandled)
-                            bHandled = textEntryWin.OnKey(keycode, c);
-                        if (logWin.mbVisible && !bHandled)
-                            bHandled = logWin.OnKey(keycode, c);
-
-                        if (textEntryWin.mbVisible)
-                        {
-                            if (textEntryWin.mbCanceled)
-                                textEntryWin.SetText("");
-
-                            if (textEntryWin.mbCanceled || textEntryWin.mbDone)
-                            {
-                                textEntryWin.SetVisible(false);
-                                textEntryWin.mbCanceled = false;
-                                textEntryWin.mbDone = false;
-                                bHandled = true;
-                                bScreenInvalid = true;
-                            }
-                        }
-
-                        if (!bHandled)
-                        {
-                            if (keycode == VK_ESCAPE)
-                            {
-                                pCLM->mbDone = true;
-                                pCLM->mbVisible = false;
-                                bScreenInvalid = true;
-                            }
-                            else if (keycode == VK_F1)
-                            {
-                                logWin.mbVisible = !logWin.mbVisible;
-                            }
-                            else if (keycode == VK_F2)
-                            {
-                                ShowEnvVars();
-                            }
-                        }
+                        pCLM->OnKey(inputRecord[i].Event.KeyEvent.wVirtualKeyCode, inputRecord[i].Event.KeyEvent.uChar.AsciiChar);
                     }
                 }
             }
@@ -582,7 +597,6 @@ namespace CLP
         pCLM->mbVisible = false;
         pCLM->UpdateVisibility();
     }
-
 
     void CommandLineMonitor::Start()
     {

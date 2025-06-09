@@ -335,9 +335,11 @@ namespace CLP
         virtual void RenderToBackBuf(tConsoleBuffer& backBuf);
 
         virtual bool OnKey(int keycode, char c) { return false; }
+        virtual bool OnMouse(MOUSE_EVENT_RECORD event);
 
         virtual void SetVisible(bool bVisible = true) { mbVisible = bVisible; }
         virtual void SetArea(const Rect& r);
+        bool IsOver(int64_t x, int64_t y) { return mbVisible && x >= mX && x <= mX + mWidth && y >= mY && y <= mY + mHeight; }
         void GetArea(Rect& r);
         void GetInnerArea(Rect& r);  // adjusted for frame
 
@@ -377,6 +379,7 @@ namespace CLP
     public:
         void Paint(tConsoleBuffer& backBuf);
         bool OnKey(int keycode, char c);
+        virtual bool OnMouse(MOUSE_EVENT_RECORD event);
 
         virtual void UpdateCaptions();
 
@@ -405,6 +408,7 @@ namespace CLP
         virtual void SetEntries(tStringList entries, std::string selectionSearch = "", int64_t anchor_l = -1, int64_t anchor_b = -1);
         virtual void Paint(tConsoleBuffer& backBuf);
         virtual bool OnKey(int keycode, char c);
+        virtual bool OnMouse(MOUSE_EVENT_RECORD event);
 
         virtual void SizeWindowToEntries();
         virtual void UpdateCaptions();
@@ -461,6 +465,8 @@ namespace CLP
         void SetArea(const Rect& r);
 
         virtual bool OnKey(int keycode, char c);
+        virtual bool OnMouse(MOUSE_EVENT_RECORD event);
+
 
         void HandlePaste(std::string text);
 
@@ -491,6 +497,7 @@ namespace CLP
         int64_t firstVisibleRow = 0;
         int64_t selectionstart = -1;
         int64_t selectionend = -1;
+        bool bMouseCapturing = false;
 
 #ifdef _WIN64
         bool    bHotkeyHooked = false;

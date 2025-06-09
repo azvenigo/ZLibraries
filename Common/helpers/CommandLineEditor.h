@@ -36,6 +36,7 @@ namespace CLP
             bMultiline = true;
         }
         bool OnKey(int keycode, char c);
+        virtual bool OnMouse(MOUSE_EVENT_RECORD event);
         void Paint(tConsoleBuffer& backBuf);
         friend class CommandLineEditor;
         bool GetParameterUnderIndex(int64_t index, size_t& outStart, size_t& outEnd, std::string& outParam, ParamDesc** ppPD = nullptr);
@@ -98,6 +99,9 @@ namespace CLP
 
 
     private:
+        bool OnKey(int keycode, char c);
+        bool OnMouse(MOUSE_EVENT_RECORD event);
+
 
         tEnteredParams  GetPositionalEntries();
         tEnteredParams  GetNamedEntries();

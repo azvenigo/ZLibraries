@@ -257,6 +257,38 @@ namespace CLP
         return bHandled;
     }
 
+    bool RawEntryWin::OnMouse(MOUSE_EVENT_RECORD event)
+    {
+        COORD localcoord = event.dwMousePosition;
+        localcoord.X -= (SHORT)mX;
+        localcoord.Y -= (SHORT)mY;
+
+        if (event.dwEventFlags == 0)
+        {
+            if (event.dwButtonState == RIGHTMOST_BUTTON_PRESSED)
+            {
+                mLocalCursorPos = localcoord;
+                bScreenInvalid = true;
+                return HandleParamContext();
+            }
+        }
+        else if (event.dwEventFlags == DOUBLE_CLICK)
+        {
+            int64_t cursorIndex = CursorToTextIndex(localcoord);
+            size_t start;
+            size_t end;
+            string sText;
+            GetParameterUnderIndex(cursorIndex, start, end, sText);
+
+            selectionstart = start;
+            selectionend = end;
+            bScreenInvalid = true;
+            return true;
+        }
+
+        return TextEditWin::OnMouse(event);
+    }
+
 
     void ListboxWin::Paint(tConsoleBuffer& backBuf)
     {
@@ -321,6 +353,40 @@ namespace CLP
             it++;
 
         return *it;
+    }
+
+    bool ListboxWin::OnMouse(MOUSE_EVENT_RECORD event)
+    {
+        COORD localcoord = event.dwMousePosition;
+        localcoord.X -= (SHORT)mX;
+        localcoord.Y -= (SHORT)mY;
+        if (event.dwEventFlags == 0)
+        {
+            if (event.dwButtonState == FROM_LEFT_1ST_BUTTON_PRESSED)
+            {
+                mSelection = mTopVisibleRow + localcoord.Y;
+                bScreenInvalid = true;
+            }
+        }
+        else if (event.dwEventFlags == DOUBLE_CLICK)
+        {
+            mSelection = mTopVisibleRow + localcoord.Y;
+            return OnKey(VK_RETURN, 0);
+        }
+        else if (event.dwEventFlags == MOUSE_WHEELED)
+        {
+            SHORT wheelDelta = HIWORD(event.dwButtonState);
+            if (wheelDelta < 0)
+            {
+                return OnKey(VK_DOWN, 0);
+            }
+            else
+            {
+                return OnKey(VK_UP, 0);
+            }
+        }
+
+        return ConsoleWin::OnMouse(event);
     }
 
     bool ListboxWin::OnKey(int keycode, char c)
@@ -1838,6 +1904,130 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
         helpWin.UpdateCaptions();
     }
 
+    void PrintConsoleInputMode(DWORD mode)
+    {
+        std::cout << "Console Input Mode: 0x" << std::hex << mode << std::dec << std::endl;
+
+        if (mode & ENABLE_PROCESSED_INPUT)
+            std::cout << "  ENABLE_PROCESSED_INPUT (0x0001) - Ctrl+C processed by system" << std::endl;
+
+        if (mode & ENABLE_LINE_INPUT)
+            std::cout << "  ENABLE_LINE_INPUT (0x0002) - Line input mode" << std::endl;
+
+        if (mode & ENABLE_ECHO_INPUT)
+            std::cout << "  ENABLE_ECHO_INPUT (0x0004) - Characters echoed" << std::endl;
+
+        if (mode & ENABLE_WINDOW_INPUT)
+            std::cout << "  ENABLE_WINDOW_INPUT (0x0008) - Window size events reported" << std::endl;
+
+        if (mode & ENABLE_MOUSE_INPUT)
+            std::cout << "  ENABLE_MOUSE_INPUT (0x0010) - Mouse events reported" << std::endl;
+
+        if (mode & ENABLE_INSERT_MODE)
+            std::cout << "  ENABLE_INSERT_MODE (0x0020) - Insert mode for line editing" << std::endl;
+
+        if (mode & ENABLE_QUICK_EDIT_MODE)
+            std::cout << "  ENABLE_QUICK_EDIT_MODE (0x0040) - Quick edit mode (may block mouse)" << std::endl;
+
+        if (mode & ENABLE_EXTENDED_FLAGS)
+            std::cout << "  ENABLE_EXTENDED_FLAGS (0x0080) - Extended flags enabled" << std::endl;
+
+        if (mode & ENABLE_AUTO_POSITION)
+            std::cout << "  ENABLE_AUTO_POSITION (0x0100) - Auto position cursor" << std::endl;
+
+        if (mode & ENABLE_VIRTUAL_TERMINAL_INPUT)
+            std::cout << "  ENABLE_VIRTUAL_TERMINAL_INPUT (0x0200) - VT input sequences" << std::endl;
+
+        std::cout << std::endl;
+    }
+
+
+
+
+    bool CommandLineEditor::OnKey(int keycode, char c)
+    {
+        bScreenInvalid = true;
+
+        if (popupListWin.mbVisible)
+        {
+            return popupListWin.OnKey(keycode, c);
+        }
+        else if (historyWin.mbVisible)
+        {
+            return historyWin.OnKey(keycode, c);
+        }
+        else if (popupFolderListWin.mbVisible)
+        {
+            return popupFolderListWin.OnKey(keycode, c);
+        }
+        else if (helpWin.mbVisible)
+        {
+            return helpWin.OnKey(keycode, c);
+        }
+        else
+        {
+            if (keycode == VK_F1)
+            {
+                ShowHelp();
+                return true;
+            }
+            else if (keycode == VK_F2)
+            {
+                ShowEnvVars();
+                return true;
+            }
+            else
+            {
+                return rawCommandBuf.OnKey(keycode, c);
+            }
+        }
+
+        return false;
+    }
+
+    bool CommandLineEditor::OnMouse(MOUSE_EVENT_RECORD event)
+    {
+        COORD coord = event.dwMousePosition;
+
+        if (helpWin.IsOver(coord.X, coord.Y))
+        {
+            return helpWin.OnMouse(event);
+        }
+
+        if (popupListWin.IsOver(coord.X, coord.Y))
+        {
+            return popupListWin.OnMouse(event);
+        }
+
+        if (historyWin.IsOver(coord.X, coord.Y))
+        {
+            return historyWin.OnMouse(event);
+        }
+
+        if (popupFolderListWin.IsOver(coord.X, coord.Y))
+        {
+            return popupFolderListWin.OnMouse(event);
+        }
+
+        if (paramListBuf.IsOver(coord.X, coord.Y))
+        {
+            return paramListBuf.OnMouse(event);
+        }
+
+        if (rawCommandBuf.IsOver(coord.X, coord.Y))
+        {
+            return rawCommandBuf.OnMouse(event);
+        }
+
+        if (topInfoBuf.IsOver(coord.X, coord.Y))
+        {
+            return topInfoBuf.OnMouse(event);
+        }
+
+        return false;
+    }
+
+
     eResponse CommandLineEditor::Edit(const string& sCommandLine, std::string& outEditedCommandLine)
     {
         // Get the handle to the standard input
@@ -1877,8 +2067,11 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
             cerr << "Failed to get console mode." << endl;
             return kErrorAbort;
         }
-        mode |= /*ENABLE_MOUSE_INPUT |*/ ENABLE_EXTENDED_FLAGS | ENABLE_WINDOW_INPUT;
-        mode &= ~ENABLE_PROCESSED_INPUT;
+
+        PrintConsoleInputMode(mode);
+
+        mode |= ENABLE_MOUSE_INPUT | ENABLE_EXTENDED_FLAGS | ENABLE_WINDOW_INPUT;
+        mode &= ~(ENABLE_PROCESSED_INPUT| ENABLE_QUICK_EDIT_MODE);
 
         if (!SetConsoleMode(mhInput, mode))
         {
@@ -1990,49 +2183,19 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
                 {
                     for (DWORD i = 0; i < numEventsRead; i++)
                     {
+                        // Debug output
+//                        std::cout << "Event type: " << inputRecord[i].EventType << std::endl;
+
+
                         if (inputRecord[i].EventType == MOUSE_EVENT)
                         {
-                            MOUSE_EVENT_RECORD mer = inputRecord[i].Event.MouseEvent;
-                            if (mer.dwEventFlags == 0 && mer.dwButtonState == FROM_LEFT_1ST_BUTTON_PRESSED)
-                            {
-                                COORD coord = mer.dwMousePosition;
-                                coord.Y -= (SHORT)(rawCommandBuf.mY-1);
-                                rawCommandBuf.UpdateCursorPos(coord);
-                                bScreenInvalid = true;
-                            }
+                            MOUSE_EVENT_RECORD event = inputRecord[i].Event.MouseEvent;
+                            event.dwMousePosition.Y++;  // adjust for our coords
+                            OnMouse(event);
                         }
                         else if (inputRecord[i].EventType == KEY_EVENT && inputRecord[i].Event.KeyEvent.bKeyDown)
                         {
-                            bScreenInvalid = true;
-
-                            int keycode = inputRecord[i].Event.KeyEvent.wVirtualKeyCode;
-                            char c = inputRecord[i].Event.KeyEvent.uChar.AsciiChar;
-
-                            if (popupListWin.mbVisible)
-                            {
-                                popupListWin.OnKey(keycode, c);
-                            }
-                            else if (historyWin.mbVisible)
-                            {
-                                historyWin.OnKey(keycode, c);
-                            }
-                            else if (popupFolderListWin.mbVisible)
-                            {
-                                popupFolderListWin.OnKey(keycode, c);
-                            }
-                            else if (helpWin.mbVisible)
-                            {
-                                helpWin.OnKey(keycode, c);
-                            }
-                            else
-                            {
-                                if (keycode == VK_F1)
-                                    ShowHelp();
-                                else if (keycode == VK_F2)
-                                    ShowEnvVars();
-                                else
-                                    rawCommandBuf.OnKey(keycode, c);
-                            }
+                            OnKey(inputRecord[i].Event.KeyEvent.wVirtualKeyCode, inputRecord[i].Event.KeyEvent.uChar.AsciiChar);
                         }
 
                         if (bScreenInvalid)
