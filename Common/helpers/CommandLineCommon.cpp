@@ -921,7 +921,7 @@ namespace CLP
 
         Rect docArea = GetTextOuputRect(mText);
 
-        if (keycode == VK_F1 || keycode == VK_F2 || keycode == VK_ESCAPE)
+        if ((keycode >= VK_F1 && keycode <= VK_F24) || keycode == VK_ESCAPE)
         {
             mText.clear();
             SetVisible(false);
@@ -1747,6 +1747,40 @@ namespace CLP
         varTable.AlignWidth(drawWidth/2);
 
         helpWin.mText = (string)varTable;
+        helpWin.UpdateCaptions();
+    }
+
+
+    void ShowLaunchParams()
+    {
+        string sText;
+
+        SHORT w = ScreenW();
+        SHORT h = ScreenH();
+
+        if (w < 1)
+            w = 1;
+        if (h < 8)
+            h = 8;
+
+        helpWin.Init(Rect(0, 1, w, h));
+        helpWin.Clear(kAttribHelpBG, true);
+        helpWin.SetEnableFrame();
+        helpWin.bAutoScrollbar = true;
+        bScreenInvalid = true;
+
+
+        helpWin.positionCaption[ConsoleWin::Position::LT] = "Launch Arguments";
+
+
+
+
+
+        Rect drawArea;
+        helpWin.GetInnerArea(drawArea);
+        int64_t drawWidth = drawArea.r - drawArea.l - 2;
+
+        helpWin.mText = GetCommandLineA();
         helpWin.UpdateCaptions();
     }
 

@@ -97,6 +97,10 @@ namespace CLP
                 if (viewTimestamp)
                     row.push_back(LOG::usToDateTime(e.time));
 
+                string sBGStyle;
+                if (viewColoredThreads)
+                    sBGStyle = GetColorForThreadID(e.threadID);
+
                 if (ContainsAnsiSequences(e.text))
                 {
                     cellStyle = Table::Style(COL_CUSTOM_STYLE);
@@ -105,21 +109,20 @@ namespace CLP
                 {
                     if (SH::Contains(e.text, "error", false))
                     {
-                        cellStyle = Table::Style(COL_RED);
+                        cellStyle = Table::Style(COL_RED+sBGStyle);
                     }
                     else if (SH::Contains(e.text, "warning", false))
                     {
-                        cellStyle = Table::Style(COL_ORANGE);
+                        cellStyle = Table::Style(COL_ORANGE+ sBGStyle);
                     }
+                    else
+                        cellStyle = Table::Style(sBGStyle);
 
                 }
 #ifdef _DEBUG
-                validateAnsiSequences(e.text);
-#endif
-                row.push_back(Table::Cell(e.text, cellStyle));
-#ifdef _DEBUG
                 validateAnsiSequences(Table::Cell(e.text, cellStyle).StyledOut(e.text.length()));
 #endif
+                row.push_back(Table::Cell(e.text, cellStyle));
 
                 logtail.AddRow(row);
             }
@@ -159,17 +162,35 @@ namespace CLP
         else
             sFeatures += "[4:warn/error] ";
 
+        sFeatures += "[F2:Env Vars] [F3:Launch Params]";
+
+        if (sFilter.empty())
+        {
+            if (textEntryWin.mbVisible)
+                positionCaption[ConsoleWin::Position::LB] = "Set Filter:";
+            else
+                positionCaption[ConsoleWin::Position::LB] = "[CTRL-F:Filter]";
+        }
+        else
+        {
+            positionCaption[ConsoleWin::Position::LB] = "Filtering: \"" + sFilter + "\"";
+        }
 
         positionCaption[ConsoleWin::Position::LT] = sFeatures;
 
-        if (sFilter.empty())
-            positionCaption[ConsoleWin::Position::LB] = "Filter:(none)";
-        else
-            positionCaption[ConsoleWin::Position::LB] = "Filter:\"" + sFilter + "\"";
+
 
         positionCaption[ConsoleWin::Position::RT] = "Log lines (" + SH::FromInt(mTopVisibleRow + 1) + "/" + SH::FromInt(LOG::gLogger.getCount()) + ")";
-        positionCaption[ConsoleWin::Position::RB] = "[UP/DOWN][PAGE Up/Down][HOME/END]";
+        positionCaption[ConsoleWin::Position::RB] = "[Wheel][Up/Down][PgUp/PgDown][Home/End]";
     }
+
+    std::string LogWin::GetColorForThreadID(std::thread::id id)
+    {
+        size_t numeric_id = std::hash<std::thread::id>{}(id);
+        size_t index = numeric_id % kThreadCols.size();
+        return kThreadCols[index];
+    }
+
 
     void LogWin::Paint(tConsoleBuffer& backBuf)
     {
@@ -280,7 +301,7 @@ namespace CLP
                 if (!textEntryWin.mbVisible)
                 {
                     textEntryWin.Clear(ZAttrib(0xff666699ffffffff));
-                    textEntryWin.SetArea(Rect(mX, mY + mHeight, mX + mWidth - 1, mY + mHeight+1));
+                    textEntryWin.SetArea(Rect(mX+11, mY + mHeight-1, mX + mWidth, mY + mHeight));
                     textEntryWin.SetVisible();
                     invalid = true;
                 }
@@ -419,7 +440,8 @@ namespace CLP
         if (mbVisible && mbLastVisibleState == false)
         {
             SaveConsoleState();
-            cout << "\033[?25l";    // hide cursor
+            if (!textEntryWin.mbVisible)
+                cout << "\033[?25l";    // hide cursor
 
             bScreenInvalid = true;
         }
@@ -487,6 +509,11 @@ namespace CLP
                 ShowEnvVars();
                 return true;
             }
+            else if (keycode == VK_F3)
+            {
+                ShowLaunchParams();
+                return true;
+            }
         }
 
         return false;
@@ -494,6 +521,19 @@ namespace CLP
 
     bool CommandLineMonitor::OnMouse(MOUSE_EVENT_RECORD event)
     {
+        COORD coord = event.dwMousePosition;
+
+        if (helpWin.IsOver(coord.X, coord.Y))
+        {
+            return helpWin.OnMouse(event);
+        }
+
+        if (logWin.IsOver(coord.X, coord.Y))
+        {
+            return logWin.OnMouse(event);
+        }
+
+        return false;
         return false;
     }
 
@@ -530,7 +570,6 @@ namespace CLP
             pCLM->mbVisible = helpWin.mbVisible || logWin.mbVisible;
 
             pCLM->UpdateVisibility();
-            logWin.Update();
 
             if (textEntryWin.mbVisible)
             {
@@ -548,6 +587,7 @@ namespace CLP
             {
                 pCLM->UpdateFromConsoleSize(bScreenInvalid);  // force update if the screen changed
                 pCLM->UpdateDisplay();
+                logWin.Update();
             }
 
             // Check for hotkey events
@@ -628,10 +668,9 @@ namespace CLP
             cerr << "Failed to get console mode." << endl;
             return;
         }
-        mode |= ENABLE_MOUSE_INPUT | ENABLE_EXTENDED_FLAGS | ENABLE_WINDOW_INPUT | ENABLE_VIRTUAL_TERMINAL_PROCESSING;
-        mode &= ~ENABLE_PROCESSED_INPUT;
+        mode |= ENABLE_MOUSE_INPUT | ENABLE_EXTENDED_FLAGS | ENABLE_WINDOW_INPUT;
+        mode &= ~(ENABLE_PROCESSED_INPUT | ENABLE_QUICK_EDIT_MODE);
 
-        //mode |= ENABLE_PROCESSED_INPUT;
         if (!SetConsoleMode(mhInput, mode))
         {
             cerr << "Failed to set console mode." << endl;

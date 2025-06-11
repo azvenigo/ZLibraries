@@ -531,6 +531,8 @@ namespace CLP
     typedef std::list<tKeyVal> tKeyValList;
     tKeyValList GetEnvVars();
     void ShowEnvVars();
+    void ShowLaunchParams();
+
 
 
     extern InfoWin  helpWin;        // popup help window

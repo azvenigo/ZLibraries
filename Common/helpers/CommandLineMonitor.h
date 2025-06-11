@@ -12,6 +12,19 @@
 
 namespace CLP
 {
+
+
+    const std::vector<std::string> kThreadCols =
+    {
+        "\033[48;2;123;15;15m",
+        "\033[48;2;123;125;15m",
+        "\033[48;2;123;15;125m",
+        "\033[48;2;1;15;115m",
+        "\033[48;2;113;113;113m",
+        "\033[48;2;13;115;115m",
+        "\033[48;2;80;80;85m",
+    };
+
     class LogWin : public InfoWin
     {
     public:
@@ -34,6 +47,8 @@ namespace CLP
         bool    viewTimestamp = false;
         bool    viewColoredThreads = false;
         bool    viewColorWarningsAndErrors = true;
+
+        std::string GetColorForThreadID(std::thread::id);
 
         std::string sFilter;
     };

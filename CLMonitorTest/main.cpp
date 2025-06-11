@@ -78,7 +78,8 @@ int main(int argc, char* argv[])
     }                
     
     std::thread worker1(SampleLoop, 1);
-//    std::thread worker2(SampleLoop, 2);
+    std::thread worker2(SampleLoop, 2);
+    std::thread worker3(SampleLoop, 3);
 
     zout << "running\n";
     CommandLineMonitor monitor;
@@ -99,7 +100,8 @@ int main(int argc, char* argv[])
 
     bQuit = true;
     worker1.join();
-//    worker2.join();
+    worker2.join();
+    worker3.join();
     zout << "Done.";
 
     return 0;

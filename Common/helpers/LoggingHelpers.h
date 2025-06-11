@@ -205,7 +205,7 @@ namespace LOG
                     if (*pWalker == '\n')
                     {
                         std::string content(pStart, pWalker - pStart);
-                        if (isCompleteAnsiContent(content))
+                        if (!content.empty() && isCompleteAnsiContent(content))
                         {
                             // Send it to the logger
                             m_logger.addEntry(content);
@@ -863,6 +863,7 @@ public:
         size_t nMinTableWidth = GetMinWidthForTables(minW, tables...);
         ((tables.renderWidth = nMinTableWidth), ...);
         renderWidth = nMinTableWidth;
+        assert(renderWidth > 0 && renderWidth < 4 * 1024);
     }
 
 

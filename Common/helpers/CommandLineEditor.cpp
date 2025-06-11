@@ -1869,6 +1869,7 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
         additionalHelp.defaultStyle.color = AnsiCol(0xFF888888);
         additionalHelp.SetBorders("+", "+", "+", "+");
         additionalHelp.renderWidth = drawWidth;
+        assert(drawWidth > 0 && drawWidth < 4 * 1024);
 
         additionalHelp.AddRow(SectionStyle, "--Key Combo--", "--Action--");
 
