@@ -63,14 +63,23 @@ namespace LOG
         std::lock_guard<std::mutex> lock(logEntriesMutex);
         outEntries.clear();
 
+        if (logEntries.empty())
+            return true;
+
+        // startingIndex is from counter 0
+        int64_t relativeIndex = startingIndex - logEntries[0].counter;
+        if (relativeIndex < 0)
+            relativeIndex = 0;
+
+
         // If we have a filter, we need to count matching entries
         if (!sFilter.empty())
         {
             auto entry = logEntries.begin();
-            uint64_t matchingEntriesSkipped = 0;
+            int64_t matchingEntriesSkipped = 0;
 
-            // Skip startingIndex matching entries
-            while (entry != logEntries.end() && matchingEntriesSkipped < startingIndex)
+            // Skip relativeIndex matching entries
+            while (entry != logEntries.end() && matchingEntriesSkipped < relativeIndex)
             {
                 // Assuming LogEntry has a toString() or similar method to get its content
                 if (SH::Contains((*entry).text, sFilter, false))
@@ -94,10 +103,10 @@ namespace LOG
         {
             // Original logic for when no filter is applied
             auto entry = logEntries.begin();
-            while (startingIndex > 0 && entry != logEntries.end())
+            while (relativeIndex > 0 && entry != logEntries.end())
             {
                 entry++;
-                startingIndex--;
+                relativeIndex--;
             }
             while (entry != logEntries.end() && outEntries.size() < count)
             {
@@ -930,8 +939,15 @@ bool validateAnsiSequences(const std::string& input)
                 // Final byte
                 state = State::TEXT;
             }
-            else {
+            else 
+            {
                 std::cerr << "Invalid character in parameter at position " << i << std::endl;
+
+                int64_t starti = (int64_t)i - 64;
+                if (starti < 0)
+                    starti = 0;
+
+                DumpMemoryToCout((uint8_t*)input.data() + starti, 256, 0, 32);
                 return false;
             }
             break;

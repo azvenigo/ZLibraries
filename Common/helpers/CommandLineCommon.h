@@ -97,7 +97,7 @@ namespace CLP
 
 
 
-#pragma pack(push, 1)
+//#pragma pack(push, 1)
     class ZAttrib
     {
     public:
@@ -233,7 +233,7 @@ namespace CLP
         ZAttrib attrib;
     };
 
-#pragma pack(pop)
+//#pragma pack(pop)
 
     typedef std::list<std::string> tStringList;
     typedef std::vector<ZAttrib> tAttribArray;

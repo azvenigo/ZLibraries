@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include <stdint.h>
 #include <string>
 #include <cstring>
@@ -110,23 +110,32 @@ namespace LOG
 
 
 
+    const size_t kQueueSize = 1024;
     class Logger
     {
     public:
-        const size_t kQueueSize = 1024;
         Logger() : logCount(0)
         {
         }
 
         void addEntry(std::string text)
         {
-            std::lock_guard<std::mutex> lock(logEntriesMutex);
             while (logEntries.size() > kQueueSize)
                 logEntries.pop_front();
 
 
-            while (text[text.length() - 1] == '\n' || text[text.length() - 1] == '\r')
-                text = text.substr(0, text.length() - 1);   // strip 
+            assert(text[0] != 0);
+            size_t start = 0;
+            while (start < text.length() && (text[start] == '\n' || text[start] == '\r'))
+                start++;
+            int64_t end = text.length();
+            while (end > 0 && (text[end] == '\n' || text[end] == '\r' || text[end] == 0))
+                end--;
+
+            text = text.substr(start, end - start+1);
+
+//            while (text[text.length() - 1] == '\n' || text[text.length() - 1] == '\r')
+//                text = text.substr(0, text.length() - 1);   // strip 
 
             if (!text.empty())  // do we add an entry if it's just a newline?
             {
@@ -196,8 +205,15 @@ namespace LOG
 
         virtual int sync() override
         {
+            std::lock_guard<std::mutex> bufferLock(m_bufferMutex); // ← ADD THIS
+            return syncLocked();
+        }
+
+        int syncLocked()
+        {
             if (pbase() != pptr())
             {
+                std::lock_guard<std::mutex> loggerLock(m_logger.logEntriesMutex);
                 char* pWalker = pbase();
                 char* pStart = pWalker;
                 while (pWalker < pptr())
@@ -208,6 +224,7 @@ namespace LOG
                         if (!content.empty() && isCompleteAnsiContent(content))
                         {
                             // Send it to the logger
+                            assert(content[0] != 0);
                             m_logger.addEntry(content);
                             pWalker++;  // skip newline
                             pStart = pWalker;
@@ -220,7 +237,7 @@ namespace LOG
                 {
                     size_t remaining = pptr() - pStart;
                     memcpy(m_buffer, pStart, remaining);
-                    setp(m_buffer+remaining, m_buffer + BUFFER_SIZE - 1-remaining);
+                    setp(m_buffer + remaining, m_buffer + BUFFER_SIZE - 1 - remaining);
                 }
                 else
                 {
@@ -298,6 +315,7 @@ namespace LOG
         Logger& m_logger;
         static const int BUFFER_SIZE = 1024; // Adjust size as needed
         // Thread-local buffer for each thread
+        mutable std::mutex m_bufferMutex;
         static thread_local char m_buffer[BUFFER_SIZE];
     };
 
