@@ -110,7 +110,7 @@ namespace LOG
 
 
 
-    const size_t kQueueSize = 1024;
+    const size_t kQueueSize = 16*1024;
     class Logger
     {
     public:
@@ -120,6 +120,7 @@ namespace LOG
 
         void addEntry(std::string text)
         {
+            std::lock_guard<std::mutex> loggerLock(logEntriesMutex);
             while (logEntries.size() > kQueueSize)
                 logEntries.pop_front();
 
@@ -133,9 +134,6 @@ namespace LOG
                 end--;
 
             text = text.substr(start, end - start+1);
-
-//            while (text[text.length() - 1] == '\n' || text[text.length() - 1] == '\r')
-//                text = text.substr(0, text.length() - 1);   // strip 
 
             if (!text.empty())  // do we add an entry if it's just a newline?
             {
@@ -190,30 +188,26 @@ namespace LOG
         tLogEntries logEntries;
         mutable std::mutex logEntriesMutex;
         size_t logCount;    // total count of flushes, or entries submitted. For tracking changes even if we max out the logEntries queue
-
+        bool gOutputToFallback = true;
+        std::mutex gFallbackMutex;
     };
+
+    extern Logger gLogger;
+
 
     class LogStreamBuf : public std::streambuf
     {
     public:
-        LogStreamBuf(Logger& logger) : m_logger(logger)
+        LogStreamBuf()
         {
             setp(m_buffer, m_buffer + BUFFER_SIZE - 1);
         }
     protected:
 
-
         virtual int sync() override
-        {
-            std::lock_guard<std::mutex> bufferLock(m_bufferMutex); // ← ADD THIS
-            return syncLocked();
-        }
-
-        int syncLocked()
         {
             if (pbase() != pptr())
             {
-                std::lock_guard<std::mutex> loggerLock(m_logger.logEntriesMutex);
                 char* pWalker = pbase();
                 char* pStart = pWalker;
                 while (pWalker < pptr())
@@ -225,7 +219,7 @@ namespace LOG
                         {
                             // Send it to the logger
                             assert(content[0] != 0);
-                            m_logger.addEntry(content);
+                            gLogger.addEntry(content);  // add to global logger
                             pWalker++;  // skip newline
                             pStart = pWalker;
                         }
@@ -246,6 +240,7 @@ namespace LOG
             }
             return 0;
         }
+
 
         virtual int overflow(int c) override
         {
@@ -312,189 +307,80 @@ namespace LOG
             return !inEscapeSeq;
         }
 
-        Logger& m_logger;
         static const int BUFFER_SIZE = 1024; // Adjust size as needed
-        // Thread-local buffer for each thread
-        mutable std::mutex m_bufferMutex;
-        static thread_local char m_buffer[BUFFER_SIZE];
+        char m_buffer[BUFFER_SIZE];
     };
 
     class LogStream : public std::ostream
     {
     public:
-        LogStream(Logger& logger, std::ostream& fallback, bool _outputToFallback = true) : 
-            std::ostream(&m_streamBuf), 
-            m_logger(logger), 
-            m_streamBuf(logger), 
-            m_fallback(fallback), 
-            m_outputToFallback(_outputToFallback) {}
+        LogStream(std::ostream& fallback) :
+            std::ostream(&m_streamBuf),
+            m_fallback(fallback) {}
 
-
-
-        virtual std::ostream& flush() 
+        ~LogStream()
         {
-            std::ostream::flush(); // Flush our buffer (calls sync() on the streambuf)
+            flush();
+        }
 
-            if (m_outputToFallback) 
+        // Remove virtual - std::ostream::flush() is not virtual
+        std::ostream& flush()
+        {
+            std::ostream::flush(); // This calls sync() on the streambuf
+            if (gLogger.gOutputToFallback)
             {
-                std::lock_guard<std::mutex> lock(m_fallbackMutex);
+                std::lock_guard<std::mutex> lock(gLogger.gFallbackMutex);
                 m_fallback.flush();
             }
-
             return *this;
         }
 
         template<typename T>
         LogStream& operator<<(const T& data)
         {
-            std::ostringstream oss;
-            oss << data;
-            std::string str = oss.str();
+            // Just write to our stream - let LogStreamBuf handle buffering and newline detection
+            static_cast<std::ostream&>(*this) << data;
 
-            // write to our buffer
-            static_cast<std::ostream&> (*this) << data;
-
-            // Check for newlines
-            if (str.find('\n') != std::string::npos) 
+            // Handle fallback output
+            if (gLogger.gOutputToFallback)
             {
-                flush();
-            }
-
-            if (m_outputToFallback)
-            {
-                std::lock_guard<std::mutex> lock(m_fallbackMutex);
+                std::lock_guard<std::mutex> lock(gLogger.gFallbackMutex);
                 m_fallback << data;
             }
-
             return *this;
         }
 
+        // Handle the non-const reference version
         template<typename T>
         LogStream& operator<<(T& data)
         {
-
-            std::ostringstream oss;
-            oss << data;
-            std::string str = oss.str();
-
-            // write to our buffer
-            static_cast<std::ostream&> (*this) << data;
-
-            if (m_outputToFallback)
-            {
-                std::lock_guard<std::mutex> lock(m_fallbackMutex);
-                m_fallback << data;
-            }
-
-            // Check for newlines
-            if (str.find('\n') != std::string::npos)
-            {
-                flush();
-            }
-
-            return *this;
+            return operator<<(static_cast<const T&>(data));
         }
 
         LogStream& operator<<(std::ostream& (*manip)(std::ostream&))
         {
-            // Apply to our stream
+            // Apply to our stream - this will trigger sync() for endl/flush
             manip(static_cast<std::ostream&>(*this));
 
-            if (m_outputToFallback)
+            if (gLogger.gOutputToFallback)
             {
-                std::lock_guard<std::mutex> lock(m_fallbackMutex);
+                std::lock_guard<std::mutex> lock(gLogger.gFallbackMutex);
                 manip(m_fallback);
             }
 
             return *this;
         }
 
-
-
-        bool                m_outputToFallback;
-
     private:
-        LogStreamBuf        m_streamBuf;
-        Logger&             m_logger;
-        std::ostream&       m_fallback;
-        std::mutex          m_fallbackMutex;
+        LogStreamBuf m_streamBuf;
+        std::ostream& m_fallback;
     };
 
-
-/*    class LogStream : public std::ostream
-    {
-    public:
-        LogStream(Logger& logger, std::ostream& fallback, bool _outputToFallback = true) : m_logger(logger), m_fallback(fallback), outputToFallback(_outputToFallback){}
-
-        template<typename T>
-        LogStream& operator<<(const T& data) 
-        {
-            // Append to our internal stream
-            t_buffer << data;
-
-            // Check if the last character is a newline
-            std::string current = t_buffer.str();
-            if (!current.empty() && current.back() == '\n')
-            {
-                flush();
-            }
-
-            if (outputToFallback)
-            {
-                std::lock_guard<std::mutex> lock(m_fallbackMutex);
-                m_fallback << data;
-            }
-            return *this;
-        }
-
-        // Handle std::endl and other manipulators
-        LogStream& operator<<(std::ostream& (*manip)(std::ostream&)) 
-        {
-            // Apply manipulator to fallback stream
-            if (outputToFallback)
-            {
-                std::lock_guard<std::mutex> lock(m_fallbackMutex);
-                manip(m_fallback);
-            }
-
-            // If it's endl, flush our buffer to a log entry
-            if (manip == static_cast<std::ostream & (*)(std::ostream&)>(std::endl) ||
-                manip == static_cast<std::ostream & (*)(std::ostream&)>(std::flush))
-            {
-                flush();
-            }
-            else 
-            {
-                // Otherwise just add it to our buffer
-                t_buffer << manip;
-                // Check if the last character is a newline
-                std::string current = t_buffer.str();
-                if (!current.empty() && current.back() == '\n')
-                {
-                    flush();
-                }
-            }
-
-            return *this;
-        }
-
-        void flush();
-
-        bool outputToFallback;
-
-    private:
-        Logger& m_logger;
-        std::ostream& m_fallback;
-        std::mutex m_fallbackMutex;
-
-        static thread_local std::ostringstream t_buffer;
-    };*/
     std::string usToDateTime(uint64_t us);
     std::string usToElapsed(uint64_t us);
 
-    extern Logger gLogger;
-    extern LogStream gLogOut;
-    extern LogStream gLogErr;
+    extern thread_local LogStream gLogOut;
+    extern thread_local LogStream gLogErr;
 };
 
 

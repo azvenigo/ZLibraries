@@ -460,8 +460,9 @@ namespace CLP
             bScreenInvalid = true;
         }
 
-        LOG::gLogOut.m_outputToFallback = !mbVisible;
-        LOG::gLogErr.m_outputToFallback = !mbVisible;
+        //LOG::gLogOut.m_outputToFallback = !mbVisible;
+        //LOG::gLogErr.m_outputToFallback = !mbVisible;
+        LOG::gLogger.gOutputToFallback = !mbVisible;
         mbLastVisibleState = mbVisible;
     }
 

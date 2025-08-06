@@ -77,9 +77,15 @@ int main(int argc, char* argv[])
         return -1;
     }                
     
-    std::thread worker1(SampleLoop, 1);
-    std::thread worker2(SampleLoop, 2);
-    std::thread worker3(SampleLoop, 3);
+    std::vector<std::thread> workers;
+
+    const int kThreads = 10;
+
+    for (int i = 0; i < kThreads; i++)
+    {
+        std::thread worker(SampleLoop, i);
+        workers.emplace_back(std::move(worker));
+    }
 
     zout << "running\n";
     CommandLineMonitor monitor;
@@ -99,9 +105,12 @@ int main(int argc, char* argv[])
     monitor.End();
 
     bQuit = true;
-    worker1.join();
-    worker2.join();
-    worker3.join();
+
+    for (int i = 0; i < kThreads; i++)
+    {
+        workers[i].join();
+    }
+
     zout << "Done.";
 
     return 0;

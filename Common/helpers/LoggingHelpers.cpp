@@ -10,10 +10,10 @@ using namespace std;
 namespace LOG
 {
     int64_t gnVerbosityLevel = 1;
-    Logger gLogger;
-    LogStream gLogOut(gLogger, cout);
-    LogStream gLogErr(gLogger, std::cerr);
-    thread_local char LogStreamBuf::m_buffer[LogStreamBuf::BUFFER_SIZE];
+    Logger gLogger; // singleton global logger
+    thread_local LogStream gLogOut(cout);       // per thread stream
+    thread_local LogStream gLogErr(std::cerr);  // per thread stream
+//    thread_local char LogStreamBuf::m_buffer[LogStreamBuf::BUFFER_SIZE];
 
 
 
