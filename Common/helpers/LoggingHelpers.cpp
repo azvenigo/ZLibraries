@@ -58,7 +58,62 @@ namespace LOG
             time = _time;
     };
 
-    bool Logger::getEntries(uint64_t startingIndex, size_t count, std::deque<LogEntry>& outEntries, const std::string& sFilter) const
+    void Logger::setFilter(const std::string& sFilter)
+    {
+        std::lock_guard<std::mutex> loggerLock(logEntriesMutex);
+        logFilteredEntries.clear();
+
+        if (sFilter == logFilter)
+        {
+            return;
+        }
+
+        for (const auto& entry : logEntries)
+        {
+            if (SH::Contains(entry.text, sFilter, false))
+                logFilteredEntries.push_back(entry);
+        }
+
+        logFilter = sFilter;
+    }
+
+
+    void Logger::addEntry(std::string text)
+    {
+        std::lock_guard<std::mutex> loggerLock(logEntriesMutex);
+        while (logEntries.size() > kQueueSize)
+            logEntries.pop_front();
+
+
+        assert(text[0] != 0);
+        size_t start = 0;
+        while (start < text.length() && (text[start] == '\n' || text[start] == '\r'))
+            start++;
+        int64_t end = text.length();
+        while (end > 0 && (text[end] == '\n' || text[end] == '\r' || text[end] == 0))
+            end--;
+
+        text = text.substr(start, end - start + 1);
+
+        if (!text.empty())  // do we add an entry if it's just a newline?
+        {
+            LogEntry e(text);
+
+#ifdef _DEBUG
+            validateAnsiSequences(text);
+#endif
+            e.threadID = std::this_thread::get_id();
+            e.counter = logTotalCounter++;
+
+            if (!logFilter.empty() && SH::Contains(text, logFilter, false))
+                logFilteredEntries.push_back(e);
+
+            logEntries.emplace_back(std::move(e));
+        }
+    }
+
+
+    bool Logger::getEntries(uint64_t startingEntry, size_t count, std::deque<LogEntry>& outEntries) const
     {
         std::lock_guard<std::mutex> lock(logEntriesMutex);
         outEntries.clear();
@@ -66,89 +121,78 @@ namespace LOG
         if (logEntries.empty())
             return true;
 
-        // startingIndex is from counter 0
-        int64_t relativeIndex = startingIndex - logEntries[0].counter;
-        if (relativeIndex < 0)
-            relativeIndex = 0;
+        tLogEntries::const_iterator it;
+        tLogEntries::const_iterator itEnd;
 
 
-        // If we have a filter, we need to count matching entries
-        if (!sFilter.empty())
+        if (logFilter.empty())
         {
-            auto entry = logEntries.begin();
-            int64_t matchingEntriesSkipped = 0;
-
-            // Skip relativeIndex matching entries
-            while (entry != logEntries.end() && matchingEntriesSkipped < relativeIndex)
-            {
-                // Assuming LogEntry has a toString() or similar method to get its content
-                if (SH::Contains((*entry).text, sFilter, false))
-                {
-                    matchingEntriesSkipped++;
-                }
-                entry++;
-            }
-
-            // Collect count matching entries
-            while (entry != logEntries.end() && outEntries.size() < count)
-            {
-                if (SH::Contains((*entry).text, sFilter, false))
-                {
-                    outEntries.push_back(*entry);
-                }
-                entry++;
-            }
+            it = logEntries.begin();
+            itEnd = logEntries.end();
         }
         else
         {
-            // Original logic for when no filter is applied
-            auto entry = logEntries.begin();
-            while (relativeIndex > 0 && entry != logEntries.end())
-            {
-                entry++;
-                relativeIndex--;
-            }
-            while (entry != logEntries.end() && outEntries.size() < count)
-            {
-                outEntries.push_back(*entry);
-                entry++;
-            }
+            it = logFilteredEntries.begin();
+            itEnd = logFilteredEntries.end();
+        }
+
+
+        uint64_t startCount = 0;
+        while (it != itEnd && startCount < startingEntry)
+        {
+            it++;
+            startCount++;
+        }
+
+        while (it != itEnd && outEntries.size() < count)
+        {
+            outEntries.push_back(*it);
+            it++;
         }
 
         return true;
     }
 
-    std::deque<LogEntry> Logger::tail(size_t n, const std::string& sFilter) const
+   bool Logger::tail(size_t count, std::deque<LogEntry>& outEntries) const
     {
-        std::deque<LogEntry> result;
         std::lock_guard<std::mutex> lock(logEntriesMutex);
 
-        if (sFilter.empty())
+        outEntries.clear();
+
+        if (logEntries.empty())
+            return true;
+
+        tLogEntries::const_reverse_iterator it;
+        tLogEntries::const_reverse_iterator itEnd;
+
+
+        if (logFilter.empty())
         {
-            // Original logic for when no filter is applied
-            if (n >= logEntries.size())
+            it = logEntries.rbegin();
+            itEnd = logEntries.rend();
+
+            while (outEntries.size() < count && it != itEnd)
             {
-                // If requesting more entries than exist, return the whole log
-                return logEntries;
+                if (SH::Contains((*it).text, logFilter, false))
+                {
+                    outEntries.push_front(*it);
+                }
+                it++;
             }
-            // Calculate starting index for the tail portion
-            size_t startIndex = logEntries.size() - n;
-            // Copy the last n elements to the result deque
-            result.insert(result.begin(), logEntries.begin() + startIndex, logEntries.end());
         }
         else
         {
-            // When filter is applied, collect the last n matching entries
-            for (auto it = logEntries.rbegin(); it != logEntries.rend() && result.size() < n; ++it)
+            it = logFilteredEntries.rbegin();
+            itEnd = logFilteredEntries.rend();
+
+            while (outEntries.size() < count && it != itEnd)
             {
-                if (SH::Contains((*it).text, sFilter, false))
-                {
-                    result.push_front(*it);
-                }
+                outEntries.push_front(*it);
+                it++;
             }
         }
 
-        return result;
+        return true;
     }
 
 } // namespace LOG

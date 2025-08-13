@@ -28,7 +28,8 @@ namespace CLP
     class LogWin : public InfoWin
     {
     public:
-        LogWin() : topLogEntryTimestamp(0), lastReportedLogCount(0), viewAtEnd(true) {}
+
+        LogWin() : lastReportedLogCount(0) {}
 
         void SetVisible(bool bVisible = true);
 
@@ -38,19 +39,23 @@ namespace CLP
         void Paint(tConsoleBuffer& backBuf);
 
 
-        bool    viewAtEnd;
-        uint64_t topLogEntryTimestamp;
-        size_t lastReportedLogCount;
+        bool        viewAtEnd = true;
+        size_t      lastReportedLogCount;
 
-        bool    invalid = true;
-        bool    viewCountEnabled = false;
-        bool    viewTimestamp = false;
-        bool    viewColoredThreads = false;
-        bool    viewColorWarningsAndErrors = true;
+        bool        invalid = true;
+        bool        viewCountEnabled = false;
+        bool        viewTimestamp = false;
+        bool        viewColoredThreads = false;
+        bool        viewColorWarningsAndErrors = true;
 
         std::string GetColorForThreadID(std::thread::id);
 
         std::string sFilter;
+
+    protected:
+        void        OffsetEntry(int64_t offset);        // next/prev or up/down some number based on current filter
+        void        SetEntryFromBeginning(int64_t offset_from_beginning);
+        void        SetEntryFromEnd(int64_t offset_from_end);
     };
 
 

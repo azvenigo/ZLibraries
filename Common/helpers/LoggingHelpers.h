@@ -114,64 +114,39 @@ namespace LOG
     class Logger
     {
     public:
-        Logger() : logCount(0)
+        Logger() : logTotalCounter(0)
         {
         }
 
-        void addEntry(std::string text)
+        void addEntry(std::string text);
+
+        size_t getEntryCount() const
         {
-            std::lock_guard<std::mutex> loggerLock(logEntriesMutex);
-            while (logEntries.size() > kQueueSize)
-                logEntries.pop_front();
+            if (logFilter.empty())
+                return logEntries.size();
 
-
-            assert(text[0] != 0);
-            size_t start = 0;
-            while (start < text.length() && (text[start] == '\n' || text[start] == '\r'))
-                start++;
-            int64_t end = text.length();
-            while (end > 0 && (text[end] == '\n' || text[end] == '\r' || text[end] == 0))
-                end--;
-
-            text = text.substr(start, end - start+1);
-
-            if (!text.empty())  // do we add an entry if it's just a newline?
-            {
-                if (SH::Contains(text, "\n", true))
-                {
-                    int stophere = 5;
-                }
-
-
-                LogEntry e(text);
-
-#ifdef _DEBUG
-                validateAnsiSequences(text);
-#endif
-                e.threadID = std::this_thread::get_id();
-                e.counter = logCount++;
-                logEntries.emplace_back(std::move(e));
-            }
+            return logFilteredEntries.size();
         }
 
-        size_t getCount() const
+/*        const std::deque<LogEntry>& getEntries() const
         {
-            return logCount;
-        }
+            if (logFilter.empty())
+                return logEntries;
 
-        const std::deque<LogEntry>& getEntries() const
-        {
-            return logEntries;
-        }
+            return logFilteredEntries;
+        }*/
 
-        bool getEntries(uint64_t startingIndex, size_t count, std::deque<LogEntry>& outEntries, const std::string& sFilter = {}) const;
-        std::deque<LogEntry> tail(size_t n, const std::string& sFilter = {}) const;
+        void setFilter(const std::string& sFilter); // if empty string, clears the filter
+
+        bool getEntries(uint64_t startingLogCounter, size_t count, std::deque<LogEntry>& outEntries) const;
+        bool tail(size_t count, std::deque<LogEntry>& outEntries) const;
 
 
         void clear()
         {
             std::lock_guard<std::mutex> lock(logEntriesMutex);
             logEntries.clear();
+            logFilteredEntries.clear();
         }
 
         friend std::ostream& operator<<(std::ostream& os, const Logger& logger)
@@ -185,11 +160,17 @@ namespace LOG
             return os;
         }
 
-        tLogEntries logEntries;
-        mutable std::mutex logEntriesMutex;
-        size_t logCount;    // total count of flushes, or entries submitted. For tracking changes even if we max out the logEntries queue
         bool gOutputToFallback = true;
         std::mutex gFallbackMutex;
+
+    private:
+        tLogEntries logEntries;
+        mutable std::mutex logEntriesMutex;
+        size_t logTotalCounter;    // total count of flushes, or entries submitted. For tracking changes even if we max out the logEntries queue
+
+        // 
+        tLogEntries logFilteredEntries;
+        std::string logFilter;
     };
 
     extern Logger gLogger;

@@ -40,15 +40,16 @@ namespace CLP
         if (!mbVisible)
             return;
 
-        if (lastReportedLogCount != LOG::gLogger.getCount())
+        if (lastReportedLogCount != LOG::gLogger.getEntryCount())
         {
-            lastReportedLogCount = LOG::gLogger.getCount();
+            lastReportedLogCount = LOG::gLogger.getEntryCount();
             invalid = true;
         }
 
         if (textEntryWin.GetText() != sFilter)
         {
             sFilter = textEntryWin.GetText();
+            LOG::gLogger.setFilter(sFilter);
             invalid = true;
         }
 
@@ -65,28 +66,36 @@ namespace CLP
 
             LOG::tLogEntries entries;
                 
+            int64_t firstRowCounter = -1;
+            int64_t lastRowCounter = -1;
+
             if (viewAtEnd)
             {
-                entries = LOG::gLogger.tail(drawHeight, sFilter);
-                topLogEntryTimestamp = 0;
-                if (!entries.empty())
-                {
-                    topLogEntryTimestamp = entries[0].time;
-                    mTopVisibleRow = LOG::gLogger.getCount() - drawHeight;
-                }
+                mTopVisibleRow = LOG::gLogger.getEntryCount() - drawHeight;
+                LOG::gLogger.tail(drawHeight, entries);
             }
             else
             {
-                LOG::gLogger.getEntries(mTopVisibleRow, drawHeight, entries, sFilter);
+                LOG::gLogger.getEntries(mTopVisibleRow, drawHeight, entries);
             }
+
+            if (!entries.empty())
+            {
+                firstRowCounter = entries[0].counter;
+                lastRowCounter = entries[entries.size() - 1].counter;
+            }
+
 
             positionCaption[ConsoleWin::Position::LT] = "Info Window";
 
             Table logtail;
-            if (mTopVisibleRow > 0)
+
+            if (firstRowCounter > 0)
                 logtail.borders[Table::TOP].clear();    // if there are lines above the top of the window, no top table border
-            if (mTopVisibleRow + drawHeight < (int64_t)LOG::gLogger.getCount())
+            if (!viewAtEnd)
                 logtail.borders[Table::BOTTOM].clear(); // if there are lines below the bottom of the window, no bottom table border
+
+
 
             for (const auto& e : entries)
             {
@@ -180,7 +189,7 @@ namespace CLP
 
 
 
-        positionCaption[ConsoleWin::Position::RT] = "Log lines (" + SH::FromInt(mTopVisibleRow + 1) + "/" + SH::FromInt(LOG::gLogger.getCount()) + ")";
+        positionCaption[ConsoleWin::Position::RT] = "Log lines (" + SH::FromInt(mTopVisibleRow + 1) + "/" + SH::FromInt(LOG::gLogger.getEntryCount()) + ")";
         positionCaption[ConsoleWin::Position::RB] = "[Wheel][Up/Down][PgUp/PgDown][Home/End]";
     }
 
@@ -190,7 +199,6 @@ namespace CLP
         size_t index = numeric_id % kThreadCols.size();
         return kThreadCols[index];
     }
-
 
     void LogWin::Paint(tConsoleBuffer& backBuf)
     {
@@ -206,13 +214,13 @@ namespace CLP
         DrawClippedAnsiText(drawArea, mText, true, &drawArea);
         int64_t h = drawArea.b - drawArea.t;
 
-        int64_t logCount = (int64_t)LOG::gLogger.getCount();
-        if (logCount > h)
+        int64_t logTotalCounter = (int64_t)LOG::gLogger.getEntryCount();
+        if (logTotalCounter > h)
         {
 //            ZAttrib bg(MAKE_BG(0xff555555));
 //            ZAttrib thumb(MAKE_BG(0xffbbbbbb));
             Rect sb(drawArea.r - 1, drawArea.t, drawArea.r, drawArea.b);
-            DrawScrollbar(sb, 0, LOG::gLogger.getCount()-h, mTopVisibleRow, kAttribScrollbarBG, kAttribScrollbarThumb);
+            DrawScrollbar(sb, 0, LOG::gLogger.getEntryCount()-h, mTopVisibleRow, kAttribScrollbarBG, kAttribScrollbarThumb);
         }
 
         ConsoleWin::RenderToBackBuf(backBuf);
@@ -223,17 +231,21 @@ namespace CLP
         bool bHandled = false;
         Rect drawArea;
         GetInnerArea(drawArea);
-        int64_t drawHeight = drawArea.b - drawArea.t;
 
         bool bCTRLHeld = GetKeyState(VK_CONTROL) & 0x800;
 
 
-        int64_t entryCount = LOG::gLogger.getCount();
+        int64_t entryCount = LOG::gLogger.getEntryCount();
+
+        if (viewAtEnd)
+        {
+            mTopVisibleRow = entryCount - mHeight;
+        }
+
 
         if (keycode == VK_UP)
         {
             mTopVisibleRow--;
-            viewAtEnd = false;
             invalid = true;
             bHandled = true;
         }
@@ -246,27 +258,24 @@ namespace CLP
         else if (keycode == VK_HOME)
         {
             mTopVisibleRow = 0;
-            viewAtEnd = false;
             invalid = true;
             bHandled = true;
         }
         else if (keycode == VK_PRIOR)
         {
-            mTopVisibleRow -= drawHeight;
-            viewAtEnd = false;
+            mTopVisibleRow -= mHeight;
             invalid = true;
             bHandled = true;
         }
         else if (keycode == VK_NEXT)
         {
-            mTopVisibleRow += drawHeight;
+            mTopVisibleRow += mHeight;
             invalid = true;
             bHandled = true;
         }
         else if (keycode == VK_END)
         {
-            mTopVisibleRow = entryCount - drawHeight;
-            viewAtEnd = true;
+            mTopVisibleRow = entryCount - mHeight;
             invalid = true;
             bHandled = true;
         }
@@ -309,18 +318,15 @@ namespace CLP
             }
         }
 
+        if (mTopVisibleRow > entryCount - mHeight)
+            mTopVisibleRow = entryCount - mHeight;
         if (mTopVisibleRow < 0)
-        {
             mTopVisibleRow = 0;
-            viewAtEnd = false;
-            invalid = true;
-        }
-        if (mTopVisibleRow > (entryCount - drawHeight))
-        {
-            mTopVisibleRow = entryCount;
+
+        if (mTopVisibleRow + mHeight >= entryCount)
             viewAtEnd = true;
-            invalid = true;
-        }
+        else
+            viewAtEnd = false;
 
         Update();
         return bHandled;
@@ -452,7 +458,8 @@ namespace CLP
             cout << "\033[?25h" << COL_WHITE << COL_BG_BLACK;    // show cursor, reset colors
             RestoreConsoleState();
 
-            LOG::tLogEntries entries = LOG::gLogger.tail(ScreenH());
+            LOG::tLogEntries entries;
+            LOG::gLogger.tail(ScreenH(), entries);
             for (const auto& entry : entries)
             {
                 cout << entry.text << std::endl;
