@@ -17,32 +17,41 @@ namespace LOG
 
 
 
-    std::string usToDateTime(uint64_t us)
+    void usToDateTime(int64_t us, string& date, string& time)
     {
         time_t seconds = us / 1000000;
-        uint64_t remainingus = us % 1000000;
+        int64_t remainingus = us % 1000000;
         std::tm* timeInfo = std::localtime(&seconds);
-        std::ostringstream oss;
-        oss << std::put_time(timeInfo, "%Y/%m/%d %H:%M:%S");
-        oss << '.' << std::setfill('0') << std::setw(6) << remainingus;
-        return oss.str();
+        std::ostringstream ossdate;
+        ossdate << std::put_time(timeInfo, "%Y/%m/%d");
+        date = ossdate.str();
+
+        std::ostringstream osstime;
+        osstime << std::put_time(timeInfo, "%H:%M:%S");
+        osstime << '.' << std::setfill('0') << std::setw(6) << remainingus;
+        time = osstime.str();
     }
 
-    std::string usToElapsed(uint64_t us)
+    std::string usToElapsed(int64_t us)
     {
-        uint64_t hours = us / 3600000000ULL;
-        uint64_t minutes = us / 60000000ULL;
+        int64_t hours = us / 3600000000ULL;
+        int64_t minutes = us / 60000000ULL;
         us %= 60000000ULL;
 
-        uint64_t seconds = us / 1000000ULL;
+        int64_t seconds = us / 1000000ULL;
         us %= 1000000ULL;
 
 
         std::ostringstream oss;
-        oss << hours << ":"
-            << std::setfill('0') << std::setw(2) << minutes << ":"
-            << std::setfill('0') << std::setw(2) << seconds << ":"
-            << std::setfill('0') << std::setw(6) << us;
+
+        if (hours > 0)
+        {
+            oss << hours << ":";
+        }
+
+        oss << minutes << ":";
+        oss << std::setfill('0') << std::setw(2) << seconds << ".";
+        oss << std::setfill('0') << std::setw(6) << us << "s";
 
         return oss.str();
     }

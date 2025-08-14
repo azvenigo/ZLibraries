@@ -29,6 +29,18 @@ namespace CLP
     {
     public:
 
+        enum eDateTimeDisplay : uint8_t
+        {
+            kNone = 0,
+            kDate = 1,
+            kDateTime = 2,
+            kTimeElapsed = 3,
+            kTimeFromPrevious = 4,
+            kTimeSince = 5
+        };
+
+
+
         LogWin() : lastReportedLogCount(0) {}
 
         void SetVisible(bool bVisible = true);
@@ -43,12 +55,14 @@ namespace CLP
         size_t      lastReportedLogCount;
 
         bool        invalid = true;
-        bool        viewCountEnabled = false;
-        bool        viewTimestamp = false;
+        bool        viewCountEnabled = true;
+        uint8_t     viewDateTime = kTimeElapsed;
         bool        viewColoredThreads = false;
         bool        viewColorWarningsAndErrors = true;
 
         std::string GetColorForThreadID(std::thread::id);
+        std::string TimeLabel();
+        std::string TimeValue(int64_t entryTime, int64_t prevEntryTime);
 
         std::string sFilter;
 

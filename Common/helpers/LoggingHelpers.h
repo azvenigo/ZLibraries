@@ -116,6 +116,7 @@ namespace LOG
     public:
         Logger() : logTotalCounter(0)
         {
+            gLogStartTime = std::chrono::system_clock::now().time_since_epoch() / std::chrono::microseconds(1);
         }
 
         void addEntry(std::string text);
@@ -160,8 +161,9 @@ namespace LOG
             return os;
         }
 
-        bool gOutputToFallback = true;
-        std::mutex gFallbackMutex;
+        bool        gOutputToFallback = true;
+        std::mutex  gFallbackMutex;
+        int64_t     gLogStartTime;
 
     private:
         tLogEntries logEntries;
@@ -357,8 +359,8 @@ namespace LOG
         std::ostream& m_fallback;
     };
 
-    std::string usToDateTime(uint64_t us);
-    std::string usToElapsed(uint64_t us);
+    void usToDateTime(int64_t us, std::string& date, std::string& time);
+    std::string usToElapsed(int64_t us);
 
     extern thread_local LogStream gLogOut;
     extern thread_local LogStream gLogErr;

@@ -72,6 +72,8 @@ namespace CLP
             if (viewAtEnd)
             {
                 mTopVisibleRow = LOG::gLogger.getEntryCount() - drawHeight;
+                if (mTopVisibleRow < 0)
+                    mTopVisibleRow = 0;
                 LOG::gLogger.tail(drawHeight, entries);
             }
             else
@@ -97,14 +99,16 @@ namespace CLP
 
 
 
+            int64_t prevEntryTime = LOG::gLogger.gLogStartTime;
             for (const auto& e : entries)
             {
                 Table::tCellArray row;
                 Table::Style cellStyle;
                 if (viewCountEnabled)
                     row.push_back(SH::FromInt(e.counter));
-                if (viewTimestamp)
-                    row.push_back(LOG::usToDateTime(e.time));
+
+                if (viewDateTime != 0)
+                    row.push_back(TimeValue(e.time, prevEntryTime));
 
                 string sBGStyle;
                 if (viewColoredThreads)
@@ -134,6 +138,7 @@ namespace CLP
                 row.push_back(Table::Cell(e.text, cellStyle));
 
                 logtail.AddRow(row);
+                prevEntryTime = e.time;
             }
 
             logtail.AlignWidth(drawWidth, logtail);
@@ -156,10 +161,7 @@ namespace CLP
         else
             sFeatures += "[1:count] ";
 
-        if (viewTimestamp)
-            sFeatures += "[2:TIME] ";
-        else
-            sFeatures += "[2:time] ";
+        sFeatures += "[2:" + TimeLabel() + "] ";
 
         if (viewColoredThreads)
             sFeatures += "[3:THREADS] ";
@@ -173,32 +175,91 @@ namespace CLP
 
         sFeatures += "[F2:Env Vars] [F3:Launch Params]";
 
+        int64_t entryCount = LOG::gLogger.getEntryCount();
+        int64_t viewing = mTopVisibleRow + 1;
+        if (viewing > entryCount)  
+            viewing = entryCount;
+
         if (sFilter.empty())
         {
             if (textEntryWin.mbVisible)
                 positionCaption[ConsoleWin::Position::LB] = "Set Filter:";
             else
                 positionCaption[ConsoleWin::Position::LB] = "[CTRL-F:Filter]";
+            positionCaption[ConsoleWin::Position::RT] = "Log lines (" + SH::FromInt(viewing) + "/" + SH::FromInt(entryCount) + ")";
         }
         else
         {
             positionCaption[ConsoleWin::Position::LB] = "Filtering: \"" + sFilter + "\"";
+            positionCaption[ConsoleWin::Position::RT] = "Filtered lines (" + SH::FromInt(viewing) + "/" + SH::FromInt(entryCount) + ")";
         }
 
         positionCaption[ConsoleWin::Position::LT] = sFeatures;
 
 
 
-        positionCaption[ConsoleWin::Position::RT] = "Log lines (" + SH::FromInt(mTopVisibleRow + 1) + "/" + SH::FromInt(LOG::gLogger.getEntryCount()) + ")";
         positionCaption[ConsoleWin::Position::RB] = "[Wheel][Up/Down][PgUp/PgDown][Home/End]";
     }
 
-    std::string LogWin::GetColorForThreadID(std::thread::id id)
+    string LogWin::GetColorForThreadID(std::thread::id id)
     {
         size_t numeric_id = std::hash<std::thread::id>{}(id);
         size_t index = numeric_id % kThreadCols.size();
         return kThreadCols[index];
     }
+
+    string LogWin::TimeLabel()
+    {
+        switch (viewDateTime)
+        {
+        case kNone: return "Time Options";
+        case kDate: return "DATE";
+        case kDateTime: return "DATE_TIME";
+        case kTimeElapsed: return "ELAPSED";
+        case kTimeFromPrevious: return "DELTA";
+        case kTimeSince: return "SINCE";
+        }
+
+        return "unknown";
+    }
+
+    string LogWin::TimeValue(int64_t entryTime, int64_t prevEntryTime)
+    {
+        switch (viewDateTime)
+        {
+        case kDate:
+        {
+            string date;
+            string time;
+            LOG::usToDateTime(entryTime, date, time);
+            return date;
+        }
+        case kDateTime:
+        {
+            string date;
+            string time;
+            LOG::usToDateTime(entryTime, date, time);
+            return date + " " + time;
+        }
+        case kTimeElapsed:
+        {
+            return LOG::usToElapsed(entryTime - LOG::gLogger.gLogStartTime);
+        }
+        case kTimeFromPrevious:
+        {
+            return SH::FromInt(entryTime - prevEntryTime) + "us";
+        }
+        case kTimeSince:
+        {
+            int64_t curTime = std::chrono::system_clock::now().time_since_epoch() / std::chrono::microseconds(1);
+            return LOG::usToElapsed(curTime - entryTime);
+        }
+        }
+
+        return "";
+    }
+
+
 
     void LogWin::Paint(tConsoleBuffer& backBuf)
     {
@@ -287,7 +348,7 @@ namespace CLP
         }
         else if (keycode == '2')
         {
-            viewTimestamp = !viewTimestamp;
+            viewDateTime = (viewDateTime + 1) % 6;  // rotate over possible options
             invalid = true;
             bHandled = true;
         }

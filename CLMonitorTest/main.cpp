@@ -79,7 +79,7 @@ int main(int argc, char* argv[])
     
     std::vector<std::thread> workers;
 
-    const int kThreads = 10;
+    const int kThreads = 3;
 
     for (int i = 0; i < kThreads; i++)
     {
