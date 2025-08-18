@@ -53,8 +53,18 @@ int main(int argc, char* argv[])
 {
 //    HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
 //    SetConsoleMode(hConsole, ENABLE_VIRTUAL_TERMINAL_PROCESSING);
+/*    Table test;
+    Table::Style headerStyleLeft(COL_ORANGE, Table::RIGHT, Table::TIGHT, 2, '-');
+    Table::tCellArray blah;
+    string sBorderChar(COL_BG_GRAY "*" COL_RESET);
+    test.SetBorders(sBorderChar, sBorderChar, sBorderChar, sBorderChar, sBorderChar);
+    blah.push_back(Table::Cell("hello", headerStyleLeft));
+    test.AddRow(blah);
+    test.AlignWidth(40);
 
-    zout << "in the app now." << 12.7 << "\n";
+    zout << (string) test;
+
+    zout << "in the app now." << 12.7 << "\n";*/
 
     string sFilename;
     float fPercent = 1.0f;

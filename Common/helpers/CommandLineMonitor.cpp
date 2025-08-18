@@ -23,17 +23,45 @@ namespace CLP
 {
 
     LogWin      logWin;
-    TextEditWin textEntryWin;
+    TextEditWin filterTextEntryWin;
+    TextEditWin saveLogFilenameEntryWin;
 //    InfoWin     helpWin;        // popup help window
 
 
     void LogWin::SetVisible(bool bVisible)
     {
         if (mbVisible != bVisible)
+        {
             invalid = true;
+
+            // if log window is visible, hook CTRL-S for saving (otherwise it is a suspend command to a console app)
+            HookCTRL_S(bVisible);
+        }
 
         mbVisible = bVisible;
     }
+
+    void LogWin::HookCTRL_S(bool bHook)
+    {
+        if (bHook == bCTRL_S_Hooked)
+            return;
+
+        if (bHook)
+        {
+            if (!RegisterHotKey(nullptr, CTRL_S_HOTKEY, MOD_CONTROL, 'S'))
+            {
+                std::cerr << "Error registering hotkey:" << GetLastError() << std::endl;
+                return;
+            }
+            bCTRL_S_Hooked = true;
+        }
+        else
+        {
+            UnregisterHotKey(nullptr, CTRL_S_HOTKEY);
+            bCTRL_S_Hooked = false;
+        }
+    }
+
 
     void LogWin::Update()
     {
@@ -46,13 +74,18 @@ namespace CLP
             invalid = true;
         }
 
-        if (textEntryWin.GetText() != sFilter)
+        if (filterTextEntryWin.GetText() != sFilter)
         {
-            sFilter = textEntryWin.GetText();
+            sFilter = filterTextEntryWin.GetText();
             LOG::gLogger.setFilter(sFilter);
             invalid = true;
         }
 
+        if (saveLogFilenameEntryWin.GetText() != sLogFilename)
+        {
+            sLogFilename = saveLogFilenameEntryWin.GetText();
+            invalid = true;
+        }
 
         if (invalid)
         {
@@ -60,7 +93,7 @@ namespace CLP
             GetInnerArea(drawArea);
             int64_t drawWidth = drawArea.r - drawArea.l - 1;
             int64_t drawHeight = drawArea.b - drawArea.t-1;
-            if (textEntryWin.mbVisible)
+            if (filterTextEntryWin.mbVisible || saveLogFilenameEntryWin.mbVisible)
                 drawHeight--;
 
 
@@ -74,7 +107,7 @@ namespace CLP
                 mTopVisibleRow = LOG::gLogger.getEntryCount() - drawHeight;
                 if (mTopVisibleRow < 0)
                     mTopVisibleRow = 0;
-                LOG::gLogger.tail(drawHeight, entries);
+                LOG::gLogger.tail(drawHeight-1, entries);
             }
             else
             {
@@ -90,14 +123,42 @@ namespace CLP
 
             positionCaption[ConsoleWin::Position::LT] = "Info Window";
 
-            Table logtail;
 
-            if (firstRowCounter > 0)
+            ZAttrib bg(MAKE_BG(0xFF222222));
+            Table logtail;
+            logtail.borders[Table::LEFT].clear();
+            logtail.borders[Table::RIGHT].clear();
+            logtail.borders[Table::CENTER] = bg.ToAnsi() + string(" ");
+
+            if (firstRowCounter == 0)
+                logtail.borders[Table::TOP] = bg.ToAnsi() + string("_______________");
+            else
                 logtail.borders[Table::TOP].clear();    // if there are lines above the top of the window, no top table border
-            if (!viewAtEnd)
+
+            if (viewAtEnd)
+                logtail.borders[Table::BOTTOM] = bg.ToAnsi() + string("__________");
+            else
                 logtail.borders[Table::BOTTOM].clear(); // if there are lines below the bottom of the window, no bottom table border
 
 
+            // Table header
+            Table::Style headerStyle(COL_ORANGE + bg.ToAnsi(), Table::CENTER, Table::TIGHT, 0, '-');
+//            Table::Style headerStyleRight(COL_ORANGE, Table::RIGHT, Table::TIGHT, 0, '-');
+            Table::tCellArray header;
+            if (viewCountEnabled)
+                header.push_back(Table::Cell("#", headerStyle));
+            if (viewDateTime != 0)
+                header.push_back(Table::Cell(TimeLabel(), headerStyle));
+            header.push_back(Table::Cell("ENTRY", headerStyle));
+
+            logtail.AddRow(header);
+
+
+
+
+            Table::Style counterStyle(ZAttrib(MAKE_BG(0xFF222222)), Table::RIGHT);
+
+            Table::Style timeStyle(ZAttrib(MAKE_BG(0xFF222222)), Table::RIGHT);
 
             int64_t prevEntryTime = LOG::gLogger.gLogStartTime;
             for (const auto& e : entries)
@@ -105,10 +166,12 @@ namespace CLP
                 Table::tCellArray row;
                 Table::Style cellStyle;
                 if (viewCountEnabled)
-                    row.push_back(SH::FromInt(e.counter));
+                    row.push_back(Table::Cell(SH::FromInt(e.counter), counterStyle));
 
                 if (viewDateTime != 0)
-                    row.push_back(TimeValue(e.time, prevEntryTime));
+                {
+                    row.push_back(Table::Cell(TimeValue(e.time, prevEntryTime), timeStyle));
+                }
 
                 string sBGStyle;
                 if (viewColoredThreads)
@@ -180,12 +243,16 @@ namespace CLP
         if (viewing > entryCount)  
             viewing = entryCount;
 
-        if (sFilter.empty())
+
+        positionCaption[ConsoleWin::Position::LB] = "[CTRL-F:Filter] [CTRL-S:Save Log]";
+        if (saveLogFilenameEntryWin.mbVisible)
         {
-            if (textEntryWin.mbVisible)
+            positionCaption[ConsoleWin::Position::LB] = "Save filename:";
+        }
+        else if (sFilter.empty())
+        {
+            if (filterTextEntryWin.mbVisible)
                 positionCaption[ConsoleWin::Position::LB] = "Set Filter:";
-            else
-                positionCaption[ConsoleWin::Position::LB] = "[CTRL-F:Filter]";
             positionCaption[ConsoleWin::Position::RT] = "Log lines (" + SH::FromInt(viewing) + "/" + SH::FromInt(entryCount) + ")";
         }
         else
@@ -213,11 +280,11 @@ namespace CLP
         switch (viewDateTime)
         {
         case kNone: return "Time Options";
-        case kDate: return "DATE";
-        case kDateTime: return "DATE_TIME";
-        case kTimeElapsed: return "ELAPSED";
-        case kTimeFromPrevious: return "DELTA";
-        case kTimeSince: return "SINCE";
+        case kTime: return "TIME";
+        case kDateTime: return "DATE/TIME";
+        case kTimeElapsed: return "ELAPSED (s)";
+        case kTimeFromPrevious: return "DELTA (us)";
+        case kTimeSince: return "SINCE (s)";
         }
 
         return "unknown";
@@ -227,12 +294,12 @@ namespace CLP
     {
         switch (viewDateTime)
         {
-        case kDate:
+        case kTime:
         {
             string date;
             string time;
             LOG::usToDateTime(entryTime, date, time);
-            return date;
+            return time;
         }
         case kDateTime:
         {
@@ -247,12 +314,12 @@ namespace CLP
         }
         case kTimeFromPrevious:
         {
-            return SH::FromInt(entryTime - prevEntryTime) + "us";
+            return "+"+SH::FromInt(entryTime - prevEntryTime);
         }
         case kTimeSince:
         {
             int64_t curTime = std::chrono::system_clock::now().time_since_epoch() / std::chrono::microseconds(1);
-            return LOG::usToElapsed(curTime - entryTime);
+            return "-"+LOG::usToElapsed(curTime - entryTime);
         }
         }
 
@@ -286,6 +353,19 @@ namespace CLP
 
         ConsoleWin::RenderToBackBuf(backBuf);
     }
+
+    void LogWin::ShowSaveFilenamePrompt()
+    {
+        if (!saveLogFilenameEntryWin.mbVisible)
+        {
+            saveLogFilenameEntryWin.SetVisible(true);
+            saveLogFilenameEntryWin.Clear(ZAttrib(0xff666699ffffffff));
+            saveLogFilenameEntryWin.SetArea(Rect(logWin.mX + 15, mY + mHeight - 1, mX + mWidth, mY + mHeight));
+            saveLogFilenameEntryWin.SetVisible();
+            invalid = true;
+        }
+    }
+
 
     bool LogWin::OnKey(int keycode, char c)
     {
@@ -368,11 +448,11 @@ namespace CLP
         {
             if (bCTRLHeld)
             {
-                if (!textEntryWin.mbVisible)
+                if (!filterTextEntryWin.mbVisible)
                 {
-                    textEntryWin.Clear(ZAttrib(0xff666699ffffffff));
-                    textEntryWin.SetArea(Rect(mX+11, mY + mHeight-1, mX + mWidth, mY + mHeight));
-                    textEntryWin.SetVisible();
+                    filterTextEntryWin.Clear(ZAttrib(0xff666699ffffffff));
+                    filterTextEntryWin.SetArea(Rect(mX+11, mY + mHeight-1, mX + mWidth, mY + mHeight));
+                    filterTextEntryWin.SetVisible();
                     invalid = true;
                 }
                 bHandled = true;
@@ -417,8 +497,10 @@ namespace CLP
 
         if (logWin.mbVisible)
             logWin.Paint(backBuffer);
-        if (textEntryWin.mbVisible)
-            textEntryWin.Paint(backBuffer);
+        if (filterTextEntryWin.mbVisible)
+            filterTextEntryWin.Paint(backBuffer);
+        if (saveLogFilenameEntryWin.mbVisible)
+            saveLogFilenameEntryWin.Paint(backBuffer);
         if (helpWin.mbVisible)
             helpWin.Paint(backBuffer);
 
@@ -444,7 +526,7 @@ namespace CLP
 
 
         //        if (bCursorHidden && !bCursorShouldBeHidden)
-        if (textEntryWin.mbVisible)
+        if (filterTextEntryWin.mbVisible || saveLogFilenameEntryWin.mbVisible)
         {
             cout << "\033[?25h";    // visible cursor
         }
@@ -483,10 +565,15 @@ namespace CLP
 
             Rect viewRect(0, 1, w, h);
             Rect logWinRect(viewRect);
-            if (textEntryWin.mbVisible)
+            if (filterTextEntryWin.mbVisible)
             {
                 logWinRect.b--;
-                textEntryWin.SetArea(Rect(logWinRect.l, logWinRect.b, logWinRect.r, logWinRect.b+1));
+                filterTextEntryWin.SetArea(Rect(logWinRect.l, logWinRect.b, logWinRect.r, logWinRect.b+1));
+            }
+            else if (saveLogFilenameEntryWin.mbVisible)
+            {
+                logWinRect.b--;
+                saveLogFilenameEntryWin.SetArea(Rect(logWinRect.l, logWinRect.b, logWinRect.r, logWinRect.b + 1));
             }
 
             logWin.Clear(kAttribHelpBG, true);
@@ -507,7 +594,7 @@ namespace CLP
         if (mbVisible && mbLastVisibleState == false)
         {
             SaveConsoleState();
-            if (!textEntryWin.mbVisible)
+            if (!filterTextEntryWin.mbVisible && !saveLogFilenameEntryWin.mbVisible)
                 cout << "\033[?25l";    // hide cursor
 
             bScreenInvalid = true;
@@ -539,21 +626,34 @@ namespace CLP
         bool bHandled = false;
         if (helpWin.mbVisible)
             bHandled = helpWin.OnKey(keycode, c);
-        if (textEntryWin.mbVisible && !bHandled)
-            bHandled = textEntryWin.OnKey(keycode, c);
+        if (filterTextEntryWin.mbVisible && !bHandled)
+            bHandled = filterTextEntryWin.OnKey(keycode, c);
+        if (saveLogFilenameEntryWin.mbVisible && !bHandled)
+            bHandled = saveLogFilenameEntryWin.OnKey(keycode, c);
         if (logWin.mbVisible && !bHandled)
             bHandled = logWin.OnKey(keycode, c);
 
-        if (textEntryWin.mbVisible)
+        if (filterTextEntryWin.mbVisible)
         {
-            if (textEntryWin.mbCanceled)
-                textEntryWin.SetText("");
+            if (filterTextEntryWin.mbCanceled)
+                filterTextEntryWin.SetText("");
 
-            if (textEntryWin.mbCanceled || textEntryWin.mbDone)
+            if (filterTextEntryWin.mbCanceled || filterTextEntryWin.mbDone)
             {
-                textEntryWin.SetVisible(false);
-                textEntryWin.mbCanceled = false;
-                textEntryWin.mbDone = false;
+                filterTextEntryWin.SetVisible(false);
+                filterTextEntryWin.mbCanceled = false;
+                filterTextEntryWin.mbDone = false;
+                bScreenInvalid = true;
+                return true;
+            }
+        }
+        if (saveLogFilenameEntryWin.mbVisible)
+        {
+            if (saveLogFilenameEntryWin.mbCanceled || saveLogFilenameEntryWin.mbDone)
+            {
+                saveLogFilenameEntryWin.SetVisible(false);
+                saveLogFilenameEntryWin.mbCanceled = false;
+                saveLogFilenameEntryWin.mbDone = false;
                 bScreenInvalid = true;
                 return true;
             }
@@ -607,6 +707,14 @@ namespace CLP
     }
 
 
+    bool ConsoleHasFocus()
+    {
+        HWND consoleWnd = GetConsoleWindow();
+        if (!consoleWnd) return false;
+
+        return (GetForegroundWindow() == consoleWnd);
+    }
+
     void CommandLineMonitor::ThreadProc(CommandLineMonitor* pCLM)
     {
         // Main loop to read input events
@@ -640,17 +748,23 @@ namespace CLP
 
             pCLM->UpdateVisibility();
 
-            if (textEntryWin.mbVisible)
+
+            bool bForeground = ConsoleHasFocus();
+            if (bForeground)
             {
-                if (GetConsoleWindow() == GetForegroundWindow())
+                if (filterTextEntryWin.mbVisible || saveLogFilenameEntryWin.mbVisible)
                 {
-                    textEntryWin.HookHotkeys();
+                    filterTextEntryWin.HookHotkeys();
                 }
                 else
                 {
-                    textEntryWin.UnhookHotkeys();
+                    filterTextEntryWin.UnhookHotkeys();
                 }
             }
+
+            logWin.HookCTRL_S(pCLM->mbVisible);
+
+
 
             if (pCLM->mbVisible)
             {
@@ -663,12 +777,24 @@ namespace CLP
             MSG msg;
             if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
             {
-                if (msg.message == WM_HOTKEY && (msg.wParam == CTRL_V_HOTKEY || msg.wParam == SHIFT_INSERT_HOTKEY))
+                if (msg.message == WM_HOTKEY)
                 {
-                    if (textEntryWin.mbVisible)
+                    if (msg.wParam == CTRL_V_HOTKEY || msg.wParam == SHIFT_INSERT_HOTKEY)
                     {
-                        textEntryWin.AddUndoEntry();
-                        textEntryWin.HandlePaste(GetTextFromClipboard());
+                        if (filterTextEntryWin.mbVisible)
+                        {
+                            filterTextEntryWin.AddUndoEntry();
+                            filterTextEntryWin.HandlePaste(GetTextFromClipboard());
+                        }
+                        else if (saveLogFilenameEntryWin.mbVisible)
+                        {
+                            saveLogFilenameEntryWin.AddUndoEntry();
+                            saveLogFilenameEntryWin.HandlePaste(GetTextFromClipboard());
+                        }
+                    }
+                    else if (msg.wParam == CTRL_S_HOTKEY)
+                    {
+                        logWin.ShowSaveFilenamePrompt();
                     }
                 }
                 else

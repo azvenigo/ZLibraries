@@ -32,7 +32,7 @@ namespace CLP
         enum eDateTimeDisplay : uint8_t
         {
             kNone = 0,
-            kDate = 1,
+            kTime = 1,
             kDateTime = 2,
             kTimeElapsed = 3,
             kTimeFromPrevious = 4,
@@ -50,6 +50,7 @@ namespace CLP
         bool OnKey(int keycode, char c);
         void Paint(tConsoleBuffer& backBuf);
 
+        void ShowSaveFilenamePrompt();
 
         bool        viewAtEnd = true;
         size_t      lastReportedLogCount;
@@ -63,10 +64,13 @@ namespace CLP
         std::string GetColorForThreadID(std::thread::id);
         std::string TimeLabel();
         std::string TimeValue(int64_t entryTime, int64_t prevEntryTime);
+        void        HookCTRL_S(bool bHook = true);
 
         std::string sFilter;
+        std::string sLogFilename;
 
     protected:
+        bool        bCTRL_S_Hooked = false;
         void        OffsetEntry(int64_t offset);        // next/prev or up/down some number based on current filter
         void        SetEntryFromBeginning(int64_t offset_from_beginning);
         void        SetEntryFromEnd(int64_t offset_from_end);
@@ -106,9 +110,8 @@ namespace CLP
     };
 
     extern  LogWin      logWin;
-    extern  TextEditWin textEntryWin;
-
-
+    extern  TextEditWin filterTextEntryWin;
+    extern  TextEditWin saveLogFilenameEntryWin;
 };  // namespace CLP
 
 #endif // ENABLE_CLM

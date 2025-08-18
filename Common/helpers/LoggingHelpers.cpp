@@ -17,7 +17,7 @@ namespace LOG
 
 
 
-    void usToDateTime(int64_t us, string& date, string& time)
+    void usToDateTime(int64_t us, string& date, string& time, int64_t precision)
     {
         time_t seconds = us / 1000000;
         int64_t remainingus = us % 1000000;
@@ -28,34 +28,61 @@ namespace LOG
 
         std::ostringstream osstime;
         osstime << std::put_time(timeInfo, "%H:%M:%S");
-        osstime << '.' << std::setfill('0') << std::setw(6) << remainingus;
+        // Apply precision to microseconds
+        if (precision > 6) precision = 6;  // Max precision is 6 digits for microseconds
+        if (precision <= 0) precision = 1; // Minimum precision is 1 digit
+
+        // Calculate the divisor to truncate microseconds to desired precision
+        int64_t divisor = 1;
+        for (int i = 0; i < (6 - precision); i++) {
+            divisor *= 10;
+        }
+        int64_t truncated_us = remainingus / divisor;
+
+        osstime << "." << std::setfill('0') << std::setw(precision) << truncated_us;
         time = osstime.str();
     }
 
-    std::string usToElapsed(int64_t us)
+    std::string usToElapsed(int64_t us, int64_t precision)
     {
         int64_t hours = us / 3600000000ULL;
+        us %= 3600000000ULL;  // Remove hours from us
         int64_t minutes = us / 60000000ULL;
-        us %= 60000000ULL;
-
+        us %= 60000000ULL;    // Remove minutes from us
         int64_t seconds = us / 1000000ULL;
-        us %= 1000000ULL;
-
+        us %= 1000000ULL;     // Remove seconds from us (now us contains only microseconds)
 
         std::ostringstream oss;
-
         if (hours > 0)
         {
             oss << hours << ":";
+            oss << std::setfill('0') << std::setw(precision) << minutes << ":";
+            oss << std::setfill('0') << std::setw(precision) << seconds << ".";
+        }
+        else if (minutes > 0)
+        {
+            oss << minutes << ":";
+            oss << std::setfill('0') << std::setw(precision) << seconds << ".";
+        }
+        else
+        {
+            oss << seconds << ".";
         }
 
-        oss << minutes << ":";
-        oss << std::setfill('0') << std::setw(2) << seconds << ".";
-        oss << std::setfill('0') << std::setw(6) << us << "s";
+        // Apply precision to microseconds
+        if (precision > 6) precision = 6;  // Max precision is 6 digits for microseconds
+        if (precision <= 0) precision = 1; // Minimum precision is 1 digit
 
+        // Calculate the divisor to truncate microseconds to desired precision
+        int64_t divisor = 1;
+        for (int i = 0; i < (6 - precision); i++) {
+            divisor *= 10;
+        }
+        int64_t truncated_us = us / divisor;
+
+        oss << std::setfill('0') << std::setw(precision) << truncated_us;
         return oss.str();
     }
-
 
     LogEntry::LogEntry(const std::string& _text, uint64_t _time)
     {
@@ -614,7 +641,7 @@ string Table::Cell::StyledOut(size_t width, tOptionalStyle _style)
     size_t remaining_width = width - padding * 2;
 
     string sOut = Substring(s, remaining_width);
-    string sStyled = PAD(padding, padchar) + use_color + sOut + COL_RESET + PAD(padding, padchar);
+    string sStyled = use_color + PAD(padding, padchar) + sOut + PAD(padding, padchar) + COL_RESET;
 
     size_t visOutLen = VisLength(sStyled);
 
@@ -625,14 +652,14 @@ string Table::Cell::StyledOut(size_t width, tOptionalStyle _style)
     {
         size_t left_pad = (width - visOutLen) / 2;
         size_t right_pad = (width - left_pad - visOutLen);
-        return PAD(left_pad, padchar) + sStyled + PAD(right_pad, padchar);
+        return use_color + PAD(left_pad, padchar) + COL_RESET + sStyled + use_color + PAD(right_pad, padchar) + COL_RESET;
     }
     else if (alignment == Table::RIGHT)
     {
-        return PAD(width - visOutLen, padchar) + sStyled;
+        return use_color + PAD(width - visOutLen, padchar) + sStyled + COL_RESET;
     }
 
-    return sStyled + PAD(width - visOutLen, padchar);
+    return sStyled + use_color + PAD(width - visOutLen, padchar) + COL_RESET;
 }
 
 
@@ -785,6 +812,9 @@ ostream& operator <<(ostream& os, Table& tableOut)
 
     if (tableOut.mRows.empty())
         return os;
+
+    // reset any previous color
+    os << COL_RESET;
 
 
     size_t tableMinWidth = tableOut.GetTableMinWidth();

@@ -73,6 +73,7 @@ namespace CLP
 {
     const int CTRL_V_HOTKEY = 1;
     const int SHIFT_INSERT_HOTKEY = 2;
+    const int CTRL_S_HOTKEY = 3;
 
 
     // decorations

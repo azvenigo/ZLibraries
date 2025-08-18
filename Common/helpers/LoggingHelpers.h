@@ -25,6 +25,7 @@
 #define COL_CUSTOM_STYLE "[CUSTOMSTYLE]"
 #define COL_RESET   "\033[0m"
 #define COL_BLACK   "\033[30m"
+#define COL_BLACK   "\033[30m"
 #define COL_RED     "\033[31m"
 #define COL_GREEN   "\033[32m"
 #define COL_BLUE    "\033[34m"
@@ -33,6 +34,7 @@
 #define COL_CYAN    "\033[36m"
 #define COL_WHITE   "\033[37m"
 #define COL_ORANGE  "\033[38;2;255;165;0m"
+#define COL_GRAY    "\033[38;2;128;128;128m"
 
 
 #define COL_BG_BLACK   "\033[40m"
@@ -43,6 +45,8 @@
 #define COL_BG_PURPLE  "\033[45m"
 #define COL_BG_CYAN    "\033[46m"
 #define COL_BG_WHITE   "\033[47m"
+#define COL_BG_ORANGE  "\033[48;2;255;165;0m"
+#define COL_BG_GRAY    "\033[48;2;128;128;128m"
 
 #else
 
@@ -359,8 +363,8 @@ namespace LOG
         std::ostream& m_fallback;
     };
 
-    void usToDateTime(int64_t us, std::string& date, std::string& time);
-    std::string usToElapsed(int64_t us);
+    void usToDateTime(int64_t us, std::string& date, std::string& time, int64_t precision = 2);
+    std::string usToElapsed(int64_t us, int64_t precision = 2);
 
     extern thread_local LogStream gLogOut;
     extern thread_local LogStream gLogErr;
