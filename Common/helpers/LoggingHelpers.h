@@ -36,7 +36,6 @@
 #define COL_ORANGE  "\033[38;2;255;165;0m"
 #define COL_GRAY    "\033[38;2;128;128;128m"
 
-
 #define COL_BG_BLACK   "\033[40m"
 #define COL_BG_RED     "\033[41m"
 #define COL_BG_GREEN   "\033[42m"
@@ -47,6 +46,9 @@
 #define COL_BG_WHITE   "\033[47m"
 #define COL_BG_ORANGE  "\033[48;2;255;165;0m"
 #define COL_BG_GRAY    "\033[48;2;128;128;128m"
+
+#define DEC_LINE_START  "\033(0"
+#define DEC_LINE_END    "\033(B"
 
 #else
 
@@ -60,6 +62,8 @@
 #define COL_PURPLE          ""
 #define COL_CYAN            ""
 #define COL_WHITE           ""
+#define COL_ORANGE          ""
+#define COL_GRAY            ""
 
 
 #define COL_BG_BLACK        ""
@@ -70,6 +74,11 @@
 #define COL_BG_PURPLE       ""
 #define COL_BG_CYAN         ""
 #define COL_BG_WHITE        ""
+#define COL_BG_ORANGE       ""
+#define COL_BG_GRAY         ""
+
+#define DEC_LINE_START      ""
+#define DEC_LINE_END        ""
 
 #endif
 
@@ -248,51 +257,7 @@ namespace LOG
 
     private:
         // Determine if content has complete ANSI sequences
-        bool isCompleteAnsiContent(const std::string& content) 
-        {
-            bool inEscapeSeq = false;
-            bool inCSI = false;
-
-            for (size_t i = 0; i < content.length(); ++i) 
-            {
-                char c = content[i];
-
-                if (inEscapeSeq) 
-                {
-                    if (inCSI) 
-                    {
-                        // In a CSI sequence
-                        if (c >= 0x40 && c <= 0x7E) 
-                        {
-                            // Final byte - sequence complete
-                            inEscapeSeq = false;
-                            inCSI = false;
-                        }
-                    }
-                    else 
-                    {
-                        // Just saw ESC, checking next char
-                        if (c == '[') 
-                        {
-                            inCSI = true;
-                        }
-                        else 
-                        {
-                            // Some other escape sequence
-                            inEscapeSeq = false;
-                        }
-                    }
-                }
-                else if (c == '\x1B') 
-                {
-                    // Start of escape sequence
-                    inEscapeSeq = true;
-                }
-            }
-
-            // If we're still in an escape sequence at the end, it's incomplete
-            return !inEscapeSeq;
-        }
+        bool isCompleteAnsiContent(const std::string& content);
 
         static const int BUFFER_SIZE = 1024; // Adjust size as needed
         char m_buffer[BUFFER_SIZE];
@@ -478,19 +443,37 @@ inline size_t VisLength(const std::string& s)
     size_t pos = 0;
     while (pos < s.size())
     {
-        if (s[pos] == '\x1b' && pos + 1 < s.size() && s[pos + 1] == '[')
+        if (s[pos] == '\x1b' && pos + 1 < s.size())
         {
-            pos += 2; // Skip ESC and '['
-
-            // Skip until we find a final character in the range 0x40-0x7E (@-~)
-            while (pos < s.size() && !(s[pos] >= 0x40 && s[pos] <= 0x7E))
+            char c = s[pos + 1];
+            if (c == '[') // CSI sequence
             {
+                pos += 2; // Skip ESC and '['
+
+                // Skip until we find a final character in the range 0x40-0x7E (@-~)
+                while (pos < s.size() && !(s[pos] >= 0x40 && s[pos] <= 0x7E))
+                {
+                    pos++;
+                }
+
+                // Skip the final command character if we found one
+                if (pos < s.size())
+                    pos++;
+            }
+            else if (c == '(' || c == ')' || c == '*' || c == '+') // Charset designator
+            {
+                // Sequence form: ESC ( F, ESC ) F, ESC * F, ESC + F
+                if (pos + 2 < s.size())
+                    pos += 3; // skip ESC, selector, and final
+                else
+                    pos = s.size(); // truncated sequence at end
+            }
+            else
+            {
+                // Not a recognized escape, treat ESC as visible
+                length++;
                 pos++;
             }
-
-            // Skip the final command character if we found one
-            if (pos < s.size())
-                pos++;
         }
         else
         {
@@ -509,8 +492,14 @@ inline bool ContainsAnsiSequences(const std::string& s)
     {
         if (s[pos] == '\x1b')
         {
-            if (pos + 1 < s.size() && s[pos + 1] == '[')
-                return true; // Found ESC + [
+            if (pos + 1 < s.size())
+            {
+                char c = s[pos + 1];
+                if (c == '[') // CSI
+                    return true;
+                if (c == '(' || c == ')' || c == '*' || c == '+') // Charset designators
+                    return true;
+            }
         }
         pos++;
     }
@@ -525,18 +514,38 @@ inline std::string StripAnsiSequences(const std::string& s)
 
     while (pos < s.size())
     {
-        if (s[pos] == '\x1b' && pos + 1 < s.size() && s[pos + 1] == '[')
+        if (s[pos] == '\x1b' && pos + 1 < s.size())
         {
-            pos += 2; // Skip '\x1b['
-
-            // Skip all characters that are valid inside the ANSI sequence
-            while (pos < s.size() && (isdigit(s[pos]) || s[pos] == ';' || s[pos] == '?' || s[pos] == ':' || s[pos] == '.' || s[pos] == '='))
+            char c = s[pos + 1];
+            if (c == '[') // CSI sequence
             {
+                pos += 2; // Skip '\x1b['
+
+                // Skip all characters valid inside the ANSI sequence
+                while (pos < s.size() && (isdigit(s[pos]) || s[pos] == ';' ||
+                    s[pos] == '?' || s[pos] == ':' ||
+                    s[pos] == '.' || s[pos] == '='))
+                {
+                    pos++;
+                }
+
+                if (pos < s.size())
+                    pos++; // Skip the final letter
+            }
+            else if (c == '(' || c == ')' || c == '*' || c == '+') // Charset designator
+            {
+                // Expect ESC + selector + final
+                if (pos + 2 < s.size())
+                    pos += 3;
+                else
+                    pos = s.size(); // incomplete at end
+            }
+            else
+            {
+                // Not recognized, keep the ESC as literal
+                result += s[pos];
                 pos++;
             }
-
-            if (pos < s.size())
-                pos++; // Skip the final letter (like 'm', 'A', etc.)
         }
         else
         {
@@ -579,6 +588,8 @@ inline std::string AnsiCol(uint64_t col)
         (uint8_t)((col & 0x000000ff00000000) >> 32) );
 }
 
+std::tuple<std::string, std::string, std::string>
+SplitAnsiWrapped(const std::string& input);
 
 typedef std::vector<std::string> tStringArray;
 

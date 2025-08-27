@@ -13,9 +13,186 @@
 
 using namespace std;
 
+
+size_t CLP::ZAttrib::FromAnsi(const uint8_t* pChars)
+{
+    if (!pChars || pChars[0] != '\x1b')
+        return 0;
+
+    size_t pos = 0;
+    bool anyConsumed = false;
+
+    while (pChars[pos] == '\x1b')
+    {
+        char next = pChars[pos + 1];
+        if (next == '(')
+        {
+            // DEC G0 charset
+            if (pChars[pos + 2] == '0')  // line drawing
+                dec_line = true;
+            else if (pChars[pos + 2] == 'B') // normal ASCII
+                dec_line = false;
+            else
+                return anyConsumed ? pos : 0; // unknown charset
+
+            pos += 3;
+            anyConsumed = true;
+        }
+        else if (next == '[')
+        {
+            // CSI sequence (SGR)
+            pos += 2;
+            int codes[20] = { 0 };
+            int codeCount = 0;
+            int num = 0;
+            bool hasNum = false;
+
+            while (pChars[pos])
+            {
+                char c = pChars[pos];
+                if (c >= '0' && c <= '9')
+                {
+                    num = num * 10 + (c - '0');
+                    hasNum = true;
+                }
+                else if (c == ';')
+                {
+                    if (hasNum && codeCount < 20)
+                        codes[codeCount++] = num;
+                    num = 0;
+                    hasNum = false;
+                }
+                else if (c >= '@' && c <= '~') // final character
+                {
+                    if (hasNum && codeCount < 20)
+                        codes[codeCount++] = num;
+
+                    if (c == 'm')  // SGR
+                    {
+                        int i = 0;
+                        while (i < codeCount)
+                        {
+                            int code = codes[i++];
+                            switch (code)
+                            {
+                            case 0:
+                                SetFG(0xFF, 0xFF, 0xFF, 0xFF); // reset FG to white
+                                SetBG(0xFF, 0x00, 0x00, 0x00); // reset BG to black
+                                break;
+
+                            case 1: // bold, often increase brightness
+                                // Optionally handle
+                                break;
+
+                            case 38: // Foreground extended color
+                                if (i < codeCount)
+                                {
+                                    int colorType = codes[i++];
+                                    if (colorType == 2 && i + 2 < codeCount) // RGB
+                                    {
+                                        // RGB color: 38;2;r;g;b
+                                        int r = codes[i++];
+                                        int g = codes[i++];
+                                        int b = codes[i++];
+                                        SetFG(0xFF, r, g, b);
+                                    }
+                                    else if (colorType == 5 && i < codeCount) // 256-color
+                                    {
+                                        // 256-color: 38;5;n
+                                        // Handle 256-color palette if needed
+                                        i++; // Skip the color index for now
+                                    }
+                                }
+                                break;
+
+                            case 48: // Background extended color
+                                if (i < codeCount)
+                                {
+                                    int colorType = codes[i++];
+                                    if (colorType == 2 && i + 2 < codeCount) // RGB
+                                    {
+                                        // RGB color: 48;2;r;g;b
+                                        int r = codes[i++];
+                                        int g = codes[i++];
+                                        int b = codes[i++];
+                                        SetBG(0xFF, r, g, b);
+                                    }
+                                    else if (colorType == 5 && i < codeCount) // 256-color
+                                    {
+                                        // 256-color: 48;5;n
+                                        // Handle 256-color palette if needed
+                                        i++; // Skip the color index for now
+                                    }
+                                }
+                                break;
+
+                            case 30: SetFG(0xFF, 0x00, 0x00, 0x00); break; // Black
+                            case 31: SetFG(0xFF, 0xFF, 0x00, 0x00); break; // Red
+                            case 32: SetFG(0xFF, 0x00, 0xFF, 0x00); break; // Green
+                            case 33: SetFG(0xFF, 0xFF, 0xFF, 0x00); break; // Yellow
+                            case 34: SetFG(0xFF, 0x00, 0x00, 0xFF); break; // Blue
+                            case 35: SetFG(0xFF, 0xFF, 0x00, 0xFF); break; // Magenta
+                            case 36: SetFG(0xFF, 0x00, 0xFF, 0xFF); break; // Cyan
+                            case 37: SetFG(0xFF, 0xFF, 0xFF, 0xFF); break; // White
+                            case 39: SetFG(0xFF, 0xFF, 0xFF, 0xFF); break; // Default FG
+                            case 40: SetBG(0xFF, 0x00, 0x00, 0x00); break; // BG Black
+                            case 41: SetBG(0xFF, 0xFF, 0x00, 0x00); break; // BG Red
+                            case 42: SetBG(0xFF, 0x00, 0xFF, 0x00); break; // BG Green
+                            case 43: SetBG(0xFF, 0xFF, 0xFF, 0x00); break; // BG Yellow
+                            case 44: SetBG(0xFF, 0x00, 0x00, 0xFF); break; // BG Blue
+                            case 45: SetBG(0xFF, 0xFF, 0x00, 0xFF); break; // BG Magenta
+                            case 46: SetBG(0xFF, 0x00, 0xFF, 0xFF); break; // BG Cyan
+                            case 47: SetBG(0xFF, 0xFF, 0xFF, 0xFF); break; // BG White
+                            case 49: SetBG(0xFF, 0x00, 0x00, 0x00); break; // Default BG
+                            default:
+                                if (code >= 90 && code <= 97)
+                                {
+                                    // Bright foreground colors
+                                    static const uint32_t brightFg[8] = {
+                                        0xFF808080, 0xFFFF6060, 0xFF60FF60, 0xFFFFFF60,
+                                        0xFF6060FF, 0xFFFF60FF, 0xFF60FFFF, 0xFFFFFFFF
+                                    };
+                                    SetFG(brightFg[code - 90]);
+                                }
+                                else if (code >= 100 && code <= 107)
+                                {
+                                    // Bright background colors
+                                    static const uint32_t brightBg[8] = {
+                                        0xFF808080, 0xFFFF6060, 0xFF60FF60, 0xFFFFFF60,
+                                        0xFF6060FF, 0xFFFF60FF, 0xFF60FFFF, 0xFFFFFFFF
+                                    };
+                                    SetBG(brightBg[code - 100]);
+                                }
+                                break;
+                            }
+                        }
+                    }
+
+                    pos++; // consume final character
+                    anyConsumed = true;
+                    break;
+                }
+                else
+                {
+                    // Invalid inside CSI
+                    return anyConsumed ? pos : 0;
+                }
+                pos++;
+            }
+        }
+        else
+        {
+            // Not recognized
+            return anyConsumed ? pos : 0;
+        }
+    }
+
+    return anyConsumed ? pos : 0;
+}
+/*
 size_t CLP::ZAttrib::FromAnsi(const char* pChars)
 {
-    if (!pChars || pChars[0] != '\x1b' || pChars[1] != '[')
+    if (!pChars || pChars[0] != '\x1b')
         return 0;
 
     size_t pos = 2; // skip ESC and [
@@ -163,11 +340,17 @@ size_t CLP::ZAttrib::FromAnsi(const char* pChars)
     }
 
     return 0;
-}
+}*/
 
 string CLP::ZAttrib::ToAnsi() const
 {
     std::ostringstream ansi;
+
+    // Handle DEC line drawing first
+    if (dec_line)
+        ansi << "\033(0";  // G0 → line drawing
+    else
+        ansi << "\033(B";  // G0 → ASCII
 
     // Start the ANSI sequence
     ansi << "\033[";
@@ -253,7 +436,7 @@ namespace CLP
     {
         if (bForce || coord.X != gLastCursorPos.X || coord.Y != gLastCursorPos.Y)
         {
-            cout << "\033[" + SH::FromInt(coord.X + 1) + "G\033[" + SH::FromInt(coord.Y) + "d" << flush;
+            cout << "\033[" + SH::FromInt(coord.X+1) + "G\033[" + SH::FromInt(coord.Y+1) + "d" << flush;
             gLastCursorPos = coord;
         }
     }
@@ -277,16 +460,21 @@ namespace CLP
     SHORT ScreenW() { return screenInfo.srWindow.Right - screenInfo.srWindow.Left + 1; }
     SHORT ScreenH() { return screenInfo.srWindow.Bottom - screenInfo.srWindow.Top + 1; }
 
-    void DrawAnsiChar(int64_t x, int64_t y, char c, ZAttrib ca)
+    void DrawAnsiChar(int64_t x, int64_t y, uint8_t c, ZAttrib ca)
     {
         static ZAttrib lastC;
         SetCursorPosition(COORD((SHORT)x, (SHORT)y));
 
         string s;
-        if (lastC.a != ca.a || lastC.r != ca.r || lastC.g != ca.g || lastC.b != ca.b || lastC.ba != ca.ba || lastC.br != ca.br || lastC.bg != ca.bg || lastC.bb != ca.bb)
+        if (lastC.a != ca.a || lastC.r != ca.r || lastC.g != ca.g || lastC.b != ca.b || lastC.ba != ca.ba || lastC.br != ca.br || lastC.bg != ca.bg || lastC.bb != ca.bb || lastC.dec_line != ca.dec_line)
         {
             s += "\033[38;2;" + SH::FromInt(ca.r) + ";" + SH::FromInt(ca.g) + ";" + SH::FromInt(ca.b) + "m"; //forground color
             s += "\033[48;2;" + SH::FromInt(ca.br) + ";" + SH::FromInt(ca.bg) + ";" + SH::FromInt(ca.bb) + "m"; //background color
+
+            if (lastC.dec_line && !ca.dec_line) // turn dec_line off
+                s += DEC_LINE_END;
+            else if (!lastC.dec_line && ca.dec_line)    // turn dec_line on
+                s += DEC_LINE_START;
 
             lastC = ca;
         }
@@ -297,6 +485,11 @@ namespace CLP
             s += c;
         cout << s;
         gLastCursorPos.X++;    // cursor advances after drawing
+        if (gLastCursorPos.X > screenInfo.srWindow.Right - screenInfo.srWindow.Left)
+        {
+            gLastCursorPos.X = 0;
+            gLastCursorPos.Y++;
+        }
     };
 
 
@@ -427,14 +620,14 @@ namespace CLP
 
         for (size_t i = 0; i < ansitext.length(); i++)
         {
-            size_t skiplength = attrib.FromAnsi(&ansitext[i]);
+            size_t skiplength = attrib.FromAnsi((uint8_t*)&ansitext[i]);
             if (skiplength > 0)
             {
                 i += skiplength - 1;    // -1 so that the i++ above will be correct
             }
             else
             {
-                char c = ansitext[i];
+                uint8_t c = ansitext[i];
                 if (c == '\n' && bWrap)
                 {
                     cursorX = r.l;
@@ -452,12 +645,69 @@ namespace CLP
         }
     }
 
+
+/*    void ConsoleWin::DrawClippedAnsiText(const Rect& r, std::string ansitext, bool bWrap, const Rect* pClip)
+    {
+
+#ifdef _DEBUG
+        validateAnsiSequences(ansitext);
+#endif
+
+        if (!pClip)
+            pClip = &r;
+
+        int64_t cursorX = r.l;
+        int64_t cursorY = r.t;
+
+        if (cursorX < pClip->l || cursorY < pClip->t || cursorX >= pClip->r || cursorY >= pClip->b)
+            return;
+
+        ZAttrib attrib(WHITE);
+
+        for (size_t i = 0; i < ansitext.length(); i++)
+        {
+            size_t skiplength = attrib.FromAnsi(&ansitext[i]);
+            if (skiplength > 0)
+            {
+                i += skiplength - 1;    // -1 so that the i++ above will be correct
+            }
+            else
+            {
+                char c = ansitext[i];
+                if (c == '\n' && bWrap)
+                {
+                    cursorX = r.l;
+                    cursorY++;
+                }
+                else
+                {
+                    DrawCharClipped(c, cursorX, cursorY, attrib, pClip);
+                    cursorX++;
+                    if (cursorX >= r.r)
+                    {
+//                        if (bWrap)
+                        {
+                            cursorX = (SHORT)r.l;
+                            cursorY++;
+                        }
+                    }
+                }
+
+                if (cursorY > r.b || cursorY > pClip->b) // off the bottom of the viewing area
+                    break;
+            }
+        }
+    }
+
+    */
+
+
     std::string removeANSISequences(const std::string& str)
     {
         std::string result;
         bool inEscapeSequence = false;
 
-        for (char ch : str)
+        for (uint8_t ch : str)
         {
             if (inEscapeSequence)
             {
@@ -487,14 +737,14 @@ namespace CLP
         ZAttrib attrib;
         for (size_t i = 0; i < text.length(); i++)
         {
-            size_t skiplength = attrib.FromAnsi(&text[i]);
+            size_t skiplength = attrib.FromAnsi((uint8_t*)&text[i]);
             if (skiplength > 0)
             {
                 i += skiplength - 1;    // -1 so that the i++ above will be correct
             }
             else
             {
-                char c = text[i];
+                uint8_t c = text[i];
                 if (c == '\n' || x >= mWidth)
                 {
                     x = 0;
@@ -511,9 +761,10 @@ namespace CLP
         return area;
     }
 
-    int64_t ConsoleWin::GetTextOutputRows(std::string text, int64_t w)
+/*    int64_t ConsoleWin::GetTextOutputRows(const std::string& _text, int64_t w)
     {
-        if (VisLength(text) == 0)   // if no visible text
+        string text = StripAnsiSequences(_text);
+        if (text.length() == 0)// if no visible text
             return 0;
 
         int64_t rows = 1;
@@ -522,26 +773,36 @@ namespace CLP
         ZAttrib attrib;
         for (size_t i = 0; i < text.length(); i++)
         {
-            size_t skiplength = attrib.FromAnsi(&text[i]);
-            if (skiplength > 0)
+            uint8_t c = text[i];
+            if (c == '\n' || x >= w)
             {
-                i += skiplength - 1;    // -1 so that the i++ above will be correct
+                x = 0;
+                y++;
+                rows = std::max<int64_t>(rows, y);
             }
             else
             {
-                char c = text[i];
-                if (c == '\n' || x >= w)
-                {
-                    x = 0;
-                    y++;
-                    rows = std::max<int64_t>(rows, y);
-                }
-                else
-                {
-                    x++;
-                }
+                x++;
             }
         }
+        return rows;
+    }
+    */
+
+    int64_t ConsoleWin::GetTextOutputRows(const std::string& _text, int64_t w)
+    {
+
+        string text = StripAnsiSequences(_text);
+        if (text.empty())
+            return 0;
+
+        int64_t rows = 1;
+        for (const auto& c : text)
+        {
+            if (c == '\n')
+                rows++;
+        }
+
         return rows;
     }
 
@@ -651,7 +912,7 @@ namespace CLP
             positionCaption[pos].clear();
     }
 
-    void ConsoleWin::Fill(char c, const Rect& r, ZAttrib attrib)
+    void ConsoleWin::Fill(uint8_t c, const Rect& r, ZAttrib attrib)
     {
         for (int64_t y = r.t; y < r.b; y++)
         {
@@ -689,7 +950,7 @@ namespace CLP
         return Fill(Rect(0, 0, mWidth, mHeight), attrib, bGradient);
     }
 
-    void ConsoleWin::DrawCharClipped(char c, int64_t x, int64_t y, ZAttrib attrib, const Rect* pClip)
+    void ConsoleWin::DrawCharClipped(uint8_t c, int64_t x, int64_t y, ZAttrib attrib, const Rect* pClip)
     {
         if (pClip)
         {
@@ -709,13 +970,13 @@ namespace CLP
         DrawCharClipped(c, (int64_t)offset, attrib);
     }
 
-    void ConsoleWin::DrawCharClipped(char c, int64_t offset, ZAttrib attrib)
+    void ConsoleWin::DrawCharClipped(uint8_t c, int64_t offset, ZAttrib attrib)
     {
         if (offset >= 0 && offset < (int64_t)mBuffer.size())    // clip
         {
             mBuffer[offset].c = c;
             if (GET_BA(attrib) > 0)
-                mBuffer[offset].attrib = (uint64_t)attrib;
+                mBuffer[offset].attrib = attrib;
             else
                 mBuffer[offset].attrib.SetFG(attrib.FG());  // if background is transparent, only set FG color
         }
@@ -749,7 +1010,7 @@ namespace CLP
 
         for (size_t textindex = 0; textindex < text.size(); textindex++)
         {
-            char c = text[textindex];
+            uint8_t c = text[textindex];
             if (c == '\n' && bWrap)
             {
                 cursor.X = (SHORT)r.l;
@@ -786,9 +1047,6 @@ namespace CLP
 
         Rect drawArea;
         GetInnerArea(drawArea);
-//        int64_t h = drawArea.b - drawArea.t;
-//        int64_t w = drawArea.r - drawArea.l;
-
         Rect textArea = GetTextOuputRect(mText);
         int64_t shiftX = 1;// drawArea.l;
         int64_t shiftY = /*drawArea.t*/ - firstDrawRow;     // shift the text output so that the in-view text starts with the firstdrawrow
@@ -798,15 +1056,18 @@ namespace CLP
         textArea.t += shiftY;
         textArea.b += shiftY;
 
-        DrawClippedAnsiText(textArea, mText, true, &drawArea);
 
+        bool bDrawScrollbar = false;
         if (bAutoScrollbar)
         {
             int64_t nRows = GetTextOutputRows(mText, drawArea.w());
-            Rect sb(drawArea.r - 1, drawArea.t, drawArea.r, drawArea.b);
-            if (nRows > drawArea.h())
-                DrawScrollbar(sb, 0, nRows-drawArea.h()-1, mTopVisibleRow, kAttribScrollbarBG, kAttribScrollbarThumb);
+            Rect sb(drawArea.r - 1, drawArea.t, drawArea.r, drawArea.b-1);
+            bDrawScrollbar = nRows > drawArea.h();
+            DrawScrollbar(sb, 0, nRows - drawArea.h() - 1, mTopVisibleRow, kAttribScrollbarBG, kAttribScrollbarThumb);
+            drawArea.r--;   // adjust draw area for text if scrollbar is visible
         }
+
+        DrawClippedAnsiText(textArea, mText, true, &drawArea);
 
         ConsoleWin::RenderToBackBuf(backBuf);
     }
@@ -838,10 +1099,21 @@ namespace CLP
         thumbSize = std::max<int64_t>(1, thumbSize);
         thumbSize = std::min<int64_t>(sbSize - 1, thumbSize);
 
-        Fill(r, bg, false);
+//        Fill(r, bg, false);
+        ZAttrib track(bg);
+        track.dec_line = true;
+
+        Rect trackRect(r);
+        DrawCharClipped('\x77', trackRect.l, trackRect.t, track);
+        DrawCharClipped('\x76', trackRect.l, trackRect.b-1,  track);
+        trackRect.t++;
+        trackRect.b--;
+
+        Fill('\x78', trackRect, track);
 
         int64_t trackSize = sbSize - thumbSize;  // 48 - 29 = 19
-        if (trackSize <= 0) {
+        if (trackSize <= 0) 
+        {
             Fill(r, thumb, false);
             return;
         }
@@ -864,7 +1136,14 @@ namespace CLP
             rThumb.r = r.r;
         }
 
-        Fill(rThumb, thumb, false);
+        Fill('\xb1', rThumb, thumb);
+
+        static int breakon = 63;
+        if (rThumb.b != breakon)
+        {
+            int stophere = 5;
+        }
+
     }
 
 
@@ -1265,7 +1544,7 @@ namespace CLP
 
         for (size_t textindex = 0; textindex < mText.size(); textindex++)
         {
-            char c = mText[textindex];
+            uint8_t c = mText[textindex];
             if (c == '\n' && bMultiline)
             {
 
@@ -1701,6 +1980,7 @@ namespace CLP
 
 
 
+        helpWin.positionCaption[ConsoleWin::Position::LT] = "Environment Variables";
 
 
 
@@ -1711,7 +1991,7 @@ namespace CLP
 
         Table varTable;
         varTable.defaultStyle.color = AnsiCol(0xFF888888);
-        varTable.SetBorders("+", "+", "+", "+");
+        varTable.SetBorders("|", DEC_LINE_START "q" DEC_LINE_END, "|", DEC_LINE_START "q" DEC_LINE_END, "|");
         //varTable.renderWidth = drawWidth;
 
         varTable.AddRow(SectionStyle, "--var--", "--value--");

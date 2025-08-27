@@ -136,12 +136,12 @@ namespace CLP
 
         bool operator ==(const ZAttrib& rhs) const
         {
-            return (uint64_t)*this == (uint64_t)rhs;
+            return (uint64_t)*this == (uint64_t)rhs && dec_line == rhs.dec_line;
         }
 
         bool operator !=(const ZAttrib& rhs) const
         {
-            return (uint64_t)*this != (uint64_t)rhs;
+            return (uint64_t)*this != (uint64_t)rhs || dec_line != rhs.dec_line;
         }
 
         ZAttrib& operator |=(uint64_t rhs)
@@ -159,7 +159,13 @@ namespace CLP
             return *this;
         }
 
-        inline void Set(uint64_t col)
+        void operator =(const ZAttrib& rhs)
+        {
+            Set((uint64_t)rhs, rhs.dec_line);
+        }
+
+
+        inline void Set(uint64_t col, bool _dec_line = false)
         {
             ba = GET_BA(col);
             br = GET_BR(col);
@@ -170,6 +176,11 @@ namespace CLP
             r = GET_R(col);
             g = GET_G(col);
             b = GET_B(col);
+
+            if (_dec_line)
+                int stophere = 5;
+
+            dec_line = _dec_line;
         }
 
         inline void SetFG(uint32_t col)
@@ -204,7 +215,7 @@ namespace CLP
             bb = _b;
         }
 
-        size_t FromAnsi(const char* pChars);    // returns number of chars consumed (or 0 if not a valid ansi sequence)
+        size_t FromAnsi(const uint8_t* pChars);    // returns number of chars consumed (or 0 if not a valid ansi sequence)
         std::string ToAnsi() const;
 
         uint32_t FG() const { return (uint32_t)a << 24 | (uint32_t)r << 16 | (uint32_t)g << 8 | (uint32_t)b; }
@@ -220,6 +231,8 @@ namespace CLP
         uint64_t br : 8; // background
         uint64_t bg : 8; // background
         uint64_t bb : 8; // background
+
+        bool dec_line = false;
     };
 
 
@@ -229,6 +242,7 @@ namespace CLP
     {
         bool operator ==(const ZChar& rhs) const { return c == rhs.c && attrib == rhs.attrib; }
         bool operator !=(const ZChar& rhs) const { return c != rhs.c || attrib != rhs.attrib; }
+        void operator =(const ZChar& rhs) { c = rhs.c; attrib = rhs.attrib; }
 
         uint8_t c;
         ZAttrib attrib;
@@ -273,6 +287,13 @@ namespace CLP
 
         int64_t w() const { return r - l; }
         int64_t h() const { return b - t; }
+        void offset(int64_t dx, int64_t dy)
+        {
+            l += dx;
+            r += dx;
+            t += dy;
+            b += dy;
+        }
 
         int64_t l;
         int64_t t;
@@ -316,19 +337,19 @@ namespace CLP
         void Clear(ZAttrib attrib = 0, bool bGradient = false);
 
 
-        void Fill(char c, const Rect& r, ZAttrib attrib);
+        void Fill(uint8_t c, const Rect& r, ZAttrib attrib);
         void Fill(const Rect& r, ZAttrib attrib, bool bGradient = false);
         void Fill(ZAttrib attrib, bool bGradient = false);
 
-        void DrawCharClipped(char c, int64_t x, int64_t y, ZAttrib attrib = {}, const Rect* pClip = nullptr);
-        void DrawCharClipped(char c, int64_t offset, ZAttrib attrib = {});
+        void DrawCharClipped(uint8_t c, int64_t x, int64_t y, ZAttrib attrib = {}, const Rect* pClip = nullptr);
+        void DrawCharClipped(uint8_t c, int64_t offset, ZAttrib attrib = {});
 
         void DrawClippedText(const Rect& r, std::string text, ZAttrib attributes = WHITE_ON_BLACK, bool bWrap = true, const Rect* pClip = nullptr);
         void DrawClippedAnsiText(const Rect& r, std::string ansitext, bool bWrap = true, const Rect* pClip = nullptr);
         int64_t DrawFixedColumnStrings(int64_t x, int64_t y, tStringArray& strings, std::vector<size_t>& colWidths, int64_t padding, tAttribArray attribs, const Rect* pClip = nullptr); // returns rows drawn
 
         Rect GetTextOuputRect(std::string text);
-        int64_t GetTextOutputRows(std::string text, int64_t w); // returns required number of rows for a given width
+        int64_t GetTextOutputRows(const std::string& text, int64_t w); // returns required number of rows for a given width
 
         void GetCaptionPosition(std::string& caption, Position pos, int64_t& x, int64_t& y);
 
@@ -525,7 +546,7 @@ namespace CLP
     void SaveConsoleState();
     void RestoreConsoleState();
     //bool getANSIColorAttribute(const std::string& str, size_t offset, ZAttrib& attribute, size_t& length);
-    void DrawAnsiChar(int64_t x, int64_t y, char c, ZAttrib ca);
+    void DrawAnsiChar(int64_t x, int64_t y, uint8_t c, ZAttrib ca);
 
     std::string ExpandEnvVars(const std::string& s); // replaces any %var% with environment variables 
     typedef std::pair<std::string, std::string> tKeyVal;

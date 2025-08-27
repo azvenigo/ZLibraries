@@ -16,6 +16,74 @@ namespace LOG
 //    thread_local char LogStreamBuf::m_buffer[LogStreamBuf::BUFFER_SIZE];
 
 
+    bool LogStreamBuf::isCompleteAnsiContent(const std::string& content)
+    {
+        enum State {
+            Normal,
+            EscapeStart,
+            CSI,
+            OSC,
+            Charset
+        };
+
+        State state = Normal;
+
+        for (size_t i = 0; i < content.size(); ++i)
+        {
+            char c = content[i];
+
+            switch (state)
+            {
+            case Normal:
+                if (c == '\x1B') {
+                    state = EscapeStart;
+                }
+                break;
+
+            case EscapeStart:
+                if (c == '[') {
+                    state = CSI;   // CSI sequence
+                }
+                else if (c == ']') {
+                    state = OSC;   // OSC sequence
+                }
+                else if (c == '(' || c == ')' || c == '*' || c == '+') {
+                    state = Charset; // 3-byte charset selector
+                }
+                else {
+                    // Single-char escapes like ESCc, ESC7, etc.
+                    state = Normal;
+                }
+                break;
+
+            case CSI:
+                // CSI runs until a final byte 0x40–0x7E
+                if (c >= 0x40 && c <= 0x7E) {
+                    state = Normal;
+                }
+                break;
+
+            case OSC:
+                // OSC ends with BEL or ST (ESC \)
+                if (c == '\x07') {
+                    state = Normal;
+                }
+                else if (c == '\x1B' && i + 1 < content.size() && content[i + 1] == '\\') {
+                    i++;
+                    state = Normal;
+                }
+                break;
+
+            case Charset:
+                // Charset designators are only 2 more bytes after ESC
+                state = Normal;
+                break;
+            }
+        }
+
+        // Incomplete if we're not back in Normal
+        return state == Normal;
+    }
 
     void usToDateTime(int64_t us, string& date, string& time, int64_t precision)
     {
@@ -571,6 +639,96 @@ std::string Substring(const std::string& input, size_t maxLength)
     return result;
 }
 
+std::tuple<std::string, std::string, std::string>
+SplitAnsiWrapped(const std::string& input)
+{
+    enum State {
+        Normal,
+        EscapeStart,
+        CSI,
+        OSC,
+        Charset
+    };
+
+    std::string leading, plain, trailing;
+    State state = Normal;
+    size_t i = 0;
+
+    // --- Step 1: Parse leading ANSI sequences ---
+    for (; i < input.size(); ++i) {
+        char c = input[i];
+
+        switch (state) {
+        case Normal:
+            if (c == '\x1B') {
+                leading.push_back(c);
+                state = EscapeStart;
+            }
+            else {
+                // First non-ANSI char ? done with leading
+                goto plain_loop;
+            }
+            break;
+
+        case EscapeStart:
+            leading.push_back(c);
+            if (c == '[') {
+                state = CSI;
+            }
+            else if (c == ']') {
+                state = OSC;
+            }
+            else if (c == '(' || c == ')' || c == '*' || c == '+') {
+                state = Charset;
+            }
+            else {
+                state = Normal; // single char escape
+            }
+            break;
+
+        case CSI:
+            leading.push_back(c);
+            if (c >= 0x40 && c <= 0x7E) {
+                state = Normal;
+            }
+            break;
+
+        case OSC:
+            leading.push_back(c);
+            if (c == '\x07') {
+                state = Normal;
+            }
+            else if (c == '\x1B' && i + 1 < input.size() && input[i + 1] == '\\') {
+                leading.push_back(input[++i]);
+                state = Normal;
+            }
+            break;
+
+        case Charset:
+            leading.push_back(c);
+            state = Normal;
+            break;
+        }
+    }
+
+plain_loop:
+    // --- Step 2: Capture plain text until first trailing ANSI ---
+    for (; i < input.size(); ++i) {
+        if (input[i] == '\x1B') {
+            // Found start of trailing ANSI
+            break;
+        }
+        plain.push_back(input[i]);
+    }
+
+    // --- Step 3: Everything else is trailing ANSI ---
+    for (; i < input.size(); ++i) {
+        trailing.push_back(input[i]);
+    }
+
+    return { leading, plain, trailing };
+}
+
 Table::Cell::Cell(const std::string& _s, tOptionalStyle _style)
 {
     style = _style;
@@ -785,25 +943,28 @@ Table::operator string()
 
 string RepeatString(const string& s, int64_t w)
 {
+    // simplest case for commonly called single char
+    if (s.length() == 1)
+        return string(w, s[0]);
+
+    auto [start, text, end] = SplitAnsiWrapped(s);
+
+    size_t visLen = text.length();
+
+
+
     int64_t repeatedW = w;
     string sOut;
-    size_t visLen = VisLength(s);
     while (repeatedW > 0)
     {
-        sOut +=  s;
+        sOut +=  text;
         repeatedW -= visLen;
     }
 
-    if (repeatedW < 0)
-    {
-        // for multi-char repeated strings, trim back until the visible width doesn't exceed w
-        while ((int64_t)StripAnsiSequences(sOut).length() > w)
-        {
-            sOut = sOut.substr(0, sOut.length() - 1);
-        }
-    }
+    // if the text sequence is multiple characters it may have gone over, so trim it
+    sOut = sOut.substr(0, w);
 
-    return sOut;
+    return start + sOut + end;
 };
 
 ostream& operator <<(ostream& os, Table& tableOut)
@@ -954,12 +1115,15 @@ bool validateAnsiSequences(const std::string& input)
             else if (c == ']') {
                 state = State::OSC;
             }
+            else if (c >= 0x28 && c <= 0x2B) {
+                // Charset designation: ESC (, ), * or +
+                state = State::INTERMEDIATE;
+            }
             else if (c >= 0x40 && c <= 0x5F) {
-                // 2-character escape sequence (ESC + function)
+                // 2-character escape sequence
                 state = State::TEXT;
             }
             else {
-                // Invalid escape sequence
                 std::cerr << "Invalid escape sequence at position " << i << std::endl;
                 return false;
             }
@@ -1039,7 +1203,7 @@ bool validateAnsiSequences(const std::string& input)
             if (c >= 0x20 && c <= 0x2F) {
                 // Stay in INTERMEDIATE state
             }
-            else if (c >= 0x40 && c <= 0x7E) {
+            else if (c >= 0x30 && c <= 0x7E) {
                 // Final byte
                 state = State::TEXT;
             }

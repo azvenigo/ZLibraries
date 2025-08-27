@@ -91,8 +91,8 @@ namespace CLP
         {
             Rect drawArea;
             GetInnerArea(drawArea);
-            int64_t drawWidth = drawArea.r - drawArea.l - 1;
-            int64_t drawHeight = drawArea.b - drawArea.t-1;
+            int64_t drawWidth = drawArea.r - drawArea.l;
+            int64_t drawHeight = drawArea.b - drawArea.t;
             if (filterTextEntryWin.mbVisible || saveLogFilenameEntryWin.mbVisible)
                 drawHeight--;
 
@@ -107,11 +107,11 @@ namespace CLP
                 mTopVisibleRow = LOG::gLogger.getEntryCount() - drawHeight;
                 if (mTopVisibleRow < 0)
                     mTopVisibleRow = 0;
-                LOG::gLogger.tail(drawHeight-1, entries);
+                LOG::gLogger.tail(drawHeight-2, entries); // -2 for the header and bottom line indicating end
             }
             else
             {
-                LOG::gLogger.getEntries(mTopVisibleRow, drawHeight, entries);
+                LOG::gLogger.getEntries(mTopVisibleRow, drawHeight, entries); 
             }
 
             if (!entries.empty())
@@ -125,18 +125,23 @@ namespace CLP
 
 
             ZAttrib bg(MAKE_BG(0xFF222222));
+            ZAttrib tableBorder(bg);
+            tableBorder.dec_line = true;
             Table logtail;
             logtail.borders[Table::LEFT].clear();
             logtail.borders[Table::RIGHT].clear();
             logtail.borders[Table::CENTER] = bg.ToAnsi() + string(" ");
 
+
             if (firstRowCounter == 0)
-                logtail.borders[Table::TOP] = bg.ToAnsi() + string("_______________");
+                logtail.borders[Table::TOP] = tableBorder.ToAnsi() + "\xb1";
             else
                 logtail.borders[Table::TOP].clear();    // if there are lines above the top of the window, no top table border
 
             if (viewAtEnd)
-                logtail.borders[Table::BOTTOM] = bg.ToAnsi() + string("__________");
+            {
+                logtail.borders[Table::BOTTOM] = tableBorder.ToAnsi() + "\xb1";
+            }
             else
                 logtail.borders[Table::BOTTOM].clear(); // if there are lines below the bottom of the window, no bottom table border
 
@@ -335,21 +340,56 @@ namespace CLP
 
         ConsoleWin::BasePaint();
 
+
+
+
+
+        int64_t firstDrawRow = mTopVisibleRow - 1;
+
         Rect drawArea;
         GetInnerArea(drawArea);
-
-
-        DrawClippedAnsiText(drawArea, mText, true, &drawArea);
-        int64_t h = drawArea.b - drawArea.t;
-
+        Rect textArea = GetTextOuputRect(mText);
+        textArea.offset(drawArea.l, drawArea.t);
         int64_t logTotalCounter = (int64_t)LOG::gLogger.getEntryCount();
-        if (logTotalCounter > h)
+        if (logTotalCounter > drawArea.h())
         {
 //            ZAttrib bg(MAKE_BG(0xff555555));
 //            ZAttrib thumb(MAKE_BG(0xffbbbbbb));
             Rect sb(drawArea.r - 1, drawArea.t, drawArea.r, drawArea.b);
-            DrawScrollbar(sb, 0, LOG::gLogger.getEntryCount()-h, mTopVisibleRow, kAttribScrollbarBG, kAttribScrollbarThumb);
+            DrawScrollbar(sb, 0, LOG::gLogger.getEntryCount()- drawArea.h(), mTopVisibleRow, kAttribScrollbarBG, kAttribScrollbarThumb);
+            drawArea.r--;
         }
+
+        DrawClippedAnsiText(textArea, mText, true, &drawArea);
+        
+
+/*        ZAttrib test(0xff005500ff55ffff);
+        test.dec_line = true;
+
+
+        int x = 0;
+        int y = 0;
+        for (int i = 96; i < 256; i++)
+        {
+            DrawAnsiChar(x, y, (char)i, test);
+            x++;
+            if (x > mWidth)
+            {
+                x = 0;
+                y++;
+            }
+        }
+*/
+
+
+
+
+
+
+
+
+
+
 
         ConsoleWin::RenderToBackBuf(backBuf);
     }
@@ -505,6 +545,10 @@ namespace CLP
             helpWin.Paint(backBuffer);
 
         cout << "\033[?25l";
+//        cout << "\033[?25h";    // visible cursor
+//        cout << "\x1b[1 q";    // visible cursor
+
+
         COORD savePos = gLastCursorPos;
 
         for (int64_t y = 0; y < ScreenH(); y++)
@@ -563,7 +607,7 @@ namespace CLP
             drawStateBuffer.resize(w * h);
 
 
-            Rect viewRect(0, 1, w, h);
+            Rect viewRect(0, 0, w, h);
             Rect logWinRect(viewRect);
             if (filterTextEntryWin.mbVisible)
             {
@@ -585,7 +629,7 @@ namespace CLP
             helpWin.SetEnableFrame();
             helpWin.bAutoScrollbar = true;
 
-            UpdateDisplay();
+//            UpdateDisplay();
         }
     }
 
@@ -603,7 +647,7 @@ namespace CLP
         if (!mbVisible && mbLastVisibleState == true)
         {
             logWin.SetVisible(false);
-            cout << "\033[?25h" << COL_WHITE << COL_BG_BLACK;    // show cursor, reset colors
+            cout << "\033[?25h" << COL_WHITE << COL_BG_BLACK << DEC_LINE_END;    // show cursor, reset colors, ensure dec line mode is off
             RestoreConsoleState();
 
             LOG::tLogEntries entries;
