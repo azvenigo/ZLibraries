@@ -108,11 +108,6 @@ namespace CLP
 
         std::string     GetMode();      // first positional entry
 
-        std::string HistoryPath();
-        bool LoadHistory();
-        bool SaveHistory();
-        bool AddToHistory(const std::string& sCommandLine);     // removes if previously seen and appends to end
-
         void UpdateFromConsoleSize(bool bForce = false);
         void UpdateDisplay();
         void DrawToScreen();

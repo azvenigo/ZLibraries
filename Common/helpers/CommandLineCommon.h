@@ -92,7 +92,10 @@ namespace CLP
         kShowAvailableModes = 2,
         kShowHelp = 3,
         kErrorShowEdit = 4,
-        kErrorAbort = 5
+        kErrorAbort = 5,
+#ifdef ENABLE_COMMAND_HISTORY
+        kShowHistory = 6
+#endif
     };
 
 
@@ -529,12 +532,6 @@ namespace CLP
     };
 
 
-
-
-
-
-
-
     SHORT ScreenW();
     SHORT ScreenH();
 
@@ -564,8 +561,20 @@ namespace CLP
     extern HANDLE mhInput;
     extern HANDLE mhOutput;
     extern COORD gLastCursorPos;
-
-
 #endif // ENABLE_CLE
+
+    extern std::string appPath;
+    extern std::string appName;
+
+#ifdef ENABLE_COMMAND_HISTORY
+    const size_t    kCommandHistoryLimit = 25; 
+
+    std::string HistoryPath();
+    bool LoadHistory();
+    bool SaveHistory();
+    bool AddToHistory(const std::string& sCommandLine);     // removes if previously seen and appends to end
+
+    extern tStringList commandHistory;
+#endif
 };  // namespace CLP
 

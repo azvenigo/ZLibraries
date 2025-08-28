@@ -31,9 +31,6 @@ namespace CLP
     HistoryWin      historyWin;
     FolderList      popupFolderListWin;
 
-    const size_t    kCommandHistoryLimit = 10; // 10 for now while developing
-    tStringList     commandHistory;
-
     tEnteredParams  enteredParams;
     tStringList     availableModes;
     tStringList     availableNamedParams;
@@ -2209,9 +2206,6 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
         UnregisterHotKey(nullptr, CTRL_V_HOTKEY);
         UnregisterHotKey(nullptr, SHIFT_INSERT_HOTKEY);
 
-        AddToHistory(rawCommandBuf.GetText());
-        SaveHistory();
-
         RestoreConsoleState();
 
         string OutCommandLine = fs::path(CLP::appPath + CLP::appName).string() + " " + rawCommandBuf.GetText();
@@ -2230,77 +2224,6 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
             return kCanceled;
 
         return kSuccess;
-    }
-
-    string CommandLineEditor::HistoryPath()
-    {
-        string sPath = getenv("LOCALAPPDATA");
-        sPath += "/" + CLP::appName + "_history";
-        return sPath;
-    }
-
-    bool CommandLineEditor::LoadHistory()
-    {
-        if (CLP::appName.empty())
-            return false;
-
-        string sPath = HistoryPath();
-        ifstream inFile(sPath);
-        if (inFile)
-        {
-            stringstream ss;
-            ss << inFile.rdbuf();
-            commandHistory.clear();
-            string sEncoded(ss.str());
-            if (!sEncoded.empty())
-            {
-                SH::ToList(sEncoded, commandHistory);
-                while (commandHistory.size() > kCommandHistoryLimit)
-                    commandHistory.pop_front();
-            }
-
-            bScreenInvalid = true;
-
-            return true;
-        }
-
-        return false;
-    }
-
-    bool CommandLineEditor::SaveHistory()
-    {
-        if (CLP::appName.empty() || commandHistory.empty())
-            return false;
-
-        while (commandHistory.size() > kCommandHistoryLimit)
-            commandHistory.pop_front();
-
-        string sPath = HistoryPath();
-        ofstream outFile(sPath, ios_base::trunc);
-        if (outFile)
-        {
-            string sEncoded = SH::FromList(commandHistory);
-            outFile << sEncoded;
-            return true;
-        }
-        return false;
-    }
-
-    bool CommandLineEditor::AddToHistory(const std::string& sCommandLine)
-    {
-        for (tStringList::iterator it = commandHistory.begin(); it != commandHistory.end(); it++)
-        {
-            if (SH::Compare(*it, sCommandLine, false))
-            {
-                commandHistory.erase(it);
-                break;
-            }
-        }
-
-        commandHistory.emplace_back(sCommandLine);
-        bScreenInvalid = true;
-
-        return true;
     }
 
     bool CommandLineEditor::OutputCommandToConsole(const std::string& command)

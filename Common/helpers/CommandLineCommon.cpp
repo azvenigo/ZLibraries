@@ -3,6 +3,7 @@
 #include "LoggingHelpers.h"
 #include "StringHelpers.h"
 #include <list>
+#include <fstream>
 #include <assert.h>
 #include <sstream>
 
@@ -12,6 +13,9 @@
 #endif
 
 using namespace std;
+
+string CLP::appPath;
+string CLP::appName;
 
 
 size_t CLP::ZAttrib::FromAnsi(const uint8_t* pChars)
@@ -2068,4 +2072,85 @@ namespace CLP
 
 };  // namespace CLP
 
+
+
+
 #endif // ENABLE_CLE
+
+#ifdef ENABLE_COMMAND_HISTORY
+namespace CLP
+{
+    tStringList commandHistory;
+
+    string HistoryPath()
+    {
+        string sPath = getenv("LOCALAPPDATA");
+        sPath += "\\" + CLP::appName + "_history";
+        return sPath;
+    }
+
+    bool LoadHistory()
+    {
+        if (CLP::appName.empty())
+            return false;
+
+        string sPath = HistoryPath();
+        ifstream inFile(sPath);
+        if (inFile)
+        {
+            stringstream ss;
+            ss << inFile.rdbuf();
+            commandHistory.clear();
+            string sEncoded(ss.str());
+            if (!sEncoded.empty())
+            {
+                SH::ToList(sEncoded, commandHistory);
+                while (commandHistory.size() > kCommandHistoryLimit)
+                    commandHistory.pop_front();
+            }
+
+            bScreenInvalid = true;
+
+            return true;
+        }
+
+        return false;
+    }
+
+    bool SaveHistory()
+    {
+        if (CLP::appName.empty() || commandHistory.empty())
+            return false;
+
+        while (commandHistory.size() > kCommandHistoryLimit)
+            commandHistory.pop_front();
+
+        string sPath = HistoryPath();
+        ofstream outFile(sPath, ios_base::trunc);
+        if (outFile)
+        {
+            string sEncoded = SH::FromList(commandHistory);
+            outFile << sEncoded;
+            return true;
+        }
+        return false;
+    }
+
+    bool AddToHistory(const std::string& sCommandLine)
+    {
+        for (tStringList::iterator it = commandHistory.begin(); it != commandHistory.end(); it++)
+        {
+            if (SH::Compare(*it, sCommandLine, false))
+            {
+                commandHistory.erase(it);
+                break;
+            }
+        }
+
+        commandHistory.emplace_back(sCommandLine);
+        bScreenInvalid = true;
+
+        return true;
+    }
+}
+#endif // ENABLE_COMMAND_HISTORY

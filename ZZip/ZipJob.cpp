@@ -727,7 +727,7 @@ bool ZipJob::Join()
         delete pThread;
     }
 
-    if (mbVerbose)
+    if (mbVerbose || mJobStatus.mStatus == JobStatus::kError)
         zout << mJobStatus << "\n";
 
     mWorkers.clear();

@@ -238,15 +238,14 @@ public:
     friend std::ostream& operator << (std::ostream& os, const JobStatus& jobStatus)
     {
         os << "Status:";
+
         switch (jobStatus.mStatus)
         {
         case kRunning:  os << "Running"; return os;
         case kFinished: os << "Finished"; return os;
-        default:        os << "None"; return os;
+        case kError: os << "Error Code:" << jobStatus.mErrorCode << " - " << jobStatus.msErrorMessage.c_str(); return os;
+        default:        os << "None"; 
         }
-
-        if (jobStatus.mStatus == kError)
-            os << "Error Code:" << jobStatus.mErrorCode << " - " << jobStatus.msErrorMessage.c_str();
 
         return os;
 

@@ -37,9 +37,6 @@ namespace fs = std::filesystem;
 
 namespace CLP
 {
-    string appPath;
-    string appName;
-
     ParamDesc::ParamDesc(const string& sName, string* pString, eBehavior behavior, const string& sUsage, const tStringSet& allowedStrings)
     {
         mValueType = kString;
@@ -739,6 +736,7 @@ namespace CLP
         // PATH         - The file to process.
         // PROCESS_SIZE - Number of bytes to process. (Range: 1-1TiB)
 
+        // Positional parameters first...named parameters afterward
         for (auto& desc : mParameterDescriptors)
         {
             string sName;
@@ -748,14 +746,36 @@ namespace CLP
 
             desc.GetExample(sName, sType, sDefault, sUsage);
 
-            if (desc.IsOptional())
-                optionalParamTable.AddRow(sName, sType, sDefault, sUsage);
-            else
-                requiredParamTable.AddRow(sName, sType, sDefault, sUsage);
+            if (desc.IsPositional())
+            {
+                if (desc.IsOptional())
+                    optionalParamTable.AddRow(sName, sType, sDefault, sUsage);
+                else
+                    requiredParamTable.AddRow(sName, sType, sDefault, sUsage);
+            }
+        }
+
+
+        for (auto& desc : mParameterDescriptors)
+        {
+            string sName;
+            string sType;
+            string sDefault;
+            string sUsage;
+
+            desc.GetExample(sName, sType, sDefault, sUsage);
+
+            if (desc.IsNamed())
+            {
+                if (desc.IsOptional())
+                    optionalParamTable.AddRow(sName, sType, sDefault, sUsage);
+                else
+                    requiredParamTable.AddRow(sName, sType, sDefault, sUsage);
+            }
         }
     }
 
-    CommandLineParser::CommandLineParser(bool bEnableVerbosity, bool bEnableColoredOutput)
+    CommandLineParser::CommandLineParser()
     {
 #ifdef _WIN64
         // enable color output on windows
@@ -767,11 +787,17 @@ namespace CLP
 
         SetConsoleMode(hConsole, mode);
 #endif
-        if (bEnableColoredOutput)
+        if (enableANSIOutput)
             ResetCols();
 
-        if (bEnableVerbosity)
+        if (enableVerbositySetting)
             RegisterParam(ParamDesc("verbose", &LOG::gnVerbosityLevel, CLP::kNamed | CLP::kOptional, "Verbosity level. 0-silent, 1-default, 2-basic, 3-full", 0, 3));
+
+
+#ifdef ENABLE_COMMAND_HISTORY
+        if (enableHistory)
+            CLP::LoadHistory();
+#endif
     }
 
 
@@ -891,7 +917,11 @@ namespace CLP
         //      b) unknown mode     -> "use help message"
         // 3) Single Mode
         //      Show general help
-
+#ifdef ENABLE_COMMAND_HISTORY
+        bool bShowHistory = ContainsArgument("history!", params) || ContainsArgument("h!", params);
+        if (bShowHistory)
+            return kShowHistory;
+#endif
 #ifdef ENABLE_CLE
         bool bShowEdit = ContainsArgument("!", params);
         if (bShowEdit)
@@ -1115,7 +1145,7 @@ namespace CLP
         return s.substr(0, s.length() - 1); // strip last ' '
     }
 
-    bool CommandLineParser::Parse(int argc, char* argv[], [[maybe_unused]] bool bEditOnParseFail)
+    bool CommandLineParser::Parse(int argc, char* argv[])
     {
 
 #ifdef ENABLE_CLE
@@ -1138,6 +1168,11 @@ namespace CLP
         appName = fs::path(appPath).filename().string();
         appPath = fs::path(appPath).parent_path().string();
 
+#ifdef ENABLE_COMMAND_HISTORY
+        if (enableHistory)
+            LoadHistory();
+#endif
+
         tStringArray argArray(ToArray(argc - 1, argv + 1));
         bool bSuccess = false;
         while (1)
@@ -1147,6 +1182,13 @@ namespace CLP
             if (response == kSuccess)
             {
                 bSuccess = true;
+#ifdef ENABLE_COMMAND_HISTORY
+                if (enableHistory)
+                {
+                    CLP::AddToHistory(ToString(argArray));
+                    CLP::SaveHistory();
+                }
+#endif
                 break;
             }
             else if (response == kCanceled)
@@ -1203,6 +1245,28 @@ namespace CLP
                 bSuccess = false;
                 break;
             }
+#ifdef ENABLE_COMMAND_HISTORY
+            else if (response == kShowHistory && enableHistory)
+            {
+                if (commandHistory.empty())
+                {
+                    cout << CLP::WarningStyle.color + "No history recorded.\n" + CLP::ResetStyle.color;
+                }
+                else
+                {
+                    Table history;
+                    history.SetBorders("", "-", "", "-");
+                    history.AddRow(CLP::SectionStyle.color + "Command History:", "file:", "\"" + CLP::ParamStyle.color + CLP::HistoryPath() + CLP::ResetStyle.color + "\"");
+                    history.AddRow(" ");
+                    int counter = 1;
+                    for (const auto& s : commandHistory)
+                        history.AddRow(counter++, "\"" + CLP::ParamStyle.color + s + CLP::ResetStyle.color + "\"");
+                    cout << (string)history;
+                }
+                bSuccess = false;
+                break;
+            }
+#endif
 #ifdef ENABLE_CLE
             else if (response == kErrorShowEdit)
             {
@@ -1392,6 +1456,9 @@ namespace CLP
         descriptionTable.AddRow("Parameters can be positional (1st, 2nd, 3rd, etc.) or named key:value pairs.");
         descriptionTable.AddRow("Parameters can be required or optional");
         descriptionTable.AddRow("You can get general help by adding \'?\' or \'??\' anywhere on the command line.");
+#ifdef ENABLE_COMMAND_HISTORY
+        descriptionTable.AddRow("Command History can be listed by adding \"h!\" anywhere on the command line.");
+#endif
 
         return descriptionTable;
     }

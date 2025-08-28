@@ -768,7 +768,7 @@ void BlockScanner::DumpReport()
                 {
                     table.AddRow(result.sourceFile.substr(commonSourceChars), result.destFile.substr(commonDestChars), result.nMatchingBytes);
                 }
-                zout << table;
+                zout << (string)table;
                 table.Clear();
             }
 
@@ -780,7 +780,7 @@ void BlockScanner::DumpReport()
                 {
                     table.AddRow(result.sourceFile.substr(commonSourceChars), result.nSourceOffset, result.destFile.substr(commonDestChars), result.nDestinationOffset, result.nMatchingBytes);
                 }
-                zout << table;
+                zout << (string)table;
                 table.Clear();
             }
         }
@@ -811,7 +811,7 @@ void BlockScanner::DumpReport()
     }
     table.AddRow("Unfound bytes", mnSearchDataSize - nTotalReusableBytes);
 
-    zout << table;
+    zout << (string) table;
 
     if (LOG::gnVerbosityLevel > LVL_DEFAULT)
     {

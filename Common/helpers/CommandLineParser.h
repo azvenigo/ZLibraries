@@ -285,11 +285,11 @@ namespace CLP
         friend class CommandLineEditor;
 #endif
 
-        CommandLineParser(bool bEnableVerbosity = true, bool bEnableColoredOutput = true);
+        CommandLineParser();
 
         // Registration Functions
         void            RegisterAppDescription(const std::string& sDescription);
-        bool            Parse(int argc, char* argv[], bool bEditOnParseFail = true);
+        bool            Parse(int argc, char* argv[]);
         Table           GetCLPHelp(bool bDetailed = false);
         Table           GetCommandsTable();
         Table           GetKeyTable();
@@ -331,6 +331,16 @@ namespace CLP
         static std::string      ToString(const tStringArray& stringList);
         static std::string      EncloseWhitespaces(const std::string& value);     // if value contains whitespaces, surround with quotes
         static std::string      StripEnclosure(const std::string& value);         // remove surrounding quotes
+
+        // Configuration
+        bool            enableVerbositySetting = true;
+        bool            enableANSIOutput = true;
+#ifdef ENABLE_CLE
+        bool            enableEditOnParseFail = true;
+#endif
+#ifdef ENABLE_COMMAND_HISTORY
+        bool            enableHistory = true;
+#endif
 
     protected:
 
