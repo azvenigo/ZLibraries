@@ -938,10 +938,6 @@ namespace CLP
                 return kShowHelp;
         }
 
-        string sMode = GetFirstPositionalArgument(params); // mode
-        if (bMultiMode && !IsRegisteredMode(sMode))
-            return kShowAvailableModes;
-
 
         bool bShowHelp = ContainsArgument("?", params);
         bool bDetailedHelp = ContainsArgument("??", params);
@@ -950,6 +946,14 @@ namespace CLP
 
         if (bShowHelp || bDetailedHelp)
             return kShowHelp;
+
+
+        string sMode = GetFirstPositionalArgument(params); // mode
+        if (bMultiMode && !IsRegisteredMode(sMode))
+        {
+            cerr << CLP::ErrorStyle << "Error:" << CLP::ResetStyle << " Unknown command '" << CLP::ErrorStyle << sMode << CLP::ResetStyle << "'\n";
+            return kShowAvailableModes;
+        }
 
 
         int nErrors = 0;
@@ -1280,14 +1284,18 @@ namespace CLP
                         break;
                     }
                 }
+
                 string sEdited;
-                eResponse response = editor.Edit(ToString(argArray), sEdited);
+                editor.Edit(ToString(argArray), sEdited);   // this will output the edited commandline back out to shell 
+                return false;   // false to exit the app
+
+/*                eResponse response = editor.Edit(ToString(argArray), sEdited);
                 if (response != CLP::kSuccess)
                 {
                     bSuccess = false;
                     break;
                 }
-                argArray = ToArray(sEdited);
+                argArray = ToArray(sEdited);*/
             }
 #endif
         }

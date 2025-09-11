@@ -264,7 +264,6 @@ int main(int argc, char* argv[])
     bool bParseSuccess = parser.Parse(argc, argv);
     if (!bParseSuccess)
     {
-        cerr << "Aborting.\n";
         return -1;
     }
 

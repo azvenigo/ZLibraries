@@ -1072,9 +1072,9 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
             }
             else
             {
-                attribs[kColName] = kUnknownParam;
-
-                strings[kColName] = "UNKNOWN COMMAND ";
+                attribs[kColEntry] = kBadParam;
+                strings[kColUsage] = "UNKNOWN COMMAND";
+                attribs[kColUsage] = kBadParam;
             }
 
             row += DrawFixedColumnStrings(drawArea.l, row, strings, colWidths, 1, attribs, &drawArea);
@@ -2066,7 +2066,7 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
             return kErrorAbort;
         }
 
-        PrintConsoleInputMode(mode);
+//        PrintConsoleInputMode(mode);
 
         mode |= ENABLE_MOUSE_INPUT | ENABLE_EXTENDED_FLAGS | ENABLE_WINDOW_INPUT;
         mode &= ~(ENABLE_PROCESSED_INPUT| ENABLE_QUICK_EDIT_MODE);
@@ -2210,10 +2210,10 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
 
         string OutCommandLine = fs::path(CLP::appPath + CLP::appName).string() + " " + rawCommandBuf.GetText();
 
-        if (!rawCommandBuf.mbCanceled)
+/*        if (!rawCommandBuf.mbCanceled)
         {
             OutCommandLine += "\n";
-        }
+        }*/
 
 
         OutputCommandToConsole(OutCommandLine);
