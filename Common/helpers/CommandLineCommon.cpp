@@ -801,10 +801,23 @@ namespace CLP
             return 0;
 
         int64_t rows = 1;
+        int64_t x = 0;
         for (const auto& c : text)
         {
             if (c == '\n')
+            {
                 rows++;
+                x = 0;
+            }
+            else
+            {
+                x++;
+                if (x > w)
+                {
+                    rows++;
+                    x = 0;
+                }
+            }
         }
 
         return rows;
@@ -997,6 +1010,21 @@ namespace CLP
         for (int i = 0; i < strings.size(); i++)
         {
             rowsRequired = std::max<int64_t>(rowsRequired, GetTextOutputRows(strings[i], colWidths[i]));
+        }
+
+        // If we have a background color for the row, use the clipping rect to fill it in
+        if (pClip)
+        {
+            int64_t rowWidth = 0;
+            for (int i = 0; i < colWidths.size(); i++)
+                rowWidth = colWidths[i];
+
+            Rect rowArea(pClip->l, y, pClip->r, y + rowsRequired);
+            if (rowArea.b > pClip->b)
+                rowArea.b = pClip->b;
+
+            if (attribs[0].ba > 0)
+                Fill(rowArea, attribs[0]);
         }
 
         for (int i = 0; i < strings.size(); i++)

@@ -734,8 +734,10 @@ namespace CLP
         string sDrawString = mText;
         if (!sHighlightParam.empty())
         {
-            string sHighlight = "\033[38;2;" + SH::FromInt(highlightAttrib.r) + ";" + SH::FromInt(highlightAttrib.g) + ";" + SH::FromInt(highlightAttrib.b) + "m"; //forground color
-            sHighlight += "\033[48;2;" + SH::FromInt(highlightAttrib.br) + ";" + SH::FromInt(highlightAttrib.bg) + ";" + SH::FromInt(highlightAttrib.bb) + "m"; //background color
+/*            string sHighlight = "\033[38;2;" + SH::FromInt(highlightAttrib.r) + ";" + SH::FromInt(highlightAttrib.g) + ";" + SH::FromInt(highlightAttrib.b) + "m"; //forground color
+            if (highlightAttrib.ba > 0)
+                sHighlight += "\033[48;2;" + SH::FromInt(highlightAttrib.br) + ";" + SH::FromInt(highlightAttrib.bg) + ";" + SH::FromInt(highlightAttrib.bb) + "m"; //background color*/
+            string sHighlight = highlightAttrib.ToAnsi();
 
             sDrawString = SH::replaceTokens(sDrawString, sHighlightParam, sHighlight + sHighlightParam + mClearAttrib.ToAnsi());
         }
@@ -1008,6 +1010,7 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
 
 
         const size_t kMinColWidth = 12;
+        const size_t kMinUsageCol = 24;
         vector<size_t> colWidths;
         colWidths.resize(3);
         colWidths[kColName] = kMinColWidth;
@@ -1032,14 +1035,14 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
         int64_t paddedScreenW = ScreenW() - 2;  // 1 char between each of the three columns
 
         // if there's enough room for the final column
-        if (colWidths[kColName] + colWidths[kColEntry] < (paddedScreenW-kMinColWidth))
+        if (colWidths[kColName] + colWidths[kColEntry] < (paddedScreenW-kMinUsageCol))
         {
             colWidths[kColUsage] = paddedScreenW - (colWidths[kColName] + colWidths[kColEntry]);
         }
         else
         {
-            colWidths[kColUsage] = kMinColWidth;
-            colWidths[kColEntry] = paddedScreenW - (colWidths[kColName]+kMinColWidth);
+            colWidths[kColUsage] = kMinUsageCol;
+            colWidths[kColEntry] = paddedScreenW - (colWidths[kColName]+colWidths[kColUsage]);
 
         }
 
@@ -1051,6 +1054,7 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
 
 
 
+        bool bAlternateBGCol = false;
         if (availableModes.empty())
         {
         }
@@ -1084,10 +1088,6 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
             }
 
             row += DrawFixedColumnStrings(drawArea.l, row, strings, colWidths, 1, attribs, &drawArea);
-
-
-
-
         }
 
 
@@ -1140,10 +1140,15 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
 
             strings[kColEntry] = ExpandEnvVars(param.sParamText);
 
+            if (bAlternateBGCol)
+            {
+                attribs[kColName].SetBG(255, (uint8_t)((mClearAttrib.br * 200) / 255), (uint8_t)((mClearAttrib.bg * 200) / 255), (uint8_t)((mClearAttrib.bb * 200) / 255));
+                attribs[kColEntry].SetBG(255, (uint8_t)((mClearAttrib.br * 200) / 255), (uint8_t)((mClearAttrib.bg * 200) / 255), (uint8_t)((mClearAttrib.bb * 200) / 255));
+                attribs[kColUsage].SetBG(255, (uint8_t)((mClearAttrib.br * 200) / 255), (uint8_t)((mClearAttrib.bg * 200) / 255), (uint8_t)((mClearAttrib.bb * 200) / 255));
+            }
+            bAlternateBGCol = !bAlternateBGCol;
+
             row += DrawFixedColumnStrings(drawArea.l, row, strings, colWidths, 1, attribs, &drawArea);
-
-
-
         }
 
 
@@ -1201,7 +1206,13 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
                     attribs[kColUsage] = kUnknownParam;
                 }
 
-
+                if (bAlternateBGCol)
+                {
+                    attribs[kColName].SetBG(255, (uint8_t)((mClearAttrib.br * 200) / 255), (uint8_t)((mClearAttrib.bg * 200) / 255), (uint8_t)((mClearAttrib.bb * 200) / 255));
+                    attribs[kColEntry].SetBG(255, (uint8_t)((mClearAttrib.br * 200) / 255), (uint8_t)((mClearAttrib.bg * 200) / 255), (uint8_t)((mClearAttrib.bb * 200) / 255));
+                    attribs[kColUsage].SetBG(255, (uint8_t)((mClearAttrib.br * 200) / 255), (uint8_t)((mClearAttrib.bg * 200) / 255), (uint8_t)((mClearAttrib.bb * 200) / 255));
+                }
+                bAlternateBGCol = !bAlternateBGCol;
 
                 row += DrawFixedColumnStrings(drawArea.l, row, strings, colWidths, 1, attribs, &drawArea);
 
