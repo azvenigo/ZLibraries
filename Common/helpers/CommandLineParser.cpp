@@ -675,34 +675,46 @@ namespace CLP
         string sParamsExample;
         if (IsMultiMode() && IsRegisteredMode(sMode))
         {
-            sCommandLineExample += " " + sMode + sParamsExample;
+            sCommandLineExample += " " + sMode;
             for (auto& desc : mModeToCommandLineParser[sMode].mParameterDescriptors)
             {
                 if (desc.IsPositional())
-                    sCommandLineExample += " " + desc.msName;
+                    sParamsExample += " " + desc.msName;
+            }
+            for (auto& desc : mGeneralCommandLineParser.mParameterDescriptors)
+            {
+                if (desc.IsPositional())
+                    sParamsExample += " " + desc.msName;
+            }
+
+            for (auto& desc : mModeToCommandLineParser[sMode].mParameterDescriptors)
+            {
+                if (desc.IsNamed() && desc.IsRequired())
+                    sParamsExample += " " + desc.msName;
             }
             for (auto& desc : mGeneralCommandLineParser.mParameterDescriptors)
             {
                 if (desc.IsNamed() && desc.IsRequired())
-                    sCommandLineExample += " " + desc.msName;
+                    sParamsExample += " " + desc.msName;
+            }
+        }
+        else
+        {
+            for (auto& desc : mGeneralCommandLineParser.mParameterDescriptors)
+            {
+                if (desc.IsPositional())
+                    sParamsExample += " " + desc.msName;
+            }
+            for (auto& desc : mGeneralCommandLineParser.mParameterDescriptors)
+            {
+                if (desc.IsNamed() && desc.IsRequired())
+                    sParamsExample += " " + desc.msName;
             }
         }
 
-        for (auto& desc : mGeneralCommandLineParser.mParameterDescriptors)
-        {
-            if (desc.IsPositional())
-                sParamsExample += " " + desc.msName;
-        }
-        for (auto& desc : mGeneralCommandLineParser.mParameterDescriptors)
-        {
-            if (desc.IsNamed() && desc.IsRequired())
-                sParamsExample += " " + desc.msName;
-        }
-
-
 
         if (IsMultiMode() && !IsRegisteredMode(sMode))
-            sCommandLineExample += " COMMAND" + sParamsExample;
+            sCommandLineExample += " COMMAND"/* + sParamsExample*/;
         else
             sCommandLineExample += sParamsExample;
     }

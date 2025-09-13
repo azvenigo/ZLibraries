@@ -128,6 +128,12 @@ namespace CLP
 
                 if (parser.GetDescriptor(position, &pDesc))
                     return pDesc;
+
+                int64_t general_position = position - pCLP->mModeToCommandLineParser[sMode].GetNumPositionalParamsRegistered();   // adjust index for general position (since they're registered independently of mode params)
+                if (pCLP->mGeneralCommandLineParser.GetDescriptor(general_position, &pDesc))
+                    return pDesc;
+
+                return nullptr;
             }
 
             // no mode specific param, search general params
@@ -1535,7 +1541,15 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
             else
             {
                 if (pCLP->IsRegisteredMode(sParamUnderCursor))
+                {
                     usageBuf.sHighlightParam = sParamUnderCursor;
+                    usageBuf.highlightAttrib = kSelectedText;
+                }
+                else
+                {
+                    usageBuf.sHighlightParam = "COMMAND";
+                    usageBuf.highlightAttrib = kBadParam;
+                }
             }
         }
     }
@@ -2055,6 +2069,7 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
         DWORD outputMode;
         GetConsoleMode(hOutput, &outputMode);
         outputMode |= ENABLE_VIRTUAL_TERMINAL_PROCESSING;
+        //outputMode &= ~ENABLE_WRAP_AT_EOL_OUTPUT;
         SetConsoleMode(hOutput, outputMode);
 
 
@@ -2149,6 +2164,7 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
             UpdateParams();
             if (bScreenInvalid)
             {
+                UpdateUsageWin();
                 UpdateDisplay();
                 bScreenInvalid = false;
             }
@@ -2195,9 +2211,6 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
                         {
                             OnKey(inputRecord[i].Event.KeyEvent.wVirtualKeyCode, inputRecord[i].Event.KeyEvent.uChar.AsciiChar);
                         }
-
-                        if (bScreenInvalid)
-                            UpdateUsageWin();
                     }
                 }
             }
