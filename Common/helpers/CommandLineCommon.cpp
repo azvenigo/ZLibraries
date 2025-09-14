@@ -1289,7 +1289,7 @@ namespace CLP
     {
         COORD localcoord = event.dwMousePosition;
         localcoord.X -= (SHORT)mX;
-        localcoord.Y -= (SHORT)mY;
+        localcoord.Y -= (SHORT)(mY+1);
 
 //        cout << "over:" << localcoord.X << "," << localcoord.Y << " ";
 

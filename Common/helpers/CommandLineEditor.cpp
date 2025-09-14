@@ -264,7 +264,7 @@ namespace CLP
     {
         COORD localcoord = event.dwMousePosition;
         localcoord.X -= (SHORT)mX;
-        localcoord.Y -= (SHORT)mY;
+        localcoord.Y -= (SHORT)(mY+1);
 
         if (event.dwEventFlags == 0)
         {
@@ -362,7 +362,7 @@ namespace CLP
     {
         COORD localcoord = event.dwMousePosition;
         localcoord.X -= (SHORT)mX;
-        localcoord.Y -= (SHORT)mY;
+        localcoord.Y -= (SHORT)(mY+1);
         if (event.dwEventFlags == 0)
         {
             if (event.dwButtonState == FROM_LEFT_1ST_BUTTON_PRESSED)
