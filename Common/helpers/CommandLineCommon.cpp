@@ -420,7 +420,7 @@ namespace CLP
     ZAttrib kAttribError(RED);
     ZAttrib kAttribWarning(ORANGE);
 
-    ZAttrib kAttribScrollbarBG(BLACK|MAKE_BG(0xFF885700));
+    ZAttrib kAttribScrollbarBG(BLACK|MAKE_BG(0xFF888888));
     ZAttrib kAttribScrollbarThumb(WHITE|MAKE_BG(0xFFBBBBBB));
 
 
@@ -1067,6 +1067,13 @@ namespace CLP
         }
     }
 
+    bool InfoWin::Init(const Rect& r)
+    {
+        bAutoScrollbar = true;
+        mTopVisibleRow = 0;
+        return ConsoleWin::Init(r);
+    }
+
 
     void InfoWin::Paint(tConsoleBuffer& backBuf)
     {
@@ -1092,8 +1099,9 @@ namespace CLP
         bool bDrawScrollbar = false;
         if (bAutoScrollbar)
         {
-            int64_t nRows = GetTextOutputRows(mText, drawArea.w());
-            Rect sb(drawArea.r - 1, drawArea.t, drawArea.r, drawArea.b-1);
+//            int64_t nRows = GetTextOutputRows(mText, drawArea.w());
+            int64_t nRows = textArea.h();
+            Rect sb(drawArea.r - 1, drawArea.t, drawArea.r, drawArea.b);
             bDrawScrollbar = nRows > drawArea.h();
             DrawScrollbar(sb, 0, nRows - drawArea.h() - 1, mTopVisibleRow, kAttribScrollbarBG, kAttribScrollbarThumb);
             drawArea.r--;   // adjust draw area for text if scrollbar is visible

@@ -1583,18 +1583,15 @@ namespace CLP
 
         Table helpTable;
         helpTable.SetBorders("*", "", "*", "*");
-        helpTable.AddRow(CLP::SectionStyle, "-------Help-------");
-        helpTable.AddRow("Add \'?\' or \'??\' anywhere on command line for command help.");
-
-        string sExampleCommand;
-        if (IsMultiMode())
-            sExampleCommand = (*mModeToCommandLineParser.begin()).first;
-        helpTable.AddRow("For example: " + CLP::AppStyle.color + appName + " " + CLP::ParamStyle.color + sExampleCommand + " ?" + CLP::ResetStyle.color);
+        helpTable.AddRow(CLP::SectionStyle, "-------General Help-------");
+        helpTable.AddRow("\'?\' or \'??\'", "(anywhere on command line) for contextual or general help");
 #ifdef ENABLE_CLE
         helpTable.AddRow(" ");
-        helpTable.AddRow("Add '!' anywhere on command line for interactive command line editing.");
+        helpTable.AddRow("'!'", "(anywhere on command line) for command line editor");
 #endif
-
+#ifdef ENABLE_COMMAND_HISTORY
+        helpTable.AddRow("'h!'", "History");
+#endif
 
         size_t nMinWidth = 80;
 #ifdef _WIN64

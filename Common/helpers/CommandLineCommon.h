@@ -332,7 +332,7 @@ namespace CLP
         };
 
 
-        bool Init(const Rect& r);
+        virtual bool Init(const Rect& r);
         void SetEnableFrame(bool _l = 1, bool _t = 1, bool _r = 1, bool _b = 1);
         void Clear(ZAttrib attrib = 0, bool bGradient = false);
 
@@ -399,6 +399,7 @@ namespace CLP
     class InfoWin : public ConsoleWin
     {
     public:
+        virtual bool Init(const Rect& r);
         void Paint(tConsoleBuffer& backBuf);
         bool OnKey(int keycode, char c);
         virtual bool OnMouse(MOUSE_EVENT_RECORD event);

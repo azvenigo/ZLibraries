@@ -787,7 +787,11 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
             ParamDesc* pPD = enteredParams[paramindex].pRelatedDesc;
             if (pPD)
             {
-                colWidths[kColName] = std::max<size_t>(pPD->msName.length(), colWidths[kColName]);
+                size_t len = pPD->msName.length();
+                if (pPD->IsNamed())
+                    len += 2;   // add 2 for leading '-' and ':'
+
+                colWidths[kColName] = std::max<size_t>(len, colWidths[kColName]);
 //                colWidths[kColUsage] = std::max<size_t>(pPD->msUsage.length(), colWidths[kColUsage]);
             }
         }
