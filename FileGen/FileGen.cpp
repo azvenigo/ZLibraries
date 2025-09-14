@@ -216,6 +216,9 @@ int main(int argc, char* argv[])
 
 
 
+    string s("5kib");
+    int64_t num = SH::ToInt(s);
+
 
     string sDestPath;
     string sFilename("data");
@@ -241,10 +244,10 @@ int main(int argc, char* argv[])
     parser.RegisterMode("cycl", "Fill the file with cyclical data where each 32bit offset into the file is equal to the 32bit value at that offset.");
 
     parser.RegisterMode("compressible", "Fill the file with random values every so often to achieve roughly a compressable ratio.");
-    parser.RegisterParam("compressible", ParamDesc("FACTOR", &nCompressFactor, CLP::kPositional | CLP::kRequired, "Goal compression factor. (roughly)"));
+    parser.RegisterParam("compressible", ParamDesc("FACTOR", &nCompressFactor, CLP::kPositional | CLP::kRequired | CLP::kNumber, "Goal compression factor. (roughly)"));
 
     parser.RegisterMode("variable", "Fill the file with random (variable compression) data.");
-    parser.RegisterParam("variable", ParamDesc("FACTOR", &nCompressFactor, CLP::kPositional | CLP::kRequired, "Goal compression factor. (roughly)"));
+    parser.RegisterParam("variable", ParamDesc("FACTOR", &nCompressFactor, CLP::kPositional | CLP::kRequired | CLP::kNumber, "Goal compression factor. (roughly)"));
 
 
     parser.RegisterMode("value", "Fill the file specific value.");
@@ -253,11 +256,11 @@ int main(int argc, char* argv[])
 
 
     parser.RegisterParam(ParamDesc("FILENAME",      &sFilename,         CLP::kPositional| CLP::kRequired|CLP::kPath, "Name of file to create. Multiple files in a folder will have numbers included."));
-    parser.RegisterParam(ParamDesc("SIZE",          &nFileSize,         CLP::kPositional | CLP::kRequired,  "Size of file(s) to create."));
+    parser.RegisterParam(ParamDesc("SIZE",          &nFileSize,         CLP::kPositional | CLP::kRequired | CLP::kNumber,  "Size of file(s) to create."));
 
     parser.RegisterParam(ParamDesc("dest",         &sDestPath,          CLP::kNamed | CLP::kPath,       "base path to where to create data files. defaults to working directory"));
-    parser.RegisterParam(ParamDesc("folders",      &nFolders,           CLP::kNamed,       "number of folders to generate. default is 0"));
-    parser.RegisterParam(ParamDesc("files",        &nFilesPerFolder,    CLP::kNamed,       "number of files in each folder. default is 1"));
+    parser.RegisterParam(ParamDesc("folders",      &nFolders,           CLP::kNamed | CLP::kNumber,       "number of folders to generate. default is 0"));
+    parser.RegisterParam(ParamDesc("files",        &nFilesPerFolder,    CLP::kNamed | CLP::kNumber,       "number of files in each folder. default is 1"));
 
     parser.RegisterParam(ParamDesc("skipexisting", &bSkipExistingFiles, CLP::kNamed ,       "skips overwriting destination file (even with different values or size) if it already exists."));
 

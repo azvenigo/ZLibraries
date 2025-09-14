@@ -126,6 +126,8 @@ namespace CLP
     const static uint32_t kExistingPath         = 32;   // if set, must be able to find an existing file/folder
     const static uint32_t kNoExistingPath       = 64;   // if set, must not have existing file/folder at this location
 
+    const static uint32_t kNumber               = 128;  // value should be a number
+
 
     // array of colors
 
@@ -176,6 +178,8 @@ namespace CLP
         bool        IsAPath()                       const { return mBehaviorFlags & kPath; }
         bool        MustHaveAnExistingPath()        const { return mBehaviorFlags & kExistingPath; }
         bool        MustNotHaveAnExistingPath()     const { return mBehaviorFlags & kNoExistingPath; }
+
+        bool        IsANumber()                     const { return mBehaviorFlags & kNumber; }
 
         bool        IsRangeRestricted()             const;
 

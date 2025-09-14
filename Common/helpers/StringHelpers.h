@@ -116,6 +116,8 @@ namespace SH
     std::string     ToUserReadable(double fValue, size_t precision = 2);
     int64_t         ToInt(std::string sReadable);
 
+    bool            IsANumber(std::string sReadable); // true if a hex, negative/positive, contains commas, single period for float or size qualifiers from table above
+
     std::string     FromVector(tStringArray& stringVector, const char token = kCharSplitToken);
     void            ToVector(const std::string& sEncoded, tStringArray& outStringVector, const char token = kCharSplitToken);
 

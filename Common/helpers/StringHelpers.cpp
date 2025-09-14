@@ -16,6 +16,7 @@
 #include <sstream>
 #include <iomanip>
 #include <fstream>
+#include <cctype>
 
 using namespace std;
 
@@ -293,6 +294,86 @@ int64_t SH::ToInt(string sReadable)
 
     return 0;
 }
+
+bool SH::IsANumber(std::string sReadable)
+{
+    try
+    {
+        makeupper(sReadable);
+
+        // strip any commas in case human readable string has those
+        sReadable.erase(remove(sReadable.begin(), sReadable.end(), ','), sReadable.end());
+
+        if (sReadable.empty())
+            return false;
+
+        // strip any size labels
+        int32_t nReadableLength = (int32_t)sReadable.length();
+        int32_t nLabelChars = 0;
+        for (int32_t i = nReadableLength - 1; i >= 0; i--)
+        {
+            char c = sReadable[i];
+            if (c < 'A' || c > 'Z')
+                break;
+            nLabelChars++;
+        }
+        if (nLabelChars > 0)
+        {
+            string sLabel(sReadable.substr(nReadableLength - nLabelChars));
+
+            for (int i = 0; i < sizeEntryTableSize; i++)
+            {
+                const sSizeEntry& entry = sizeEntryTable[i];
+                if (sLabel == entry.label)
+                {
+                    sReadable = sReadable.substr(0, sReadable.size() - strlen(entry.label));
+                    break;
+                }
+            }
+        }
+
+        if (sReadable.empty())
+            return false;
+
+        // strip leading negative if there is one
+        if (sReadable[0] == '-')
+            sReadable = sReadable.substr(1, sReadable.size() - 1);
+
+        // if there is more than one period, that's a no no
+        if (std::count(sReadable.begin(), sReadable.end(), '.') > 1)
+        {
+            return false;
+        }
+
+        // is it a hex number? If so, allow only hex digits
+        if (sReadable.size() > 2 && SH::StartsWith(sReadable, "0X"))
+        {
+            sReadable = sReadable.substr(2, sReadable.size() - 2);   // strip the 0x
+            if (std::all_of(sReadable.begin(), sReadable.end(), 
+                [](unsigned char c) 
+                { 
+                    return std::isxdigit((int)c); 
+                })) // are all characters a hex digit
+            {
+                return true;    
+            }
+
+            return false;   // not a valid hex
+        }
+
+        if (std::all_of(sReadable.begin(), sReadable.end(), [](unsigned char c) { return std::isdigit((int)c) || c == '.'; })) // are all characters a digit or a period
+        {
+            return true;
+        }
+    }
+    catch (...)
+    {
+    }
+
+
+    return false;
+}
+
 
 string SH::ToUserReadable(double fValue, size_t precision)
 {

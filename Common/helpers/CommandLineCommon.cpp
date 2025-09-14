@@ -506,14 +506,14 @@ namespace CLP
         }
 
         std::string result(size - 1, '\0'); // size includes null terminator
-        DWORD actualSize = ExpandEnvironmentStringsA(s.c_str(), &result[0], size);
+        DWORD actualSize = ExpandEnvironmentStringsA(s.c_str(), &result[0], size); // actualSize includes null terminator
 
         if (actualSize == 0 || actualSize > size) 
         {
             return s; // Return original on error
         }
 
-        return result;
+        return result.substr(0, actualSize-1); // strip null
     }
 
     tKeyValList GetEnvVars()
@@ -1809,14 +1809,13 @@ namespace CLP
         if (!bHandled && c >= 32)
         {
             AddUndoEntry();
-            if (IsTextSelected())
-                DeleteSelection();
+            DeleteSelection();
 
             // Insert character at cursor position
             int index = (int)CursorToTextIndex(mLocalCursorPos);
             mText.insert(index, 1, c);
             UpdateCursorPos(TextIndexToCursor(index + 1));
-            UpdateSelection();
+//            UpdateSelection();
             bHandled = true;
         }
 

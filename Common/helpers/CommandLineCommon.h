@@ -482,7 +482,7 @@ namespace CLP
 
 
         bool IsIndexInSelection(int64_t i);
-        bool IsTextSelected() { return selectionstart >= 0 && selectionend >= 0; }
+        bool IsTextSelected() { return selectionstart >= 0 && selectionend >= 0 && selectionstart != selectionend; }
 
         void SetArea(const Rect& r);
 

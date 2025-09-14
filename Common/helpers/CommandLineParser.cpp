@@ -204,9 +204,18 @@ namespace CLP
             }
         }
 
-        // basic case of optional unrestricted
-        if (IsOptional() && !IsRangeRestricted())
-            return true;
+        // if parameter is supposed to be a number
+        if (IsANumber())
+        {
+            string sStrippedValue(CommandLineParser::StripEnclosure(sValue));
+            if (!SH::IsANumber(sStrippedValue))
+            {
+                sFailMessage = "Error: " + sValue + " must be a number.";
+                if (bOutputError)
+                    cerr << CLP::ErrorStyle << sFailMessage << CLP::ResetStyle << "\n";
+                return false;
+            }
+        }
 
         if (IsRangeRestricted())
         {
@@ -276,6 +285,11 @@ namespace CLP
 
             return false;
         }
+
+        // basic case of optional unrestricted
+        if (IsOptional() && !IsRangeRestricted())
+            return true;
+
 
         return true;    // not range restricted and optional
     }
