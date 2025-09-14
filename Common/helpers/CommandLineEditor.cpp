@@ -734,9 +734,7 @@ namespace CLP
         string sDrawString = mText;
         if (!sHighlightParam.empty())
         {
-            string sHighlight = "\033[38;2;" + SH::FromInt(highlightAttrib.r) + ";" + SH::FromInt(highlightAttrib.g) + ";" + SH::FromInt(highlightAttrib.b) + "m"; //forground color
-            sHighlight += "\033[48;2;" + SH::FromInt(highlightAttrib.br) + ";" + SH::FromInt(highlightAttrib.bg) + ";" + SH::FromInt(highlightAttrib.bb) + "m"; //background color
-
+            string sHighlight = highlightAttrib.ToAnsi();
             sDrawString = SH::replaceTokens(sDrawString, sHighlightParam, sHighlight + sHighlightParam + mClearAttrib.ToAnsi());
         }
 
@@ -747,235 +745,6 @@ namespace CLP
         ConsoleWin::RenderToBackBuf(backBuf);
     }
 
-/*    void ParamListWin::Paint(tConsoleBuffer& backBuf)
-    {
-        if (!pCLP)
-            return;
-
-        ConsoleWin::BasePaint();
-
-        Rect drawArea;
-        GetInnerArea(drawArea);
-
-        string sRaw(rawCommandBuf.GetText());
-
-        size_t rows = std::max<size_t>(1, (sRaw.size() + ScreenW() - 1) / ScreenW());
-        //        rawCommandBufTopRow = screenBufferInfo.dwSize.Y - rows;
-
-
-                ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-                // if the command line is bigger than the screen, show the last n rows that fit
-
-
-        if (!enteredParams.empty())   // if there are params entered
-        {
-            // compute column widths
-
-            const int kColName = 0;
-            //const int kColEntry = 1;
-            //const int kColUsage = 2;
-            const int kColUsage = 1;
-
-            vector<size_t> colWidths;
-            colWidths.resize(2);
-            colWidths[kColName] = 16;
-            //colWidths[kColEntry] = 12;
-            colWidths[kColUsage] = ScreenW() - (colWidths[kColName]);
-            for (int paramindex = 0; paramindex < enteredParams.size(); paramindex++)
-            {
-                //string sText(enteredParams[paramindex].sParamText);
-                //colWidths[kColEntry] = std::max<size_t>(sText.length(), colWidths[kColEntry]);
-
-                ParamDesc* pPD = enteredParams[paramindex].pRelatedDesc;
-                if (pPD)
-                {
-                    colWidths[kColName] = std::max<size_t>(pPD->msName.length(), colWidths[kColName]);
-                    colWidths[kColUsage] = std::max<size_t>(pPD->msUsage.length(), colWidths[kColUsage]);
-                }
-            }
-
-            for (auto& i : colWidths)   // pad all cols
-                i += 2;
-
-            tStringArray strings(2);
-            tAttribArray attribs(2);
-
-            size_t row = drawArea.t;
-           
-
-            ZAttrib entryAttrib = kGoodParam;
-            if (availableModes.empty())
-            {
-            }
-            else
-            {
-                // first param is command
-                string sMode = CLP::GetMode();
-
-                strings[kColName] = "COMMAND";
-                attribs[kColName] = kRawText;
-
-//                strings[kColEntry] = sMode;
-//                attribs[kColUsage] = kRawText;
-
-                bool bModePermitted = availableModes.empty() || std::find(availableModes.begin(), availableModes.end(), sMode) != availableModes.end(); // if no modes registered or (if there are) if the first param matches one
-                if (bModePermitted)
-                {
-//                    attribs[kColEntry] = kGoodParam;
-
-                    if (pCLP)
-                    {
-                        strings[kColUsage] = pCLP->GetModeDescription(sMode);
-                        //                    mpCLP->GetCommandLineExample(msMode, strings[kColUsage]);
-                    }
-                }
-                else
-                {
-                 //   attribs[kColName] = kUnknownParam;
-                    entryAttrib = kUnknownParam;
-                    strings[kColName] = "UNKNOWN COMMAND ";
-                }
-
-                row += DrawFixedColumnStrings(drawArea.l, row, strings, colWidths, attribs, &drawArea);
-                //row += DrawFixedColumnStrings(drawArea.l, row, sText, colWidths, attribs, &drawArea);
-                DrawClippedText(drawArea.l, row, sMode, entryAttrib, false, &drawArea);
-                row++;
-
-            }
-
-
-
-            // next list positional params
-            row++;
-            string sSection = "-positional params-" + string(ScreenW(), '-');
-            DrawClippedText(drawArea.l, row++, sSection, kAttribSection, false, &drawArea);
-
-
-            tEnteredParams posParams = GetPositionalEntries();
-
-            for (auto& param : posParams)
-            {
-                ZAttrib entryAttrib = kUnknownParam;
-
-                attribs[kColName] = kRawText;
-//                attribs[kColEntry] = kUnknownParam;
-                attribs[kColUsage] = kRawText;
-
-                //                strings[kColName] = "[" + SH::FromInt(param.positionalindex) + "]";
-
-                string sFailMessage;
-                if (param.pRelatedDesc)
-                {
-                    strings[kColName] = param.pRelatedDesc->msName;
-
-                    if (param.pRelatedDesc->DoesValueSatisfy(param.sParamText, sFailMessage))
-                    {
-                        strings[kColUsage] = param.pRelatedDesc->msUsage;
-//                        attribs[kColEntry] = kGoodParam;
-                        kUnknownParam = kGoodParam;
-                    }
-                    else
-                    {
-                        strings[kColUsage] = sFailMessage;
-//                        attribs[kColEntry] = kBadParam;
-                        kUnknownParam = kBadParam;
-                        attribs[kColUsage] = kBadParam;
-                    }
-                }
-                else
-                {
-                    strings[kColName] = "";
-//                    attribs[kColEntry] = kUnknownParam;
-                    entryAttrib = kUnknownParam;
-                    strings[kColUsage] = "Unexpected parameter";
-                    attribs[kColUsage] = kUnknownParam;
-                }
-
-//                strings[kColEntry] = param.sParamText;
-
-                row += DrawFixedColumnStrings(drawArea.l, row, strings, colWidths, attribs, &drawArea);
-                DrawClippedText(drawArea.l, row, param.sParamText, entryAttrib, false, &drawArea);
-                row++;
-
-            }
-
-
-            tEnteredParams namedParams = GetNamedEntries();
-
-            if (!namedParams.empty())
-            {
-                ZAttrib entryAttrib = kUnknownParam;
-
-                row++;
-                sSection = "-named params-" + string(ScreenW(), '-');
-                DrawClippedText(drawArea.l, row++, sSection, kAttribSection, false, &drawArea);
-
-                for (auto& param : namedParams)
-                {
-                    attribs[kColName] = kRawText;
-                    //attribs[kColEntry] = kUnknownParam;
-                    entryAttrib = kUnknownParam;
-
-                    attribs[kColUsage] = kRawText;
-
-                    strings[kColName] = "-";
-                    string sFailMessage;
-                    if (param.pRelatedDesc)
-                    {
-                        string sName;
-                        string sValue;
-                        pCLE->ParseParam(param.sParamText, sName, sValue);
-
-                        if (param.pRelatedDesc->DoesValueSatisfy(sValue, sFailMessage))
-                        {
-                            strings[kColName] += param.pRelatedDesc->msName;
-                            //attribs[kColEntry] = kGoodParam;
-                            entryAttrib = kGoodParam;
-                            strings[kColUsage] = param.pRelatedDesc->msUsage;
-                        }
-                        else
-                        {
-                            strings[kColName] += param.pRelatedDesc->msName;
-                            //attribs[kColEntry] = kBadParam;
-                            entryAttrib = kBadParam;
-                            strings[kColUsage] = sFailMessage;
-                            attribs[kColUsage] = kBadParam;
-                        }
-                    }
-                    else
-                    {
-                        //attribs[kColEntry] = kUnknownParam;
-                        entryAttrib = kUnknownParam;
-                        strings[kColUsage] = "Unknown parameter";
-                        attribs[kColUsage] = kUnknownParam;
-                    }
-
-
-//                    strings[kColEntry] = param.sParamText;
-
-                    row += DrawFixedColumnStrings(drawArea.l, row, strings, colWidths, attribs, &drawArea);
-                    DrawClippedText(drawArea.l, row, param.sParamText, entryAttrib, false, &drawArea);
-                    row++;
-                }
-            }
-        }
-        else
-        {
-            // no commands entered
-            Table commandsTable = pCLP->GetCommandsTable();
-            commandsTable.AlignWidth(ScreenW());
-            string sCommands = commandsTable;
-            DrawClippedAnsiText(drawArea.l, drawArea.t, sCommands, true, &drawArea);
-        }
-
-        ConsoleWin::RenderToBackBuf(backBuf);
-
-//        AnsiColorWin::Paint(backBuf);
-
-        return;
-    }
-    */
 
 void ParamListWin::Paint(tConsoleBuffer& backBuf)
 {
@@ -990,12 +759,9 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
     string sRaw(rawCommandBuf.GetText());
 
     size_t rows = std::max<size_t>(1, (sRaw.size() + ScreenW() - 1) / ScreenW());
-    //        rawCommandBufTopRow = screenBufferInfo.dwSize.Y - rows;
 
-
-            ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-            // if the command line is bigger than the screen, show the last n rows that fit
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    // if the command line is bigger than the screen, show the last n rows that fit
 
 
     if (!enteredParams.empty())   // if there are params entered
@@ -1008,6 +774,7 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
 
 
         const size_t kMinColWidth = 12;
+        const size_t kMinUsageCol = 24;
         vector<size_t> colWidths;
         colWidths.resize(3);
         colWidths[kColName] = kMinColWidth;
@@ -1032,14 +799,14 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
         int64_t paddedScreenW = ScreenW() - 2;  // 1 char between each of the three columns
 
         // if there's enough room for the final column
-        if (colWidths[kColName] + colWidths[kColEntry] < (paddedScreenW-kMinColWidth))
+        if (colWidths[kColName] + colWidths[kColEntry] < (paddedScreenW-kMinUsageCol))
         {
             colWidths[kColUsage] = paddedScreenW - (colWidths[kColName] + colWidths[kColEntry]);
         }
         else
         {
-            colWidths[kColUsage] = kMinColWidth;
-            colWidths[kColEntry] = paddedScreenW - (colWidths[kColName]+kMinColWidth);
+            colWidths[kColUsage] = kMinUsageCol;
+            colWidths[kColEntry] = paddedScreenW - (colWidths[kColName]+colWidths[kColUsage]);
 
         }
 
@@ -1051,6 +818,7 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
 
 
 
+        bool bAlternateBGCol = false;
         if (availableModes.empty())
         {
         }
@@ -1084,10 +852,6 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
             }
 
             row += DrawFixedColumnStrings(drawArea.l, row, strings, colWidths, 1, attribs, &drawArea);
-
-
-
-
         }
 
 
@@ -1140,10 +904,15 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
 
             strings[kColEntry] = ExpandEnvVars(param.sParamText);
 
+            if (bAlternateBGCol)
+            {
+                attribs[kColName].SetBG(255, (uint8_t)((mClearAttrib.br * 200) / 255), (uint8_t)((mClearAttrib.bg * 200) / 255), (uint8_t)((mClearAttrib.bb * 200) / 255));
+                attribs[kColEntry].SetBG(255, (uint8_t)((mClearAttrib.br * 200) / 255), (uint8_t)((mClearAttrib.bg * 200) / 255), (uint8_t)((mClearAttrib.bb * 200) / 255));
+                attribs[kColUsage].SetBG(255, (uint8_t)((mClearAttrib.br * 200) / 255), (uint8_t)((mClearAttrib.bg * 200) / 255), (uint8_t)((mClearAttrib.bb * 200) / 255));
+            }
+            bAlternateBGCol = !bAlternateBGCol;
+
             row += DrawFixedColumnStrings(drawArea.l, row, strings, colWidths, 1, attribs, &drawArea);
-
-
-
         }
 
 
@@ -1201,7 +970,13 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
                     attribs[kColUsage] = kUnknownParam;
                 }
 
-
+                if (bAlternateBGCol)
+                {
+                    attribs[kColName].SetBG(255, (uint8_t)((mClearAttrib.br * 200) / 255), (uint8_t)((mClearAttrib.bg * 200) / 255), (uint8_t)((mClearAttrib.bb * 200) / 255));
+                    attribs[kColEntry].SetBG(255, (uint8_t)((mClearAttrib.br * 200) / 255), (uint8_t)((mClearAttrib.bg * 200) / 255), (uint8_t)((mClearAttrib.bb * 200) / 255));
+                    attribs[kColUsage].SetBG(255, (uint8_t)((mClearAttrib.br * 200) / 255), (uint8_t)((mClearAttrib.bg * 200) / 255), (uint8_t)((mClearAttrib.bb * 200) / 255));
+                }
+                bAlternateBGCol = !bAlternateBGCol;
 
                 row += DrawFixedColumnStrings(drawArea.l, row, strings, colWidths, 1, attribs, &drawArea);
 

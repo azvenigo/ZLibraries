@@ -180,9 +180,6 @@ namespace CLP
             g = GET_G(col);
             b = GET_B(col);
 
-            if (_dec_line)
-                int stophere = 5;
-
             dec_line = _dec_line;
         }
 

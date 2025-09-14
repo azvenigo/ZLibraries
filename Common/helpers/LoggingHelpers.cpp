@@ -967,6 +967,12 @@ string RepeatString(const string& s, int64_t w)
     return start + sOut + end;
 };
 
+/*string Table::ToString(size_t width)
+{
+
+}*/
+
+
 ostream& operator <<(ostream& os, Table& tableOut)
 {
     tableOut.ComputeColumns();
@@ -1018,7 +1024,7 @@ ostream& operator <<(ostream& os, Table& tableOut)
         os << tableOut.borders[Table::LEFT] << COL_RESET;
         cursor += VisLength(tableOut.borders[Table::LEFT]);
 
-
+        bool bDrawRightColumn = true;
         for (size_t col_num = 0; col_num < cols; col_num++)
         {
             bool bLastColumnInRow = (col_num == cols - 1);
@@ -1065,10 +1071,13 @@ ostream& operator <<(ostream& os, Table& tableOut)
                     cursor += VisLength(separator);
                 }
             }
+            bDrawRightColumn = cursor <= nEndDraw;
         }
 
         // Draw right border
-        os << tableOut.borders[Table::RIGHT] << COL_RESET << "\n";
+        if (bDrawRightColumn)
+            os << tableOut.borders[Table::RIGHT];
+        os << COL_RESET << "\n";
 
         row_num++;
     }

@@ -749,7 +749,7 @@ namespace CLP
             else
             {
                 uint8_t c = text[i];
-                if (c == '\n' || x >= mWidth)
+                if (c == '\n' /*|| x > mWidth*/)
                 {
                     x = 0;
                     y++;
@@ -801,10 +801,23 @@ namespace CLP
             return 0;
 
         int64_t rows = 1;
+        int64_t x = 0;
         for (const auto& c : text)
         {
             if (c == '\n')
+            {
                 rows++;
+                x = 0;
+            }
+            else
+            {
+                x++;
+                if (x > w)
+                {
+                    rows++;
+                    x = 0;
+                }
+            }
         }
 
         return rows;
@@ -999,6 +1012,21 @@ namespace CLP
             rowsRequired = std::max<int64_t>(rowsRequired, GetTextOutputRows(strings[i], colWidths[i]));
         }
 
+        // If we have a background color for the row, use the clipping rect to fill it in
+        if (pClip)
+        {
+            int64_t rowWidth = 0;
+            for (int i = 0; i < colWidths.size(); i++)
+                rowWidth = colWidths[i];
+
+            Rect rowArea(pClip->l, y, pClip->r, y + rowsRequired);
+            if (rowArea.b > pClip->b)
+                rowArea.b = pClip->b;
+
+            if (attribs[0].ba > 0)
+                Fill(rowArea, attribs[0]);
+        }
+
         for (int i = 0; i < strings.size(); i++)
         {
             DrawClippedText(Rect(x, y, x+colWidths[i], mHeight), strings[i], attribs[i], true, pClip);
@@ -1141,13 +1169,6 @@ namespace CLP
         }
 
         Fill('\xb1', rThumb, thumb);
-
-        static int breakon = 63;
-        if (rThumb.b != breakon)
-        {
-            int stophere = 5;
-        }
-
     }
 
 

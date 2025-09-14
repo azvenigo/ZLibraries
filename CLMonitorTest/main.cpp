@@ -57,7 +57,7 @@ int main(int argc, char* argv[])
     Table::Style headerStyleLeft(COL_ORANGE, Table::RIGHT, Table::TIGHT, 2, '-');
     Table::tCellArray blah;
     string sBorderChar(COL_BG_GRAY "*" COL_RESET);
-    test.SetBorders(sBorderChar, sBorderChar, sBorderChar, sBorderChar, sBorderChar);
+    test.SetBorders(sBorderChar, "\x1b(0q\x1b(B", sBorderChar, sBorderChar, sBorderChar);
     blah.push_back(Table::Cell("hello", headerStyleLeft));
     test.AddRow(blah);
     test.AlignWidth(40);
@@ -65,6 +65,20 @@ int main(int argc, char* argv[])
     zout << (string) test;
 
     zout << "in the app now." << 12.7 << "\n";*/
+    
+/*
+    for (int i = 96; i < 256; i++)
+    {
+        zout << "[0x" << std::hex << i << "] " << DEC_LINE_START << (char)i << DEC_LINE_END << "\n";
+    }
+    
+  */  
+
+
+
+
+
+
 
     string sFilename;
     float fPercent = 1.0f;
@@ -83,7 +97,6 @@ int main(int argc, char* argv[])
     bool bParseSuccess = parser.Parse(argc, argv);
     if (!bParseSuccess)
     {
-        zerr << "Aborting.\n";
         return -1;
     }                
     

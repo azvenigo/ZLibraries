@@ -745,10 +745,11 @@ public:
 
 
 
-
+    // output functions
     operator std::string();
-
     friend std::ostream& operator <<(std::ostream& os, Table& table);
+    //std::string ToString(size_t width = ~0);    
+
 
     Table Transpose();
 
