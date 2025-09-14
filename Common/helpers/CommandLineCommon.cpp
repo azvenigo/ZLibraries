@@ -749,7 +749,7 @@ namespace CLP
             else
             {
                 uint8_t c = text[i];
-                if (c == '\n' || x >= mWidth)
+                if (c == '\n' /*|| x > mWidth*/)
                 {
                     x = 0;
                     y++;
@@ -1169,13 +1169,6 @@ namespace CLP
         }
 
         Fill('\xb1', rThumb, thumb);
-
-        static int breakon = 63;
-        if (rThumb.b != breakon)
-        {
-            int stophere = 5;
-        }
-
     }
 
 

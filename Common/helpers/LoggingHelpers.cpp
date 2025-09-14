@@ -1071,12 +1071,13 @@ ostream& operator <<(ostream& os, Table& tableOut)
                     cursor += VisLength(separator);
                 }
             }
-            bDrawRightColumn = cursor < nEndDraw;
+            bDrawRightColumn = cursor <= nEndDraw;
         }
 
         // Draw right border
         if (bDrawRightColumn)
-            os << tableOut.borders[Table::RIGHT] << COL_RESET << "\n";
+            os << tableOut.borders[Table::RIGHT];
+        os << COL_RESET << "\n";
 
         row_num++;
     }
