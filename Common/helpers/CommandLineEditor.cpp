@@ -324,10 +324,15 @@ namespace CLP
             if (drawrow > 0 && drawrow < mHeight-1)
             {
                 string s = entry;
-                DrawClippedText(Rect(drawArea.l, drawrow, drawArea.r, drawrow+1), s, kAttribListBoxEntry, false, &drawArea);
                 if (selection == mSelection)
+                {
+                    DrawClippedText(Rect(drawArea.l, drawrow, drawArea.r, drawrow + 1), ">" + s, kAttribListBoxEntry, false, &drawArea);
                     Fill(Rect(drawArea.l, drawrow, drawArea.r, drawrow + 1), kAttribListBoxSelectedEntry);
-    //                DrawClippedText(1, drawrow, s, kAttribListBoxSelectedEntry);
+                }
+                else
+                {
+                    DrawClippedText(Rect(drawArea.l, drawrow, drawArea.r, drawrow + 1), " " + s, kAttribListBoxEntry, false, &drawArea);
+                }
             }
 
             drawrow++;
@@ -647,14 +652,14 @@ namespace CLP
                 if (SH::EndsWith(mPath, "\\"))
                     navigate = mPath.substr(0, mPath.length() - 1); // strip last directory indicator so that parent_path works
                 if (navigate.has_parent_path())
-                    Scan(navigate.parent_path().string(), mX, mY + mHeight);
+                    Scan(navigate.parent_path().string(), mAnchorL, mAnchorB);
                 return true;
             }
             case VK_TAB:
             {
                 string selection(mPath + CommandLineParser::StripEnclosure(GetSelection()));
                 if (fs::is_directory(selection))
-                    Scan(selection, mX, mY + mHeight);
+                    Scan(selection, mAnchorL, mAnchorB);
                 return true;
             }
             case VK_RETURN:
@@ -666,7 +671,7 @@ namespace CLP
                 // if selecting a new drive to scan, just scan instead of returning
                 if (IsRootFolder(selection))
                 {
-                    Scan(selection, mX, mY + mHeight);
+                    Scan(selection, mAnchorL, mAnchorB);
                     return true;
                 }
 
@@ -1047,29 +1052,41 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
         tStringList folders;
         tStringList files;
 
-        for (const auto& entry : fs::directory_iterator(sPath))
+        try
         {
-            try
+            for (const auto& entry : fs::directory_iterator(sPath))
             {
-                string sEntry(FH::Canonicalize(entry.path().string()));
-                if (FH::HasPermission(sEntry))
+                try
                 {
-                    filesystem::path relPath(filesystem::relative(entry, sPath));
-                    if (entry.is_directory())
-                        folders.push_back(relPath.string() + "\\");
-                    else
-                        files.push_back(relPath.string());
+                    string sEntry(FH::Canonicalize(entry.path().string()));
+                    if (FH::HasPermission(sEntry))
+                    {
+                        filesystem::path relPath(filesystem::relative(entry, sPath));
+                        if (entry.is_directory())
+                            folders.push_back(relPath.string() + "\\");
+                        else
+                            files.push_back(relPath.string());
+                    }
+                }
+                catch (const std::filesystem::filesystem_error& /*e*/)
+                {
+                    //                std::cerr << "Filesystem error: " << e.what() << std::endl;
+                }
+                catch (const std::exception& e)
+                {
+                    std::cerr << "Error: " << e.what() << std::endl;
+                    return false;
                 }
             }
-            catch (const std::filesystem::filesystem_error& /*e*/)
-            {
-//                std::cerr << "Filesystem error: " << e.what() << std::endl;
-            }
-            catch (const std::exception& e)
-            {
-                std::cerr << "Error: " << e.what() << std::endl;
-                return false;
-            }
+        }
+        catch (const std::filesystem::filesystem_error& e)
+        {
+            std::cerr << "Filesystem error: " << e.what() << std::endl;
+        }
+        catch (const std::exception& e)
+        {
+            std::cerr << "Error: " << e.what() << std::endl;
+            return false;
         }
 
         mEntries.clear();
@@ -1354,7 +1371,7 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
         }
         else
         {
-            string sTop = "[F1-Help] [ESC-Cancel] [TAB-Contextual] [CTRL+Z-Undo]";
+            string sTop = "[F1-Help] [F2-Env Vars] [ESC-Quit] [TAB-Contextual] [CTRL+Z-Undo]";
             if (!commandHistory.empty())
                 sTop += " [UP-History (" + SH::FromInt(commandHistory.size()) + ")]";
             topInfoBuf.SetText(string(COL_BLACK) + sTop);
@@ -1472,12 +1489,12 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
         for (size_t i = 0; i < sText.length(); i++)
         {   
             // find start of param
-            while (isblank(sText[i]) && i < length) // skip whitespace
+            while (isblank((uint8_t)sText[i]) && i < length) // skip whitespace
                 i++;
 
             size_t endofparam = i;
             // find end of param
-            while (!isblank(sText[endofparam]) && endofparam < length)
+            while (!isblank((uint8_t)sText[endofparam]) && endofparam < length)
             {
                 // if this is an enclosing
                 size_t match = SH::FindMatching(sText, endofparam);
@@ -2000,7 +2017,7 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
 
         RestoreConsoleState();
 
-        string OutCommandLine = fs::path(CLP::appPath + CLP::appName).string() + " " + rawCommandBuf.GetText();
+        string OutCommandLine = fs::path(CLP::appPath + "\\" + CLP::appName).string() + " " + rawCommandBuf.GetText();
 
 /*        if (!rawCommandBuf.mbCanceled)
         {

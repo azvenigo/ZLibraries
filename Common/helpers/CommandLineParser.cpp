@@ -1188,11 +1188,16 @@ namespace CLP
         if (appPath.length() > 4)
         {
             // Ensure the appPath extension includes ".exe" since it can be launched without
-            string sExtension(appPath.substr(appPath.length() - 4));
-            std::transform(sExtension.begin(), sExtension.end(), sExtension.begin(), [](unsigned char c) { return (unsigned char)std::tolower(c); });
-            if (sExtension != ".exe")
+            
+            if (!SH::EndsWith(appPath, ".exe", false))
                 appPath += ".exe";
         }
+        tStringArray argArray(ToArray(string(GetCommandLineA())));  // using GetCommandLine in Windows due to how the shell does bad things with quoted arguments like -key:"spaces in args"
+        if (!argArray.empty())
+            argArray.erase(argArray.begin());   // strip the app argument
+        
+#else
+        tStringArray argArray(ToArray(argc - 1, argv + 1));
 #endif
         // Extract  application name
         appName = fs::path(appPath).filename().string();
@@ -1203,131 +1208,113 @@ namespace CLP
             LoadHistory();
 #endif
 
-        tStringArray argArray(ToArray(argc - 1, argv + 1));
-        bool bSuccess = false;
-        while (1)
+
+        CLP::eResponse response = TryParse(argArray);
+
+        if (response == kSuccess)
         {
-            CLP::eResponse response = TryParse(argArray);
-
-            if (response == kSuccess)
-            {
-                bSuccess = true;
 #ifdef ENABLE_COMMAND_HISTORY
-                if (enableHistory)
-                {
-                    CLP::AddToHistory(ToString(argArray));
-                    CLP::SaveHistory();
-                }
+            if (enableHistory)
+            {
+                CLP::AddToHistory(ToString(argArray));
+                CLP::SaveHistory();
+            }
 #endif
-                break;
-            }
-            else if (response == kCanceled)
-            {
-                cout << "Canceled\n";
-                bSuccess = false;
-                break;
-            }
-            else if (response == kErrorAbort)
-            {
-                mModeToCommandLineParser[msMode].ShowFoundParameters();
-                mGeneralCommandLineParser.ShowFoundParameters();
+            return true;
+        }
+        else if (response == kCanceled)
+        {
+            cout << "Canceled\n";
+            return false;
+        }
+        else if (response == kErrorAbort)
+        {
+            mModeToCommandLineParser[msMode].ShowFoundParameters();
+            mGeneralCommandLineParser.ShowFoundParameters();
 
-                string sCommandLineExample;
-                Table usageTable;
-                GetCommandLineExample(msMode, sCommandLineExample);
-                usageTable.AddRow(CLP::SectionStyle, "--------Usage---------");
-                usageTable.AddRow(sCommandLineExample);
-                cout << usageTable;
+            string sCommandLineExample;
+            Table usageTable;
+            GetCommandLineExample(msMode, sCommandLineExample);
+            usageTable.AddRow(CLP::SectionStyle, "--------Usage---------");
+            usageTable.AddRow(sCommandLineExample);
+            cout << usageTable;
 
-
-                //                cout << "\n\"" << cols[kAPP] << appName << " " << cols[kPARAM] << msMode << " ?" << cols[kRESET] << "\" - to see usage.\n";
-                bSuccess = false;
-                break;
-            }
-            else if (response == kShowAvailableModes)
+            return false;
+        }
+        else if (response == kShowAvailableModes)
+        {
+            bool bHelp = ContainsArgument("?", argArray);
+            bool bDetailedHelp = ContainsArgument("??", argArray);
+            //                cout << GetHelpString(GetFirstPositionalArgument(argArray), bDetailedHelp);
+            if (bHelp | bDetailedHelp)
             {
-                bool bHelp = ContainsArgument("?", argArray);
-                bool bDetailedHelp = ContainsArgument("??", argArray);
-                //                cout << GetHelpString(GetFirstPositionalArgument(argArray), bDetailedHelp);
-                if (bHelp | bDetailedHelp)
+                Table clpHelp = GetCLPHelp(bDetailedHelp);
+                Table keyTable = GetKeyTable();
+                if (bDetailedHelp)
                 {
-                    Table clpHelp = GetCLPHelp(bDetailedHelp);
-                    Table keyTable = GetKeyTable();
-                    if (bDetailedHelp)
-                    {
-                        clpHelp.AlignWidth(80, clpHelp, keyTable);
-                        cout << clpHelp << keyTable;
-                    }
-                    else
-                        cout << clpHelp;
+                    clpHelp.AlignWidth(80, clpHelp, keyTable);
+                    cout << clpHelp << keyTable;
                 }
                 else
-                {
-                    cout << GetGeneralHelpString();
-                }
-                bSuccess = false;
-                break;
+                    cout << clpHelp;
             }
-            else if (response == kShowHelp)
+            else
             {
-                bool bDetailedHelp = ContainsArgument("??", argArray);
-                cout << GetModeHelpString(GetFirstPositionalArgument(argArray), bDetailedHelp);
-                bSuccess = false;
-                break;
+                cout << GetGeneralHelpString();
             }
-#ifdef ENABLE_COMMAND_HISTORY
-            else if (response == kShowHistory && enableHistory)
-            {
-                if (commandHistory.empty())
-                {
-                    cout << CLP::WarningStyle.color + "No history recorded.\n" + CLP::ResetStyle.color;
-                }
-                else
-                {
-                    Table history;
-                    history.SetBorders("", "-", "", "-");
-                    history.AddRow(CLP::SectionStyle.color + "Command History:", "file:", "\"" + CLP::ParamStyle.color + CLP::HistoryPath() + CLP::ResetStyle.color + "\"");
-                    history.AddRow(" ");
-                    int counter = 1;
-                    for (const auto& s : commandHistory)
-                        history.AddRow(counter++, "\"" + CLP::ParamStyle.color + s + CLP::ResetStyle.color + "\"");
-                    cout << (string)history;
-                }
-                bSuccess = false;
-                break;
-            }
-#endif
-#ifdef ENABLE_CLE
-            else if (response == kErrorShowEdit)
-            {
-                editor.SetConfiguredCLP(this);
-
-                for (tStringArray::iterator it = argArray.begin(); it != argArray.end(); it++)
-                {
-                    if ((*it) == "!")
-                    {
-                        argArray.erase(it);
-                        break;
-                    }
-                }
-
-                string sEdited;
-                editor.Edit(ToString(argArray), sEdited);   // this will output the edited commandline back out to shell 
-                return false;   // false to exit the app
-
-/*                eResponse response = editor.Edit(ToString(argArray), sEdited);
-                if (response != CLP::kSuccess)
-                {
-                    bSuccess = false;
-                    break;
-                }
-                argArray = ToArray(sEdited);*/
-            }
-#endif
+            return false;
+        }
+        else if (response == kShowHelp)
+        {
+            bool bDetailedHelp = ContainsArgument("??", argArray);
+            cout << GetModeHelpString(GetFirstPositionalArgument(argArray), bDetailedHelp);
+            return false;
         }
 
-        //        PAUSE_FOR_KEY
-        return bSuccess;
+        
+#ifdef ENABLE_COMMAND_HISTORY
+        else if (response == kShowHistory && enableHistory)
+        {
+            if (commandHistory.empty())
+            {
+                cout << CLP::WarningStyle.color + "No history recorded.\n" + CLP::ResetStyle.color;
+            }
+            else
+            {
+                Table history;
+                history.SetBorders("", "-", "", "-");
+                history.AddRow(CLP::SectionStyle.color + "Command History:", "file:", "\"" + CLP::ParamStyle.color + CLP::HistoryPath() + CLP::ResetStyle.color + "\"");
+                history.AddRow(" ");
+                int counter = 1;
+                for (const auto& s : commandHistory)
+                    history.AddRow(counter++, "\"" + CLP::ParamStyle.color + s + CLP::ResetStyle.color + "\"");
+                cout << (string)history;
+            }
+            return false;
+        }
+#endif
+
+#ifdef ENABLE_CLE
+        else if (response == kErrorShowEdit)
+        {
+            editor.SetConfiguredCLP(this);
+
+            for (tStringArray::iterator it = argArray.begin(); it != argArray.end(); it++)
+            {
+                if ((*it) == "!")
+                {
+                    argArray.erase(it);
+                    break;
+                }
+            }
+
+            string sEdited;
+            editor.Edit(ToString(argArray), sEdited);   // this will output the edited commandline back out to shell 
+            return false;   // false to exit the app
+        }
+#endif
+
+        return true;
     }
 
     bool CommandLineParser::ContainsArgument(std::string sArgument, const tStringArray& params, bool bCaseSensitive)
