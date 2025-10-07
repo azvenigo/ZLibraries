@@ -730,7 +730,7 @@ void BlockScanner::DumpReport()
     list<sMatchResult> partialMatches;
     Table table;
     table.SetBorders("*", "*", "*", "*", ",");
-    table.defaultStyle = Table::Style(COL_RESET, Table::LEFT, Table::TIGHT, 10);
+    Table::kDefaultStyle = Table::Style(COL_RESET, Table::LEFT, 0.0, Table::NO_WRAP, 10, ' ');
 
     if (mResults.size() > 0)
     {
@@ -790,8 +790,7 @@ void BlockScanner::DumpReport()
     
 
     table.SetBorders("*", "*", "*", "*", ":");
-    table.defaultStyle = Table::Style(COL_GREEN, Table::RIGHT, Table::TIGHT, 1);
-
+    
     zout << "\n*Summary*\n";
     table.AddRow("Source bytes", (uint64_t)mnSourceDataSize);
     table.AddRow("Search bytes", (uint64_t)mnSearchDataSize);

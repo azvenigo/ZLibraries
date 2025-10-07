@@ -1359,15 +1359,19 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
         memset(&backBuffer[0], 0, backBuffer.size() * sizeof(ZChar));
         bool bCursorShouldBeHidden = false;
 
-        if (helpWin.mbVisible || popupListWin.mbVisible || popupFolderListWin.mbVisible || historyWin.mbVisible)
+        if (helpTextWin.mbVisible || helpTableWin.mbVisible || popupListWin.mbVisible || popupFolderListWin.mbVisible || historyWin.mbVisible)
             bCursorShouldBeHidden = true;
 
 
 
-        if (helpWin.mbVisible)
+        if (helpTextWin.mbVisible)
         {
             //helpBuf.PaintToWindowsConsole(mhOutput);
-            helpWin.Paint(backBuffer);
+            helpTextWin.Paint(backBuffer);
+        }
+        else if (helpTableWin.mbVisible)
+        {
+            helpTableWin.Paint(backBuffer);
         }
         else
         {
@@ -1623,9 +1627,13 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
             rawCommandBuf.Clear(0xff444444);
             rawCommandBuf.SetArea(Rect(0, h - 4, w, h));
 
-            helpWin.Clear(kAttribHelpBG, true);
-            helpWin.SetArea(Rect(0, 1, w, h));
-            helpWin.SetEnableFrame();
+            helpTextWin.Clear(kAttribHelpBG, true);
+            helpTextWin.SetArea(Rect(0, 1, w, h));
+            helpTextWin.SetEnableFrame();
+
+            helpTableWin.Clear(kAttribHelpBG, true);
+            helpTableWin.SetArea(Rect(0, 1, w, h));
+            helpTableWin.SetEnableFrame();
 
             popupFolderListWin.Clear(kAttribFolderListBG);
             popupFolderListWin.SetEnableFrame();
@@ -1645,12 +1653,12 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
     void CommandLineEditor::ShowHelp()
     {
         string sText;
-        helpWin.Init(Rect(0, 1, ScreenW(), ScreenH()));
-        helpWin.Clear(kAttribHelpBG, true);
+        helpTextWin.Init(Rect(0, 1, ScreenW(), ScreenH()));
+        helpTextWin.Clear(kAttribHelpBG, true);
         bScreenInvalid = true;
 
         Rect drawArea;
-        helpWin.GetInnerArea(drawArea);
+        helpTextWin.GetInnerArea(drawArea);
         int64_t drawWidth = drawArea.r - drawArea.l-2;
 
         assert(drawWidth > 0);
@@ -1663,19 +1671,19 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
             if (pCLP->IsRegisteredMode(sMode))
             {
                 sText = pCLP->GetModeHelpString(sMode, false);
-                helpWin.positionCaption[ConsoleWin::Position::LT] = "Help for \"" + sMode + "\"";
+                helpTextWin.positionCaption[ConsoleWin::Position::LT] = "Help for \"" + sMode + "\"";
             }
             else
             {
                 sText = pCLP->GetGeneralHelpString();
-                helpWin.positionCaption[ConsoleWin::Position::LT] = "General Help";
+                helpTextWin.positionCaption[ConsoleWin::Position::LT] = "General Help";
             }
         }
 
         Table additionalHelp;
-        additionalHelp.defaultStyle.color = AnsiCol(0xFF888888);
+//        additionalHelp.defaultStyle.color = AnsiCol(0xFF888888);
         additionalHelp.SetBorders("+", "+", "+", "+");
-        additionalHelp.renderWidth = drawWidth;
+        additionalHelp.SetRenderWidth(drawWidth);
         assert(drawWidth > 0 && drawWidth < 4 * 1024);
 
         additionalHelp.AddRow(SectionStyle, "--Key Combo--", "--Action--");
@@ -1708,8 +1716,8 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
         sText += "\n\n";
         sText += (string)additionalHelp;
 
-        helpWin.mText = sText;
-        helpWin.UpdateCaptions();
+        helpTextWin.mText = sText;
+        helpTextWin.UpdateCaptions();
     }
 
     void PrintConsoleInputMode(DWORD mode)
@@ -1768,9 +1776,13 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
         {
             return popupFolderListWin.OnKey(keycode, c);
         }
-        else if (helpWin.mbVisible)
+        else if (helpTextWin.mbVisible)
         {
-            return helpWin.OnKey(keycode, c);
+            return helpTextWin.OnKey(keycode, c);
+        }
+        else if (helpTableWin.mbVisible)
+        {
+            return helpTableWin.OnKey(keycode, c);
         }
         else
         {
@@ -1797,9 +1809,14 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
     {
         COORD coord = event.dwMousePosition;
 
-        if (helpWin.IsOver(coord.X, coord.Y))
+        if (helpTableWin.IsOver(coord.X, coord.Y))
         {
-            return helpWin.OnMouse(event);
+            return helpTableWin.OnMouse(event);
+        }
+
+        if (helpTextWin.IsOver(coord.X, coord.Y))
+        {
+            return helpTextWin.OnMouse(event);
         }
 
         if (popupListWin.IsOver(coord.X, coord.Y))

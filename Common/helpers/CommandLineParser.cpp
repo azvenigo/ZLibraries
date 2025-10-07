@@ -740,7 +740,7 @@ namespace CLP
 
         if (!sMode.empty() && !msModeDescription.empty())
         {
-            modeDescriptionTable.AddRow(string("Help for command: ") + CLP::AppStyle.color + sMode.c_str() + CLP::ResetStyle.color);
+            modeDescriptionTable.AddRow(string("Help for command: "),  CLP::AppStyle.color + sMode.c_str() + CLP::ResetStyle.color);
 
 
             modeDescriptionTable.AddRow(" ");
@@ -1442,7 +1442,7 @@ namespace CLP
 #endif
 
 
-        GeneralHelpTable.AlignWidth(0, GeneralHelpTable, requiredParamTable, optionalParamTable, descriptionTable, additionalInfoTable, usageTable);
+        GeneralHelpTable.AlignWidth(nMinWidth, GeneralHelpTable, requiredParamTable, optionalParamTable, descriptionTable, additionalInfoTable, usageTable);
 
 
         // Now default/global
@@ -1539,7 +1539,7 @@ namespace CLP
         Table table;
         descriptionTable.SetBorders("*", "*", "*", "");
 
-        descriptionTable.AddRow("Application: " + CLP::AppStyle.color + appName + CLP::ResetStyle.color);
+        descriptionTable.AddRow("Application: ",  CLP::AppStyle.color + appName + CLP::ResetStyle.color);
 
         descriptionTable.AddRow(" ");
         descriptionTable.AddRow(CLP::SectionStyle, "--App Description--");

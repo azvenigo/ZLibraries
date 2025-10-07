@@ -411,6 +411,19 @@ namespace CLP
         std::string mText;
     };
 
+    class TableWin : public InfoWin
+    {
+    public:
+        void Paint(tConsoleBuffer& backBuf);
+        virtual void SetVisible(bool bVisible = true);
+        Table mTable;
+
+    protected:
+        int64_t mRenderedW = 0;
+        int64_t mRenderedH = 0;
+    };
+
+
 
     class AnsiColorWin : public ConsoleWin
     {
@@ -552,7 +565,8 @@ namespace CLP
 
 
 
-    extern InfoWin  helpWin;        // popup help window
+    extern InfoWin  helpTextWin;        // popup help window
+    extern TableWin helpTableWin;
 
     extern CONSOLE_SCREEN_BUFFER_INFO screenInfo;
     extern bool bScreenInvalid;

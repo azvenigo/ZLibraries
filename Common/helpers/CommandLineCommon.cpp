@@ -433,7 +433,8 @@ namespace CLP
     bool bScreenInvalid = true;
     COORD gLastCursorPos = { -1, -1 };
 
-    InfoWin  helpWin;
+    InfoWin  helpTextWin;
+    TableWin helpTableWin;
 
 
     void SetCursorPosition(COORD coord, bool bForce)
@@ -1112,6 +1113,33 @@ namespace CLP
         ConsoleWin::RenderToBackBuf(backBuf);
     }
 
+    void TableWin::SetVisible(bool bVisible)
+    {
+        mbVisible = bVisible; 
+        mRenderedW = 0;
+        mRenderedH = 0;
+    }
+
+
+    void TableWin::Paint(tConsoleBuffer& backBuf)
+    {
+        if (!mbVisible)
+            return;
+
+        if (mWidth != mRenderedW || mHeight != mRenderedH)
+        {
+            mRenderedW = mWidth;
+            mRenderedH = mHeight;
+
+            Rect drawArea;
+            GetInnerArea(drawArea);
+            drawArea.r--;   // allow for scrollbar
+            mTable.SetRenderWidth(drawArea.w());
+            mText = mTable;
+        }
+
+        return InfoWin::Paint(backBuf);
+    }
 
 
     void ConsoleWin::DrawScrollbar(const Rect& r, int64_t min, int64_t max, int64_t cur, ZAttrib bg, ZAttrib thumb)
@@ -2004,46 +2032,58 @@ namespace CLP
         if (h < 8)
             h = 8;
 
-        helpWin.Init(Rect(0, 1, w, h));
-        helpWin.Clear(kAttribHelpBG, true);
-        helpWin.SetEnableFrame();
-        helpWin.bAutoScrollbar = true;
+        helpTableWin.Init(Rect(0, 1, w, h));
+        helpTableWin.Clear(kAttribHelpBG, true);
+        helpTableWin.SetEnableFrame();
+        helpTableWin.bAutoScrollbar = true;
         bScreenInvalid = true;
 
 
 
-        helpWin.positionCaption[ConsoleWin::Position::LT] = "Environment Variables";
+        helpTableWin.positionCaption[ConsoleWin::Position::LT] = "Environment Variables";
 
 
 
         Rect drawArea;
-        helpWin.GetInnerArea(drawArea);
+        helpTableWin.GetInnerArea(drawArea);
         int64_t drawWidth = drawArea.r - drawArea.l - 2;
 
 
-        Table varTable;
-        varTable.defaultStyle.color = AnsiCol(0xFF888888);
-        varTable.SetBorders("|", DEC_LINE_START "q" DEC_LINE_END, "|", DEC_LINE_START "q" DEC_LINE_END, "|");
+        helpTableWin.mTable.Clear();
+//        helpTableWin.mTable.defaultStyle.color = AnsiCol(0xFF888888);
+        helpTableWin.mTable.SetBorders("|", DEC_LINE_START "q" DEC_LINE_END, "|", DEC_LINE_START "q" DEC_LINE_END, "|");
         //varTable.renderWidth = drawWidth;
 
-        varTable.AddRow(SectionStyle, "--var--", "--value--");
+        helpTableWin.mTable.AddRow(SectionStyle, "--var--", "--value--");
 
         tKeyValList keyVals = GetEnvVars();
-        size_t longestKey = 0;
+/*        size_t longestKey = 0;
         size_t longestVal = 0;
         for (const auto& kv : keyVals)
         {
             longestKey = std::max<size_t>(longestKey, kv.first.length());
             longestVal = std::max<size_t>(longestVal, kv.second.length());
-        }
+        }*/
 
-        size_t valueColW = drawWidth - longestKey - 6;
+//        size_t valueColW = drawWidth - longestKey - 6;
         for (const auto& kv : keyVals)
         {
-            string sKey = kv.first;
-            string sVal = kv.second;
+            string sKey(kv.first);
+            string sVal(kv.second);
 
-            size_t offset = 0;
+            for (auto c : sKey)
+            {
+                assert(c != '\0');
+            }
+
+            for (auto c : sVal)
+            {
+                assert(c != '\0');
+            }
+
+
+
+/*            size_t offset = 0;
             while (offset < sVal.length())
             {
                 string sFitVal = sVal.substr(offset, valueColW);
@@ -2052,14 +2092,15 @@ namespace CLP
                 else
                     varTable.AddRow("", sFitVal);
                 offset += sFitVal.length();
-            }
+            }*/
+            helpTableWin.mTable.AddRow(sKey, sVal);
         }
 
 
-        varTable.AlignWidth(drawWidth/2);
+        helpTableWin.mTable.AlignWidth(drawWidth);
 
-        helpWin.mText = (string)varTable;
-        helpWin.UpdateCaptions();
+        //helpWin.mText = (string)varTable;
+        helpTableWin.UpdateCaptions();
     }
 
 
@@ -2075,25 +2116,25 @@ namespace CLP
         if (h < 8)
             h = 8;
 
-        helpWin.Init(Rect(0, 1, w, h));
-        helpWin.Clear(kAttribHelpBG, true);
-        helpWin.SetEnableFrame();
-        helpWin.bAutoScrollbar = true;
+        helpTextWin.Init(Rect(0, 1, w, h));
+        helpTextWin.Clear(kAttribHelpBG, true);
+        helpTextWin.SetEnableFrame();
+        helpTextWin.bAutoScrollbar = true;
         bScreenInvalid = true;
 
 
-        helpWin.positionCaption[ConsoleWin::Position::LT] = "Launch Arguments";
+        helpTextWin.positionCaption[ConsoleWin::Position::LT] = "Launch Arguments";
 
 
 
 
 
         Rect drawArea;
-        helpWin.GetInnerArea(drawArea);
+        helpTextWin.GetInnerArea(drawArea);
         int64_t drawWidth = drawArea.r - drawArea.l - 2;
 
-        helpWin.mText = GetCommandLineA();
-        helpWin.UpdateCaptions();
+        helpTextWin.mText = GetCommandLineA();
+        helpTextWin.UpdateCaptions();
     }
 
 

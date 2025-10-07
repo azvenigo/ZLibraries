@@ -213,6 +213,47 @@ int main(int argc, char* argv[])
 {
 //    HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
 //    SetConsoleMode(hConsole, ENABLE_VIRTUAL_TERMINAL_PROCESSING);
+    Table t;
+
+    Table::Style style;
+    style.wrapping = Table::WORD_WRAP;
+
+    Table::Style col3_1_style = style;
+    col3_1_style.space_allocation = 0.3f;
+
+    t.SetBorders("L", "T", "R", "B", "|");
+
+//    t.AddRow(Table::kCenteredStyle, "1");
+//    t.AddRow("onelongone");
+//    t.AddRow("2", "2");
+//    t.AddRow(3, 3, 3);
+    t.AddRow(style, "3fff3\ncfffffsdfffcc", 34649463, 344444443);
+//    t.AddRow("333", 333, 333);
+//    t.AddRow("3333", 3333, 3333);
+    
+
+//    t.AddRow(style, "blah blah blah", "two two");
+//    t.AddRow(style, "blahb blah5 blah3 hardy har har", "two2");
+//    t.AddRow(style, "two two", "two two");
+    t.SetRenderWidth(50);
+    t.SetColStyle(3, 0, col3_1_style);
+    t.AutosizeColumns();
+
+//    t.SetColWidth(2, 0, 30);
+    cout << t;
+
+    tStringArray list = t.GetCell(0, 1).GetLines(5);
+
+
+
+
+
+
+
+
+
+
+
 
 
 

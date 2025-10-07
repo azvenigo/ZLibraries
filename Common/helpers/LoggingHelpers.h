@@ -441,7 +441,7 @@ inline size_t VisLength(const std::string& s)
 {
     size_t length = 0;
     size_t pos = 0;
-    while (pos < s.size())
+    while (pos < s.size() && s[pos] != '\0')
     {
         if (s[pos] == '\x1b' && pos + 1 < s.size())
         {
@@ -621,9 +621,6 @@ class Table
 public:
     Table();
 
-    // Formatting
-    size_t renderWidth = 0; // if not set, table will output to minimum width for all cells to be visible and padded per style
-
     enum eSide : uint8_t
     {
         LEFT = 0,
@@ -633,31 +630,44 @@ public:
         CENTER = 4
     };
 
-    enum eSpacing : uint8_t
+/*    enum eSpacing : uint8_t
     {
         TIGHT = 0,      // minimum width for content
         EVEN = 1,      // average width for available width
         MAX = 2       // maximum width available
+    };*/
+
+    enum eWrapping : uint8_t
+    {
+        NO_WRAP = 0,        // single line only
+        CHAR_WRAP = 1,      // break up string by char
+        WORD_WRAP = 2       // only wrap on whitespace boundaries
     };
 
     struct Style
     {
-        Style(std::string _color = COL_RESET, uint8_t _alignment = LEFT, uint8_t _spacing = TIGHT, uint8_t _padding = 1, char _padchar = ' ') : color(_color), alignment(_alignment), spacing(_spacing), padding(_padding), padchar(_padchar) {}
+        Style(std::string _color = COL_RESET, eSide _alignment = LEFT, float _space_allocation = 0.0, eWrapping _wrapping = CHAR_WRAP, uint8_t _padding = 1, char _padchar = ' ') : color(_color), alignment(_alignment), space_allocation(_space_allocation), wrapping(_wrapping), padding(_padding), padchar(_padchar)
+        {
+            assert(alignment >= LEFT && alignment <= CENTER);
+            assert(wrapping >= NO_WRAP && wrapping <= WORD_WRAP);
+        }
 
         friend std::ostream& operator <<(std::ostream& os, Style& style);
 
         std::string color = COL_RESET;
         uint8_t     alignment = LEFT;
-        uint8_t     spacing = TIGHT;
+//        uint8_t     spacing = TIGHT;
+        float       space_allocation = 0.0;
+        uint8_t     wrapping = CHAR_WRAP;
         uint8_t     padding = 1;
         char        padchar = ' ';
     };
 
     // Some helpful defaults
-    static const Style kLeftAlignedStyle;
-    static const Style kRightAlignedStyle;
-    static const Style kCenteredStyle;
-
+    static Style kLeftAlignedStyle;
+    static Style kRightAlignedStyle;
+    static Style kCenteredStyle;
+    static Style kDefaultStyle;
 
 
     typedef std::optional<Style>        tOptionalStyle;
@@ -667,8 +677,10 @@ public:
     {
         Cell(const std::string& _s = "", tOptionalStyle _style = std::nullopt);
 
-        std::string StyledOut(size_t width, tOptionalStyle _style = std::nullopt);    // output aligned, padded, colored as needed into provided width
-        size_t Width(tOptionalStyle _style = std::nullopt) const;
+        tStringArray GetLines(size_t width) const;
+        size_t RowCount(size_t width) const;
+
+        size_t MinWidth() const;
 
         bool ExtractStyle(const std::string& s, std::string& ansi, std::string& rest);  // if a string starts with an ansi sequence split it out
 
@@ -705,6 +717,7 @@ public:
     bool SetRowStyle(size_t row, const Style& style);
     bool SetCellStyle(size_t col, size_t row, const Style& style);
 
+    tOptionalStyle GetColStyle(size_t col_count, size_t col_num);
     Style GetStyle(size_t col, size_t row);
 
 
@@ -763,18 +776,29 @@ public:
     template <typename... Tables>
     void AlignWidth(size_t minW, Tables&... tables)
     {
-        size_t nMinTableWidth = GetMinWidthForTables(minW, tables...);
+/*        size_t nMinTableWidth = GetMinWidthForTables(minW, tables...);
         ((tables.renderWidth = nMinTableWidth), ...);
-        renderWidth = nMinTableWidth;
+        renderWidth = nMinTableWidth;*/
+        renderWidth = minW;
+        ((tables.renderWidth = minW), ...);
         assert(renderWidth > 0 && renderWidth < 4 * 1024);
+        bLayoutNeedsUpdating = true;
     }
 
+    void SetRenderWidth(size_t w);
+    bool SetColWidth(size_t col_count, size_t col_num, size_t width);   
+    bool AutosizeColumns();
+    tColCountToColWidth GetMinColWidths();
 
-    Style               defaultStyle;
+
+//    static Style           defaultStyle;
 
 protected:
+    std::string StyledOut(const std::string& s, size_t width, tOptionalStyle style = std::nullopt);
+
+    void DrawRow(size_t row_num, std::ostream& os);
+
     size_t CellWidth(size_t row, size_t col);
-    void ComputeColumns();
     bool bLayoutNeedsUpdating = true;
 
 
@@ -812,5 +836,8 @@ protected:
 
     tColCountToStyles   colCountToColStyles; // an array of column styles for each column count
     tRowToStyleMap      rowStyles;
-    tColCountToColWidth colCountToMinColWidths;
+    tColCountToColWidth colCountToColWidths;
+
+    // Formatting
+    size_t              renderWidth = 0; // if not set, table will output to minimum width for all cells to be visible and padded per style
 };

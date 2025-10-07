@@ -147,8 +147,8 @@ namespace CLP
 
 
             // Table header
-            Table::Style headerStyle(COL_ORANGE + bg.ToAnsi(), Table::CENTER, Table::TIGHT, 0, '-');
-//            Table::Style headerStyleRight(COL_ORANGE, Table::RIGHT, Table::TIGHT, 0, '-');
+            Table::Style headerStyle(COL_ORANGE + bg.ToAnsi(), Table::CENTER, 0.0, Table::NO_WRAP, 0, '-');
+//            Table::Style headerStyleRight(COL_ORANGE, Table::RIGHT,0, '-');
             Table::tCellArray header;
             if (viewCountEnabled)
                 header.push_back(Table::Cell("#", headerStyle));
@@ -200,10 +200,10 @@ namespace CLP
                         cellStyle = Table::Style(sBGStyle);
 
                 }
-#ifdef _DEBUG
-                validateAnsiSequences(Table::Cell(e.text, cellStyle).StyledOut(e.text.length()));
-#endif
                 row.push_back(Table::Cell(e.text, cellStyle));
+
+                if (e.text == "#")
+                    int stophere = 5;
 
                 logtail.AddRow(row);
                 prevEntryTime = e.time;
@@ -541,8 +541,10 @@ namespace CLP
             filterTextEntryWin.Paint(backBuffer);
         if (saveLogFilenameEntryWin.mbVisible)
             saveLogFilenameEntryWin.Paint(backBuffer);
-        if (helpWin.mbVisible)
-            helpWin.Paint(backBuffer);
+        if (helpTextWin.mbVisible)
+            helpTextWin.Paint(backBuffer);
+        if (helpTableWin.mbVisible)
+            helpTableWin.Paint(backBuffer);
 
         cout << "\033[?25l";
 //        cout << "\033[?25h";    // visible cursor
@@ -624,12 +626,16 @@ namespace CLP
             logWin.SetArea(logWinRect);
             logWin.SetEnableFrame();
 
-            helpWin.Clear(kAttribHelpBG, true);
-            helpWin.SetArea(viewRect);
-            helpWin.SetEnableFrame();
-            helpWin.bAutoScrollbar = true;
+            helpTextWin.Clear(kAttribHelpBG, true);
+            helpTextWin.SetArea(viewRect);
+            helpTextWin.SetEnableFrame();
+            helpTextWin.bAutoScrollbar = true;
 
-//            UpdateDisplay();
+            helpTableWin.Clear(kAttribHelpBG, true);
+            helpTableWin.SetArea(viewRect);
+            helpTableWin.SetEnableFrame();
+            helpTableWin.bAutoScrollbar = true;
+            
         }
     }
 
@@ -668,8 +674,10 @@ namespace CLP
     bool CommandLineMonitor::OnKey(int keycode, char c)
     {
         bool bHandled = false;
-        if (helpWin.mbVisible)
-            bHandled = helpWin.OnKey(keycode, c);
+        if (helpTextWin.mbVisible)
+            bHandled = helpTextWin.OnKey(keycode, c);
+        if (helpTableWin.mbVisible)
+            bHandled = helpTableWin.OnKey(keycode, c);
         if (filterTextEntryWin.mbVisible && !bHandled)
             bHandled = filterTextEntryWin.OnKey(keycode, c);
         if (saveLogFilenameEntryWin.mbVisible && !bHandled)
@@ -736,9 +744,14 @@ namespace CLP
     {
         COORD coord = event.dwMousePosition;
 
-        if (helpWin.IsOver(coord.X, coord.Y))
+        if (helpTableWin.IsOver(coord.X, coord.Y))
         {
-            return helpWin.OnMouse(event);
+            return helpTableWin.OnMouse(event);
+        }
+
+        if (helpTextWin.IsOver(coord.X, coord.Y))
+        {
+            return helpTextWin.OnMouse(event);
         }
 
         if (logWin.IsOver(coord.X, coord.Y))
@@ -788,7 +801,7 @@ namespace CLP
 
         while (!pCLM->mbDone && !pCLM->mbCanceled)
         {
-            pCLM->mbVisible = helpWin.mbVisible || logWin.mbVisible;
+            pCLM->mbVisible = helpTableWin.mbVisible || helpTextWin.mbVisible || logWin.mbVisible;
 
             pCLM->UpdateVisibility();
 

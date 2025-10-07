@@ -6,6 +6,8 @@
 using namespace std;
 
 #define PAD(n, c) string(n, c)
+size_t nextWhitespace(const std::string& s, size_t offset) { return s.find_first_of(" \t\n\r\f\v", offset); }
+size_t nextNonWhitespace(const std::string& s, size_t offset) { return s.find_first_not_of(" \t\n\r\f\v", offset); }
 
 namespace LOG
 {
@@ -313,9 +315,12 @@ ostream& operator <<(std::ostream& os, Table::Style& style)
     return os;
 }
 
-const Table::Style Table::kLeftAlignedStyle = Table::Style(COL_RESET, LEFT, EVEN);
-const Table::Style Table::kRightAlignedStyle = Table::Style(COL_RESET, RIGHT, EVEN);
-const Table::Style Table::kCenteredStyle = Table::Style(COL_RESET, CENTER, EVEN);
+Table::Style Table::kLeftAlignedStyle = Table::Style(COL_RESET, LEFT);
+Table::Style Table::kRightAlignedStyle = Table::Style(COL_RESET, RIGHT);
+Table::Style Table::kCenteredStyle = Table::Style(COL_RESET, CENTER);
+Table::Style Table::kDefaultStyle = Table::Style(AnsiCol(0xFF888888), LEFT);
+
+const size_t kMinCellWidth = 3;
 
 
 Table::Table()
@@ -344,6 +349,26 @@ bool Table::SetColStyles(tOptionalStyleArray styles)
         colCountToColStyles[col_count][col_num] = styles[col_num];
     }
     return true;
+}
+
+Table::tOptionalStyle Table::GetColStyle(size_t col_count, size_t col_num)
+{
+    if (col_num > col_count)
+    {
+        return nullopt;
+    }
+
+    if (col_count < colCountToColStyles.size() || colCountToColStyles.empty())
+    {
+        return nullopt;
+    }
+
+    if (col_num > colCountToColStyles[col_count].size() || colCountToColStyles[col_count].empty())
+    {
+        return nullopt;
+    }
+
+    return colCountToColStyles[col_count][col_num];
 }
 
 
@@ -375,10 +400,10 @@ Table::Style Table::GetStyle(size_t col, size_t row)
 {
     // bounds checks
     if (row >= mRows.size())
-        return defaultStyle;
+        return kDefaultStyle;
 
     if (col >= mRows[row].size())
-        return defaultStyle;
+        return kDefaultStyle;
 
     // Style is prioritized as follows
     // 1) cell style
@@ -403,7 +428,7 @@ Table::Style Table::GetStyle(size_t col, size_t row)
             return colCountToColStyles[col_count][col].value();
     }
 
-    return defaultStyle;
+    return kDefaultStyle;
 }
 
 bool Table::SetCellStyle(size_t col, size_t row, const Style& style)
@@ -460,13 +485,18 @@ void Table::AddMultilineRow(string& sMultiLine)
 
 Table::Cell Table::GetCell(size_t col, size_t row)
 {
-    if (row > mRows.size())
+    if (row >= mRows.size())
         return {};
 
     if (mRows[row].size() < col)
         return {};
 
-    return mRows[row][col];
+    tCellArray get5row = mRows[row];
+    Table::Cell cell = mRows[row][col];
+    if (!cell.style.has_value())
+        cell.style = GetStyle(col, row);
+
+    return cell;
 }
 
 
@@ -475,18 +505,38 @@ size_t Table::GetRowCount() const
     return mRows.size();
 }
 
-size_t Table::Cell::Width(tOptionalStyle _style) const
+size_t Table::Cell::MinWidth() const
 {
-    tOptionalStyle use_style = _style;
-    if (use_style == nullopt)   // if none passed in, use member style
-        use_style = style;
+    size_t minw = kMinCellWidth;
 
-    size_t w = VisLength(s);
+    if (style.has_value())
+    {
+        Style st = style.value();
 
-    if (use_style.has_value())
-        w += use_style.value().padding * 2;
+        if (st.wrapping == NO_WRAP)
+        {
+            return s.length() + st.padding * 2;
+        }
 
-    return w;
+        // WORD_WRAP
+        size_t start = 0;
+        size_t end = 0;
+        size_t minw = kMinCellWidth;
+        // Find the longest word
+        do
+        {
+            start = nextNonWhitespace(s, start); 
+            end = nextWhitespace(s, start);
+            if (end == string::npos)
+                end = s.length();
+            minw = std::max<size_t>(minw, end - start);
+            start = end+1;
+        } while (end < s.length());
+
+        return minw + st.padding * 2;
+    }
+
+    return s.length() + kDefaultStyle.padding*2;
 }
 
 std::string Substring(const std::string& input, size_t maxLength)
@@ -738,37 +788,119 @@ Table::Cell::Cell(const std::string& _s, tOptionalStyle _style)
     if (ExtractStyle(_s, ansi, rest))
     {
         s = rest;
-
-#ifdef _DEBUG
-        validateAnsiSequences(s);
-#endif
-
         if (style == nullopt)
             style = Style();
 
         style.value().color = ansi;
-#ifdef _DEBUG
-        validateAnsiSequences(ansi);
-#endif
-
-
     }
     else
     {
         s = _s;
-#ifdef _DEBUG
-        validateAnsiSequences(s);
-#endif
     }
+
+#ifdef _DEBUG
+//    assert(!ContainsAnsiSequences(s));  // let's make it so cells can only have one style and not embedded in text
+
+    for (auto c : s)
+    {
+        assert(c != '\0');
+    }
+#endif
+
 }
 
-string Table::Cell::StyledOut(size_t width, tOptionalStyle _style)
+size_t Table::Cell::RowCount(size_t width) const
 {
-    tOptionalStyle use_style = _style;
-    if (use_style == nullopt)   // if none passed in, use member style
-        use_style = style;
+    size_t visLength = VisLength(s);
+    assert(visLength == s.length());
 
-    if (use_style == nullopt)       // no style passed in and no member style
+    if (visLength <= width || width < kMinCellWidth)
+        return 1;
+
+    if (!style.has_value())
+        return 1;
+
+    Style use_style = style.value();
+    if (use_style.wrapping == NO_WRAP)
+        return 1;
+
+    if (use_style.wrapping == CHAR_WRAP)
+    {
+        size_t rows = (visLength + width - 1) / width;  // ceiling
+        return rows;
+    }
+
+    tStringList words;
+
+    size_t start = 0;
+    size_t end = 0;
+    do
+    {
+        start = nextNonWhitespace(s, start); // start with first non-whitespace
+        end = nextWhitespace(s, start);
+        words.push_back(s.substr(start, end - start));
+        start = end + 1;
+    } while (end < s.length());
+
+
+    return -3;
+}
+
+tStringArray Table::Cell::GetLines(size_t width) const
+{
+    tOptionalStyle use_st = style;
+    if (use_st == nullopt)
+        use_st = kDefaultStyle;
+
+    // if text fits in width or there's no wrapping just return a single entry
+    if (s.empty() || use_st.value().wrapping == NO_WRAP)
+        return tStringArray{ s };
+
+    tStringArray rows;
+
+    if (use_st.value().wrapping == CHAR_WRAP)
+    {
+        size_t start = 0;
+        size_t end = 0;
+        string sLine;
+        do
+        {
+            if (sLine.length() == width || s[end] == '\n')
+            {
+                rows.push_back(sLine);
+                sLine.clear();
+                start = end + 1;
+            }
+            else
+                sLine += s[end];
+
+            end++;
+        } while (end < s.length());
+
+        if (!sLine.empty())
+            rows.push_back(sLine);
+    }
+    else
+    {
+        assert(use_st.value().wrapping == WORD_WRAP);
+        size_t start = 0;
+        size_t end = 0;
+        do
+        {
+            start = nextNonWhitespace(s, start); // start with first non-whitespace
+            end = nextWhitespace(s, start);
+            rows.push_back(s.substr(start, end - start));
+            start = end;
+        } while (end < s.length());
+    }
+
+    return rows;
+}
+
+
+string Table::StyledOut(const string& s, size_t width, tOptionalStyle style)
+{
+    if (style == nullopt)       // no style passed in and no member style
     {
         if (s.length() > width)
             return Substring(s, width); // however many will fit
@@ -777,21 +909,21 @@ string Table::Cell::StyledOut(size_t width, tOptionalStyle _style)
     }
 
 
-    uint8_t alignment = use_style.value().alignment;
-    uint8_t padding = use_style.value().padding;
-    char padchar = use_style.value().padchar;
+    uint8_t alignment = style.value().alignment;
+    uint8_t padding = style.value().padding;
+    char padchar = style.value().padchar;
 
     // if no room to pad, disable
     if (VisLength(s) >= width)
         padding = 0;
 
     if (width < padding * 2)    // if not enough space to draw anything
-        return use_style.value().color + PAD(width, padchar) + COL_RESET;
+        return style.value().color + PAD(width, padchar) + COL_RESET;
 
     string use_color;
     
-    if (use_style.value().color != COL_CUSTOM_STYLE)
-        use_color = use_style.value().color;
+    if (style.value().color != COL_CUSTOM_STYLE)
+        use_color = style.value().color;
 
 
 
@@ -799,7 +931,7 @@ string Table::Cell::StyledOut(size_t width, tOptionalStyle _style)
     size_t remaining_width = width - padding * 2;
 
     string sOut = Substring(s, remaining_width);
-    string sStyled = use_color + PAD(padding, padchar) + sOut + PAD(padding, padchar) + COL_RESET;
+    string sStyled = PAD(padding, padchar) + sOut + PAD(padding, padchar);
 
     size_t visOutLen = VisLength(sStyled);
 
@@ -810,14 +942,14 @@ string Table::Cell::StyledOut(size_t width, tOptionalStyle _style)
     {
         size_t left_pad = (width - visOutLen) / 2;
         size_t right_pad = (width - left_pad - visOutLen);
-        return use_color + PAD(left_pad, padchar) + COL_RESET + sStyled + use_color + PAD(right_pad, padchar) + COL_RESET;
+        return use_color + PAD(left_pad, padchar) + sStyled + PAD(right_pad, padchar) + COL_RESET;
     }
     else if (alignment == Table::RIGHT)
     {
         return use_color + PAD(width - visOutLen, padchar) + sStyled + COL_RESET;
     }
 
-    return sStyled + use_color + PAD(width - visOutLen, padchar) + COL_RESET;
+    return use_color + sStyled + PAD(width - visOutLen, padchar) + COL_RESET;
 }
 
 
@@ -848,12 +980,9 @@ bool Table::Cell::ExtractStyle(const std::string& s, std::string& ansi, std::str
 
 
 // GetTableWidth() returns minimum width in characters to draw table (excluding mMinimumOutputWidth setting for output)
-void Table::ComputeColumns()
+Table::tColCountToColWidth Table::GetMinColWidths()
 {
-    if (!bLayoutNeedsUpdating)
-        return;
-
-    colCountToMinColWidths.clear();
+    tColCountToColWidth widths;
 
     size_t row_num = 0;
     for (const auto& row : mRows)
@@ -863,30 +992,121 @@ void Table::ComputeColumns()
 
         for (const auto& cell : row)
         {
-            if (colCountToMinColWidths[cols].size() < cols)    // make sure there are enough entries for each column
-                colCountToMinColWidths[cols].resize(cols);
-
-            tOptionalStyle style = GetStyle(col_num, row_num);
-            colCountToMinColWidths[cols][col_num] = std::max<size_t>(colCountToMinColWidths[cols][col_num], cell.Width(style));
+            if (widths[cols].size() < cols)    // make sure there are enough entries for each column
+                widths[cols].resize(cols);
+            widths[cols][col_num] = std::max<size_t>(widths[cols][col_num], cell.MinWidth());
 
             col_num++;
         }
         row_num++;
     }
 
-    bLayoutNeedsUpdating = false;
+    return widths;
 }
 
+void Table::SetRenderWidth(size_t w)
+{
+    if (w != renderWidth)
+        bLayoutNeedsUpdating = true;
+
+    renderWidth = w;
+}
+
+bool Table::SetColWidth(size_t col_count, size_t col_num, size_t width)
+{
+    if (colCountToColWidths.size() < col_count)
+    {
+        assert(false);
+        return false;
+    }
+
+    if (colCountToColWidths[col_count].size() < col_num)
+    {
+        assert(false);
+        return false;
+    }
+
+    colCountToColWidths[col_count][col_num] = width;
+
+    return true;
+}
+
+bool Table::AutosizeColumns()
+{
+    colCountToColWidths = GetMinColWidths();
+    size_t totalWidthAvailable = renderWidth - (VisLength(borders[LEFT]) + VisLength(borders[RIGHT]));
+
+    if (totalWidthAvailable > 0)
+    {
+        for (auto& colwidths : colCountToColWidths)
+        {
+            size_t cols = colwidths.first; 
+            size_t colWidthAvailable = totalWidthAvailable - (cols - 1) * VisLength(borders[CENTER]);    // subtract space needed for separators
+            int64_t remainingWidth = (int64_t)colWidthAvailable;
+
+            size_t avgColWidthForCount = remainingWidth / cols;
+
+            for (size_t col_num = 0; col_num < cols; col_num++)
+            {
+                tOptionalStyle optStyle = GetColStyle(cols, col_num);
+                if (optStyle.has_value() && optStyle.value().space_allocation > 0.0f)
+                {
+                    size_t w = (size_t) ((float)(colWidthAvailable) * optStyle.value().space_allocation);
+                    colCountToColWidths[cols][col_num] = w;
+                }
+
+                if (colCountToColWidths[cols][col_num] > (size_t)remainingWidth)
+                {
+                    size_t cols_remaining = cols - col_num;
+                    size_t w = remainingWidth / cols_remaining;
+                    colCountToColWidths[cols][col_num] = w;
+                }
+
+                remainingWidth -= colCountToColWidths[cols][col_num];
+                assert(remainingWidth >= 0);
+            }
+
+            assert(remainingWidth >= 0);
+            if (remainingWidth > 0)
+                colwidths.second[colwidths.second.size() - 1] += remainingWidth;
+
+/*
+            usedWidth += (cols - 1) * VisLength(borders[CENTER]);   // separator between each column
+            for (auto w : colwidths.second)
+                usedWidth += w;
+
+            size_t leftoverWidth = totalWidthAvailable - usedWidth;
+            size_t pad = (leftoverWidth) / cols;
+            if (pad > 0)
+            {
+                for (auto& w : colwidths.second)
+                {
+                    w += pad;
+                    leftoverWidth -= pad;
+                }
+
+                // any leftover add to last column
+                if (leftoverWidth > 0)
+                    colwidths.second[colwidths.second.size() - 1] += leftoverWidth;
+            }*/
+        }
+    }
+
+    bLayoutNeedsUpdating = false;
+
+    return true;
+}
 
 size_t Table::GetTableMinWidth()
 {
-    ComputeColumns();
+    tColCountToColWidth widths = GetMinColWidths();
+
     size_t sepLen = VisLength(borders[Table::CENTER]);
     size_t leftBorderLen = VisLength(borders[Table::LEFT]);
     size_t rightBorderLen = VisLength(borders[Table::RIGHT]);
 
     size_t minWidth = 0;
-    for (const auto& cols : colCountToMinColWidths)
+    for (const auto& cols : widths)
     {
         size_t colCountWidth = sepLen * (cols.first - 1); // start width computation by taking account separators for all but last column
         for (const auto& col : cols.second)
@@ -901,9 +1121,9 @@ size_t Table::GetTableMinWidth()
     return minWidth;
 }
 
-size_t Table::GetTableMinWidthForColCount(size_t col_count)
+/*size_t Table::GetTableMinWidthForColCount(size_t col_count)
 {
-    ComputeColumns();
+    AutosizeColumns();
     size_t sepLen = VisLength(borders[Table::CENTER]);
     size_t leftBorderLen = VisLength(borders[Table::LEFT]);
     size_t rightBorderLen = VisLength(borders[Table::RIGHT]);
@@ -922,7 +1142,7 @@ size_t Table::GetTableMinWidthForColCount(size_t col_count)
     return minWidth;
 }
 
-
+*/
 
 Table::operator string()
 {
@@ -972,10 +1192,80 @@ string RepeatString(const string& s, int64_t w)
 
 }*/
 
+void Table::DrawRow(size_t row_num, ostream& os)
+{
+    if (row_num > mRows.size())
+    {
+        assert(false);
+        return;
+    }
+
+    const Table::tCellArray& row = mRows[row_num];
+    size_t linecount = 0;
+    size_t cols = row.size();
+    std::vector< tStringArray > cellColumns;
+    std::vector< Style > cellStyles;
+    for (size_t col = 0; col < cols; col++)
+    {
+        const auto& cell = row[col];
+        Style cellStyle = GetStyle(col, row_num);
+        size_t w = colCountToColWidths[cols][col] - cellStyle.padding * 2;
+
+        tStringArray lines = cell.GetLines(w);
+        linecount = std::max<size_t>(lines.size(), linecount);
+        cellColumns.push_back(std::move(lines));
+        cellStyles.push_back(cellStyle);
+    }
+
+    for (size_t line_num = 0; line_num < linecount; line_num++)
+    {
+        size_t cursor = 0;
+        size_t nEndDraw = renderWidth - VisLength(borders[Table::RIGHT]);
+
+        string separator = borders[Table::CENTER];
+
+        // draw left border
+        os << Table::kDefaultStyle << borders[Table::LEFT] << COL_RESET;
+        cursor += VisLength(borders[Table::LEFT]);
+        
+
+        for (size_t col = 0; col < cellColumns.size(); col++)
+        {
+            bool bLastColumnInRow = (col == cols - 1);
+            if (line_num < cellColumns[col].size()) // if this cell has text on this line
+            {
+                string unstyled = cellColumns[col][line_num];
+                string styled = StyledOut(unstyled, colCountToColWidths[cols][col], cellStyles[col]);
+                os << cellStyles[col] << styled << kDefaultStyle;
+                cursor += VisLength(styled);
+            }
+            else
+            {
+                os << PAD(colCountToColWidths[cols][col], kDefaultStyle.padchar);
+                cursor += colCountToColWidths[cols][col];
+            }
+
+            // Output a separator for all but last column
+            if (!bLastColumnInRow /*&& cursor < nEndDraw*/)
+            {
+                os << separator << kDefaultStyle;
+                cursor += VisLength(separator);
+            }
+            else
+            {
+                if (cursor < nEndDraw)
+                    os << cellStyles[col] << PAD(nEndDraw - cursor, kDefaultStyle.padchar) << kDefaultStyle;
+            }
+        }
+
+        // Draw right border
+        os << borders[Table::RIGHT] << "\n";
+    }
+};
 
 ostream& operator <<(ostream& os, Table& tableOut)
 {
-    tableOut.ComputeColumns();
+//    tableOut.AutosizeColumns();
 
     if (tableOut.mRows.empty())
         return os;
@@ -983,12 +1273,13 @@ ostream& operator <<(ostream& os, Table& tableOut)
     // reset any previous color
     os << COL_RESET;
 
+    if (tableOut.bLayoutNeedsUpdating)
+    {
+        tableOut.AutosizeColumns();
+    }
 
     size_t tableMinWidth = tableOut.GetTableMinWidth();
-
     size_t renderWidth = tableOut.renderWidth;
-    if (renderWidth < tableMinWidth)
-        renderWidth = tableMinWidth;
 
     // Draw top border
     if (!tableOut.borders[Table::TOP].empty())
@@ -996,7 +1287,12 @@ ostream& operator <<(ostream& os, Table& tableOut)
         os << RepeatString(tableOut.borders[Table::TOP], renderWidth) << COL_RESET << "\n";
     }
 
+    for (size_t row_num = 0; row_num < tableOut.mRows.size(); row_num++)
+    {
+        tableOut.DrawRow(row_num, os);
+    }
 
+    /*
 
     // Now print each row based on column widths
     size_t row_num = 0;
@@ -1004,8 +1300,6 @@ ostream& operator <<(ostream& os, Table& tableOut)
     {
         size_t cursor = 0;
         size_t cols = row.size();
-
-        size_t tableMinWidthForColCount = tableOut.GetTableMinWidthForColCount(cols);
 
         string separator = tableOut.borders[Table::CENTER];
 #ifdef _DEBUG
@@ -1029,8 +1323,8 @@ ostream& operator <<(ostream& os, Table& tableOut)
         {
             bool bLastColumnInRow = (col_num == cols - 1);
 
-            size_t nMinColWidth = tableOut.colCountToMinColWidths[cols][col_num];
-            size_t nDrawWidth = nMinColWidth;
+            size_t colWidth = tableOut.colCountToColWidths[cols][col_num];
+            size_t nDrawWidth = colWidth;
 
             size_t nEndDraw = renderWidth - VisLength(tableOut.borders[Table::RIGHT]);
 
@@ -1045,14 +1339,7 @@ ostream& operator <<(ostream& os, Table& tableOut)
                 }
                 else
                 {
-                    if (style.spacing == Table::TIGHT)
-                        nDrawWidth = nMinColWidth;
-                    else if (style.spacing == Table::EVEN)
-                    {
-//                        size_t cellWidth = tableOut.GetCell(col_num, row_num).Width();
-                        size_t cellWidth = nMinColWidth;
-                        nDrawWidth = std::max<size_t>((cellWidth * renderWidth) / tableMinWidthForColCount, nMinColWidth);
-                    }
+                    nDrawWidth = colWidth;
                 }
 
 #ifdef _DEBUG
@@ -1080,7 +1367,7 @@ ostream& operator <<(ostream& os, Table& tableOut)
         os << COL_RESET << "\n";
 
         row_num++;
-    }
+    }*/
 
     // bottom border
     if (!tableOut.borders[Table::BOTTOM].empty())
