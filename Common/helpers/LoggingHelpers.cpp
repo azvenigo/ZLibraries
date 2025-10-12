@@ -318,7 +318,7 @@ ostream& operator <<(std::ostream& os, Table::Style& style)
 Table::Style Table::kLeftAlignedStyle = Table::Style(COL_RESET, LEFT);
 Table::Style Table::kRightAlignedStyle = Table::Style(COL_RESET, RIGHT);
 Table::Style Table::kCenteredStyle = Table::Style(COL_RESET, CENTER);
-Table::Style Table::kDefaultStyle = Table::Style(AnsiCol(0xFF888888), LEFT);
+Table::Style Table::kDefaultStyle = Table::Style(AnsiCol(0xFFFFFFFF), LEFT);
 
 const size_t kMinCellWidth = 3;
 
@@ -1034,6 +1034,9 @@ bool Table::SetColWidth(size_t col_count, size_t col_num, size_t width)
 bool Table::AutosizeColumns()
 {
     colCountToColWidths = GetMinColWidths();
+    if (renderWidth == 0)
+        renderWidth = GetTableMinWidth();
+
     size_t totalWidthAvailable = renderWidth - (VisLength(borders[LEFT]) + VisLength(borders[RIGHT]));
 
     if (totalWidthAvailable > 0)

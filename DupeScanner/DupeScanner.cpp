@@ -42,12 +42,6 @@ int main(int argc, char* argv[])
     if (!parser.Parse(argc, argv))
         return 1;
 
-    if (sSourcePath.empty())
-    {
-        zout << parser.GetGeneralHelpString();
-        return -1;
-    }
-
     std::replace(sSourcePath.begin(), sSourcePath.end(), '\\', '/');
     std::replace(sScanPath.begin(), sScanPath.end(), '\\', '/');
 

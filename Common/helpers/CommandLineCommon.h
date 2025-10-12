@@ -75,11 +75,11 @@ namespace CLP
     const int SHIFT_INSERT_HOTKEY = 2;
     const int CTRL_S_HOTKEY = 3;
 
-
     // decorations
     static Table::Style ResetStyle = Table::Style();
     static Table::Style AppStyle = Table::Style(COL_YELLOW);
-    static Table::Style SectionStyle = Table::Style(COL_CYAN);
+    static Table::Style SectionStyle = Table::Style(COL_CYAN, Table::CENTER, 0.0f, Table::CHAR_WRAP, 0, '=');
+    static Table::Style SubSectionStyle = Table::Style(COL_CYAN);
     static Table::Style ParamStyle = Table::Style(COL_YELLOW);
     static Table::Style WarningStyle = Table::Style(COL_ORANGE);
     static Table::Style ErrorStyle = Table::Style(COL_RED);
@@ -89,33 +89,20 @@ namespace CLP
     {
         kSuccess = 0,
         kCanceled = 1,
-        kShowAvailableModes = 2,
-        kShowHelp = 3,
-        kErrorShowEdit = 4,
-        kErrorAbort = 5,
+        kShowHelp = 2,
+        kErrorShowEdit = 3,
+        kErrorAbort = 4,
 #ifdef ENABLE_COMMAND_HISTORY
-        kShowHistory = 6
+        kShowHistory = 5
 #endif
     };
 
-
-
-
-//#pragma pack(push, 1)
     class ZAttrib
     {
     public:
         ZAttrib() : ZAttrib(WHITE_ON_BLACK)
         {
         }
-
-/*        ZAttrib(uint32_t fg)
-        {
-            a = GET_A(fg);
-            r = GET_R(fg);
-            g = GET_G(fg);
-            b = GET_B(fg);
-        }*/
 
         ZAttrib(uint64_t col)
         {
@@ -247,8 +234,6 @@ namespace CLP
         uint8_t c;
         ZAttrib attrib;
     };
-
-//#pragma pack(pop)
 
     typedef std::list<std::string> tStringList;
     typedef std::vector<ZAttrib> tAttribArray;
@@ -542,7 +527,6 @@ namespace CLP
 
     };
 
-
     SHORT ScreenW();
     SHORT ScreenH();
 
@@ -551,6 +535,7 @@ namespace CLP
 
     void SetCursorPosition(COORD coord, bool bForce = false);
 
+    void InitScreenInfo();
     void SaveConsoleState();
     void RestoreConsoleState();
     //bool getANSIColorAttribute(const std::string& str, size_t offset, ZAttrib& attribute, size_t& length);
@@ -565,7 +550,7 @@ namespace CLP
 
 
 
-    extern InfoWin  helpTextWin;        // popup help window
+    extern TableWin helpTextWin;        // popup help window
     extern TableWin helpTableWin;
 
     extern CONSOLE_SCREEN_BUFFER_INFO screenInfo;

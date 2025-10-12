@@ -996,7 +996,8 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
     else
     {
         // no commands entered
-        Table commandsTable = pCLP->GetCommandsTable();
+        Table commandsTable;
+        pCLP->GetCommandsTable(commandsTable);
         commandsTable.AlignWidth(ScreenW());
         string sCommands = commandsTable;
         DrawClippedAnsiText(drawArea, sCommands, true, &drawArea);
@@ -1425,24 +1426,6 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
         }
     }
 
-    void CommandLineEditor::SaveConsoleState()
-    {
-        originalScreenInfo = screenInfo;
-        originalConsoleBuf.resize(originalScreenInfo.dwSize.X * originalScreenInfo.dwSize.Y);
-        SMALL_RECT readRegion = { 0, 0, originalScreenInfo.dwSize.X - 1, originalScreenInfo.dwSize.Y - 1 };
-        ReadConsoleOutput(mhOutput, &originalConsoleBuf[0], screenInfo.dwSize, { 0, 0 }, &readRegion);
-    }
-
-    void CommandLineEditor::RestoreConsoleState()
-    {
-        SMALL_RECT writeRegion = { 0, 0, originalScreenInfo.dwSize.X - 1, originalScreenInfo.dwSize.Y - 1 };
-        WriteConsoleOutput(mhOutput, &originalConsoleBuf[0], originalScreenInfo.dwSize, { 0, 0 }, &writeRegion);
-        SetConsoleCursorPosition(mhOutput, originalScreenInfo.dwCursorPosition);
-        SetConsoleTextAttribute(mhOutput, originalScreenInfo.wAttributes);
-    }
-
-
-
     bool CommandLineEditor::ParseParam(const std::string sParamText, std::string& outName, std::string& outValue)
     {
         // named parameters always start with -
@@ -1630,10 +1613,12 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
             helpTextWin.Clear(kAttribHelpBG, true);
             helpTextWin.SetArea(Rect(0, 1, w, h));
             helpTextWin.SetEnableFrame();
+            helpTextWin.UpdateCaptions();
 
             helpTableWin.Clear(kAttribHelpBG, true);
             helpTableWin.SetArea(Rect(0, 1, w, h));
             helpTableWin.SetEnableFrame();
+            helpTableWin.UpdateCaptions();
 
             popupFolderListWin.Clear(kAttribFolderListBG);
             popupFolderListWin.SetEnableFrame();
@@ -1652,7 +1637,6 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
 
     void CommandLineEditor::ShowHelp()
     {
-        string sText;
         helpTextWin.Init(Rect(0, 1, ScreenW(), ScreenH()));
         helpTextWin.Clear(kAttribHelpBG, true);
         bScreenInvalid = true;
@@ -1663,60 +1647,55 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
 
         assert(drawWidth > 0);
 
+        Table& t = helpTextWin.mTable;
+
+        t.Clear();
 
         if (pCLP)
         {
             string sMode = CLP::GetMode();
 
+            pCLP->GetHelpTable(sMode, t);
+
             if (pCLP->IsRegisteredMode(sMode))
             {
-                sText = pCLP->GetModeHelpString(sMode, false);
+//                pCLP->GetModeHelpTable(sMode, helpTable);
                 helpTextWin.positionCaption[ConsoleWin::Position::LT] = "Help for \"" + sMode + "\"";
             }
             else
             {
-                sText = pCLP->GetGeneralHelpString();
+  //              pCLP->GetAppDescriptionHelpTable(helpTable);
                 helpTextWin.positionCaption[ConsoleWin::Position::LT] = "General Help";
             }
         }
 
-        Table additionalHelp;
-//        additionalHelp.defaultStyle.color = AnsiCol(0xFF888888);
-        additionalHelp.SetBorders("+", "+", "+", "+");
-        additionalHelp.SetRenderWidth(drawWidth);
-        assert(drawWidth > 0 && drawWidth < 4 * 1024);
 
-        additionalHelp.AddRow(SectionStyle, "--Key Combo--", "--Action--");
+        t.AddRow(" ");
+        t.AddRow(SectionStyle, " Help for Interactive Command Line Editor ");
+        t.AddRow("Rich editing of command line passed in with contextual auto-complete popups.");
+        t.AddRow("Command Line example usage is visible just above the command line entry.");
+        t.AddRow("Parameters (positional and named) along with desciptions are enumerated above.");
+        t.AddRow("Path parameters bring up folder listing at that path. (TAB to go into the folder, BACKSPACE to go up a folder.)");
+        t.AddRow(" ");
 
-        additionalHelp.AddRow(ParamStyle, "[F1]", "General help or contextual help (if first parameter is recognized command.)");
-        additionalHelp.AddRow(ParamStyle, "[F2]", "Show Environment Variables");
+        t.AddRow(SubSectionStyle, "--Key Combo--", "--Action--");
 
-        additionalHelp.AddRow(ParamStyle, "[TAB]", "Context specific popup");
+        t.AddRow(ParamStyle, "[F1]", "General help or contextual help (if first parameter is recognized command.)");
+        t.AddRow(ParamStyle, "[F2]", "Show Environment Variables");
 
-        additionalHelp.AddRow(ParamStyle, "[SHIFT-LEFT/RIGHT]", "Select characters");
-        additionalHelp.AddRow(ParamStyle, "[SHIFT+CTRL-LEFT/RIGHT]", "Select words");
+        t.AddRow(ParamStyle, "[TAB]", "Context specific popup");
 
-        additionalHelp.AddRow(ParamStyle, "[CTRL-A]", "Select All");
-        additionalHelp.AddRow(ParamStyle, "[CTRL-C/V]", "Copy/Paste");
-        additionalHelp.AddRow(ParamStyle, "[CTRL-Z]", "Undo");
+        t.AddRow(ParamStyle, "[SHIFT-LEFT/RIGHT]", "Select characters");
+        t.AddRow(ParamStyle, "[SHIFT+CTRL-LEFT/RIGHT]", "Select words");
 
-        additionalHelp.AddRow(ParamStyle, "[UP]", "Command Line History (When cursor at top)");
+        t.AddRow(ParamStyle, "[CTRL-A]", "Select All");
+        t.AddRow(ParamStyle, "[CTRL-C/V]", "Copy/Paste");
+        t.AddRow(ParamStyle, "[CTRL-Z]", "Undo");
+
+        t.AddRow(ParamStyle, "[UP]", "Command Line History (When cursor at top)");
 
 
-        additionalHelp.AlignWidth(drawWidth);
 
-
-        sText += "\n\n------Help for Interactive Command Line Editor---------\n\n";
-        sText += "Rich editing of command line passed in with contextual auto-complete popups.\n";
-
-        sText += "Command Line example usage is visible just above the command line entry.\n";
-        sText += "Parameters (positional and named) along with desciptions are enumerated above.\n";
-
-        sText += "Path parameters bring up folder listing at that path. (TAB to go into the folder, BACKSPACE to go up a folder.)\n";
-        sText += "\n\n";
-        sText += (string)additionalHelp;
-
-        helpTextWin.mText = sText;
         helpTextWin.UpdateCaptions();
     }
 
@@ -1864,12 +1843,9 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
             return kErrorAbort;
         }
 
-        if (!GetConsoleScreenBufferInfo(mhOutput, &screenInfo))
-        {
-            cerr << "Failed to get console info." << endl;
-            return kErrorAbort;
-        }
+        ResetCols();
 
+        InitScreenInfo();
 
         SHORT w = ScreenW();
         SHORT h = ScreenH();
@@ -1904,9 +1880,6 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
             cerr << "Failed to set console mode." << endl;
             return kErrorAbort;
         }
-
-
-
 
 
         SaveConsoleState();

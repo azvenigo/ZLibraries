@@ -905,13 +905,7 @@ namespace CLP
             return;
         }
 
-        if (!GetConsoleScreenBufferInfo(mhOutput, &screenInfo))
-        {
-            cerr << "Failed to get console info." << endl;
-            return;
-        }
-
-
+        InitScreenInfo();
 
         // Set console mode to allow reading mouse and key events
         DWORD mode;

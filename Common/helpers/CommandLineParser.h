@@ -134,7 +134,8 @@ namespace CLP
     [[maybe_unused]] static void ResetCols()            // reset colored output
     {
         AppStyle        = Table::Style(COL_YELLOW);
-        SectionStyle    = Table::Style(COL_CYAN);
+        SectionStyle    = Table::Style(COL_BLUE, Table::CENTER, 0.0f, Table::CHAR_WRAP, 0, '=');
+        SubSectionStyle = Table::Style(COL_CYAN);
         ParamStyle      = Table::Style(COL_YELLOW);
         ErrorStyle      = Table::Style(COL_RED);
     };
@@ -143,6 +144,7 @@ namespace CLP
     {
         AppStyle        = Table::Style(COL_RESET);
         SectionStyle    = Table::Style(COL_RESET);
+        SubSectionStyle = Table::Style(COL_RESET);
         ParamStyle      = Table::Style(COL_RESET);
         ErrorStyle      = Table::Style(COL_RESET);
     };
@@ -255,7 +257,7 @@ namespace CLP
         size_t  GetNumPositionalParamsHandled();
 
         void    ShowFoundParameters();
-        void    GetModeUsageTables(std::string sMode, Table& modeDescriptionTable, Table& requiredParamTable, Table& optionalParamTable, Table& additionalInfoTable);
+        //void    GetModeUsageTables(std::string sMode, Table& outTable);
 
     protected:
         bool    CanHandleArgument(const std::string& sArg); // returns true if the key for this argument is registered
@@ -263,6 +265,8 @@ namespace CLP
 
         bool    GetDescriptor(const std::string& sKey, ParamDesc** pDescriptorOut);
         bool    GetDescriptor(int64_t nIndex, ParamDesc** pDescriptorOut);
+
+        bool    GetParamsToTable(bool bPositional, bool bRequired, Table& outTable);
 
         std::string             msModeDescription;
         std::list<std::string>  mAdditionalInfo;
@@ -294,12 +298,9 @@ namespace CLP
         // Registration Functions
         void            RegisterAppDescription(const std::string& sDescription);
         bool            Parse(int argc, char* argv[]);
-        Table           GetCLPHelp(bool bDetailed = false);
-        Table           GetCommandsTable();
-        Table           GetKeyTable();
-        std::string     GetGeneralHelpString();
-        std::string     GetModeHelpString(const std::string& sMode = "", bool bDetailed = false);
-        void            GetCommandLineExample(const std::string& sMode, std::string& sCommandLineExample);
+        bool            GetCLPHelp(Table& outTable);
+        bool            GetCommandsTable(Table& outTable);
+        bool            GetKeyTable(Table& outTable);
 
         // Accessors
         std::string     GetAppMode() { return msMode; }         // empty string if default mode
@@ -347,6 +348,11 @@ namespace CLP
 #endif
 
     protected:
+        void            GetAppDescriptionHelpTable(Table& outTable);
+        void            GetModeHelpTable(std::string sMode, Table& outTable);
+        void            GetCommandLineExample(const std::string& sMode, std::string& sCommandLineExample);
+        void            GetUsageTable(std::string sMode, Table& outTable);
+        void            GetHelpTable(std::string sMode, Table& outTable);
 
         eResponse       TryParse(const tStringArray& params);    // params not including app exe in element 0
 
@@ -354,8 +360,6 @@ namespace CLP
         std::string     GetFirstPositionalArgument(const tStringArray& params);                                                 // first argument that's not a named. (named starts with '-')
 
         std::string     msMode;
-//        std::string     msAppPath;                      // full path to the app.exe
-//        std::string     msAppName;                      // just the app.exe
         std::string     msAppDescription;
 
         CLModeParser    mGeneralCommandLineParser;      // if no registered modes, defaults to this one

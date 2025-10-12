@@ -505,8 +505,8 @@ int main(int argc, char* argv[])
 
     parser.RegisterMode("extract", "Extracts bytes from a file into a new file");
     parser.RegisterParam("extract", ParamDesc("SOURCE_FILE", &sSourcePath, CLP::kPositional | CLP::kRequired | CLP::kPath | CLP::kExistingPath, "File to read from"));
-    parser.RegisterParam("extract", ParamDesc("DEST_FILE", &sDestPath, CLP::kPositional | CLP::kRequired | CLP::kPath, "File to create"));
     parser.RegisterParam("extract", ParamDesc("SOURCE_OFFSET", &nSourceOffset, CLP::kPositional | CLP::kRequired, "Source offset"));
+    parser.RegisterParam("extract", ParamDesc("DEST_FILE", &sDestPath, CLP::kPositional | CLP::kRequired | CLP::kPath, "File to create"));
     parser.RegisterParam("extract", ParamDesc("BYTES", &nBytes, CLP::kPositional | CLP::kRequired, "Number of bytes to extract"));
     parser.RegisterParam("extract", ParamDesc("dump", &bDumpAfterExtract, CLP::kNamed, "Dump extracted bytes to zout after extraction."));
 

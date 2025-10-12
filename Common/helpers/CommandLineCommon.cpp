@@ -430,10 +430,11 @@ namespace CLP
     std::vector<CHAR_INFO> originalConsoleBuf;
     CONSOLE_SCREEN_BUFFER_INFO originalScreenInfo;
     CONSOLE_SCREEN_BUFFER_INFO screenInfo;
+    bool bScreenInfoInitialized = false;
     bool bScreenInvalid = true;
     COORD gLastCursorPos = { -1, -1 };
 
-    InfoWin  helpTextWin;
+    TableWin helpTextWin;
     TableWin helpTableWin;
 
 
@@ -444,6 +445,23 @@ namespace CLP
             cout << "\033[" + SH::FromInt(coord.X+1) + "G\033[" + SH::FromInt(coord.Y+1) + "d" << flush;
             gLastCursorPos = coord;
         }
+    }
+
+    void InitScreenInfo()
+    {
+        HANDLE hOutput = GetStdHandle(STD_OUTPUT_HANDLE);
+        if (hOutput == INVALID_HANDLE_VALUE)
+        {
+            cerr << "Failed to get standard output handle." << endl;
+            return;
+        }
+
+        if (!GetConsoleScreenBufferInfo(hOutput, &screenInfo))
+        {
+            cerr << "Failed to get console info." << endl;
+        }
+
+        bScreenInfoInitialized = true;
     }
 
     void SaveConsoleState()
@@ -462,8 +480,25 @@ namespace CLP
         SetConsoleTextAttribute(mhOutput, originalScreenInfo.wAttributes);
     }
 
-    SHORT ScreenW() { return screenInfo.srWindow.Right - screenInfo.srWindow.Left + 1; }
-    SHORT ScreenH() { return screenInfo.srWindow.Bottom - screenInfo.srWindow.Top + 1; }
+    SHORT ScreenW()
+    { 
+        if (!bScreenInfoInitialized)
+        {
+            InitScreenInfo();
+        }
+
+        return screenInfo.srWindow.Right - screenInfo.srWindow.Left + 1; 
+    }
+
+    SHORT ScreenH() 
+    { 
+        if (!bScreenInfoInitialized)
+        {
+            InitScreenInfo();
+        }
+
+        return screenInfo.srWindow.Bottom - screenInfo.srWindow.Top + 1;
+    }
 
     void DrawAnsiChar(int64_t x, int64_t y, uint8_t c, ZAttrib ca)
     {
@@ -2054,7 +2089,13 @@ namespace CLP
         helpTableWin.mTable.SetBorders("|", DEC_LINE_START "q" DEC_LINE_END, "|", DEC_LINE_START "q" DEC_LINE_END, "|");
         //varTable.renderWidth = drawWidth;
 
-        helpTableWin.mTable.AddRow(SectionStyle, "--var--", "--value--");
+        helpTableWin.mTable.AddRow(SubSectionStyle, "--var--", "--value--");
+
+        Table::Style keyStyle(ParamStyle);
+        keyStyle.wrapping = Table::NO_WRAP;
+
+        Table::Style valueStyle(ResetStyle);
+        valueStyle.wrapping = Table::CHAR_WRAP;
 
         tKeyValList keyVals = GetEnvVars();
 /*        size_t longestKey = 0;
@@ -2093,7 +2134,7 @@ namespace CLP
                     varTable.AddRow("", sFitVal);
                 offset += sFitVal.length();
             }*/
-            helpTableWin.mTable.AddRow(sKey, sVal);
+            helpTableWin.mTable.AddRow(Table::Cell(sKey, keyStyle), Table::Cell(sVal, valueStyle));
         }
 
 
@@ -2133,7 +2174,9 @@ namespace CLP
         helpTextWin.GetInnerArea(drawArea);
         int64_t drawWidth = drawArea.r - drawArea.l - 2;
 
-        helpTextWin.mText = GetCommandLineA();
+        helpTextWin.mTable.AddRow(SectionStyle, " Launch Arguments ");
+        helpTextWin.mTable.AddRow(GetCommandLineA());
+        helpTextWin.mTopVisibleRow = 0;
         helpTextWin.UpdateCaptions();
     }
 

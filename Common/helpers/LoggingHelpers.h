@@ -652,6 +652,16 @@ public:
             assert(wrapping >= NO_WRAP && wrapping <= WORD_WRAP);
         }
 
+        void operator = (const Style& rhs)
+        {
+            color = rhs.color;
+            alignment = rhs.alignment;
+            space_allocation = rhs.space_allocation;
+            wrapping = rhs.wrapping;
+            padding = rhs.padding;
+            padchar = rhs.padchar;
+        }
+
         friend std::ostream& operator <<(std::ostream& os, Style& style);
 
         std::string color = COL_RESET;

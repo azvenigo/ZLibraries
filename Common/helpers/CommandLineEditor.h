@@ -111,8 +111,6 @@ namespace CLP
         void UpdateFromConsoleSize(bool bForce = false);
         void UpdateDisplay();
         void DrawToScreen();
-        void SaveConsoleState();
-        void RestoreConsoleState();
         void ShowHelp();
 
         bool OutputCommandToConsole(const std::string& command);
