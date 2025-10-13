@@ -1021,9 +1021,6 @@ namespace CLP
 
                 if (nErrors > 0 || !mGeneralCommandLineParser.CheckAllRequirementsMet())
                 {
-                    //                    mGeneralCommandLineParser.ShowFoundParameters();
-
-                    //                    cout << "\n\"" << cols[kERROR] << "Error:" << appName << " " << cols[kPARAM] << " -?" << cols[kRESET] << "\" - to see usage.\n";
                     return kErrorAbort;
                 }
 
@@ -1122,9 +1119,6 @@ namespace CLP
 
     void CommandLineParser::GetHelpTable(string sMode, Table& help)
     {
-        //                cout << GetHelpString(GetFirstPositionalArgument(argArray), bDetailedHelp);
-
-//        Table help;
         help.SetBorders("*", "*", "*", "*");
 
         bool bMultiMode = !mModeToCommandLineParser.empty();
@@ -1171,14 +1165,6 @@ namespace CLP
             GetAppDescriptionHelpTable(help);
         }
 
-
-        /*
-        GetKeyTable(help);
-        GetCLPHelp(help);
-
-        GetKeyTable(help);
-        */
-//        help.SetRenderWidth(120);
         return;
     }
 
@@ -1515,33 +1501,9 @@ namespace CLP
         return mModeToCommandLineParser[sMode].GetModeDescription();
     }
 
-/*    void CommandLineParser::GetUsageTable(std::string sMode, Table& table)
-    {
-        table.AddRow(CLP::SectionStyle, "Usage");
-
-        if (IsMultiMode())
-        {
-
-            string sUsageExample(CLP::AppStyle.color + appName + CLP::ParamStyle.color + " COMMAND PARAMS" + CLP::ResetStyle.color);
-
-            table.AddRow(sUsageExample);
-            table.AddRow(' ');
-
-            table.AddRow(" ");
-        }
-        else
-        {
-            string sUsageExample(CLP::AppStyle.color + appName + CLP::ParamStyle.color + " PARAMS" + CLP::ResetStyle.color);
-            table.AddRow(sUsageExample);
-            table.AddRow(' ');
-        }
-    }*/
-
-
     void CommandLineParser::GetAppDescriptionHelpTable(Table& table)
     {
         // First output Application name
-
         table.AddRow("Application: ",  CLP::AppStyle.color + appName + CLP::ResetStyle.color);
 
         table.AddRow(" ");
@@ -1549,17 +1511,5 @@ namespace CLP
         table.AddRow(" ");
         table.AddMultilineRow(msAppDescription);
         table.AddRow(" ");
-
-        /*
-        table.AddRow(CLP::SectionStyle, "General Help");
-        table.AddRow("\'?\'", "(anywhere on command line) for contextual or general help\nFor example \"" + CLP::ParamStyle.color + appName + " COMMAND ?" + CLP::ResetStyle.color + "\"");
-#ifdef ENABLE_CLE
-        table.AddRow(" ");
-        table.AddRow("'!'", "(anywhere on command line) for command line editor");
-#endif
-#ifdef ENABLE_COMMAND_HISTORY
-        table.AddRow("'h!'", "History");
-#endif
-*/
     }
 }; // namespace CLP

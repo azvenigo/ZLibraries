@@ -12,6 +12,7 @@
 #include "helpers/CommandLineParser.h"
 using namespace std;
 using namespace CLP;
+namespace fs = std::filesystem;
 
 std::string sSourcePath;
 std::string sScanPath;
@@ -20,7 +21,43 @@ int64_t nThreads = std::thread::hardware_concurrency();
 int64_t nBlockSize = kDefaultBlockSize;
 
 
+void DiffFolders(fs::path source, fs::path dest)
+{
 
+    Table diff;
+    diff.SetBorders("", "*", "", "*");
+    diff.SetRenderWidth(ScreenW());
+
+    diff.AddRow("SRC", source);
+    diff.AddRow("DST", dest);
+
+
+    diff.AddRow(SectionStyle, " Files in SRC but not in DST ");
+
+    size_t filesSrc = 0;
+    size_t missing = 0;
+    for (auto filePath : std::filesystem::recursive_directory_iterator(source))
+    {
+        if (filePath.is_regular_file())
+        {
+            filesSrc++;
+            fs::path destRel = fs::relative(filePath.path(), source);
+            fs::path destFull = dest;
+            destFull.append(destRel.string());
+
+            if (!fs::exists(destFull))
+            {
+                missing++;
+                diff.AddRow(filePath.path().string());
+            }
+        }
+    }
+
+    diff.AddRow("Files checked from Src:", filesSrc);
+    diff.AddRow("Missing from DST:", missing);
+
+    cout << diff;
+}
 
 
 int main(int argc, char* argv[])
@@ -32,6 +69,10 @@ int main(int argc, char* argv[])
     parser.RegisterParam("diff", ParamDesc("SEARCH_PATH", &sScanPath, CLP::kPositional | CLP::kRequired | CLP::kExistingPath, "File/folder to scan at byte granularity."));
     parser.RegisterParam("diff", ParamDesc("threads", &nThreads, CLP::kNamed, "Number of threads to spawn.", 1, 256));
     parser.RegisterParam("diff", ParamDesc("blocksize", &nBlockSize, CLP::kNamed, "Granularity of blocks to use for scanning.", 16, /*1024 * 1024 * 1024*/32 * 1024 * 1024));
+
+    parser.RegisterMode("filename_diff", "Looks only at filenames in SOURCE that are not in DEST");
+    parser.RegisterParam("filename_diff", ParamDesc("SOURCE", &sSourcePath, CLP::kPositional | CLP::kRequired | CLP::kExistingPath, "folder to index"));
+    parser.RegisterParam("filename_diff", ParamDesc("DEST", &sScanPath, CLP::kPositional | CLP::kRequired | CLP::kExistingPath, "Folder to compare against."));
 
     parser.RegisterMode("find_dupes", "Self-search for blocks of data that exist multiple times in the data.");
     parser.RegisterParam("find_dupes", ParamDesc("PATH", &sSourcePath, CLP::kPositional | CLP::kRequired | CLP::kExistingPath, "File/folder to index by blocks."));
@@ -51,22 +92,33 @@ int main(int argc, char* argv[])
         return -1;
     }
 
-
-    if (!sScanPath.empty())
+    if (parser.IsCurrentMode("filename_diff"))
     {
-        if (!std::filesystem::exists(sScanPath))
-        {
-            cerr << "Scan Path:" << sScanPath << " doesn't exist.\n";
-            return -1;
-        }
+        DiffFolders(sSourcePath, sScanPath);
+        return 0;
     }
 
-    BlockScanner* pScanner = new BlockScanner();
+    if (parser.IsCurrentMode("diff") || parser.IsCurrentMode("find_dupes"))
+    {
+        if (!sScanPath.empty())
+        {
+            if (!std::filesystem::exists(sScanPath))
+            {
+                cerr << "Scan Path:" << sScanPath << " doesn't exist.\n";
+                return -1;
+            }
+        }
 
-    if (!pScanner->Scan(sSourcePath, sScanPath, nBlockSize, nThreads))
-        return -1;
+        BlockScanner* pScanner = new BlockScanner();
 
-    delete pScanner;
-	return 0;
+        if (!pScanner->Scan(sSourcePath, sScanPath, nBlockSize, nThreads))
+            return -1;
+
+        delete pScanner;
+        return 0;
+    }
+
+    cout << "Error: unknown command\n";
+    return -1;
 }
 

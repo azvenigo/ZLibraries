@@ -393,6 +393,8 @@ namespace CLP
 
         bool bAutoScrollbar = true;
         int64_t mTopVisibleRow = 0;
+
+    protected:
         std::string mText;
     };
 
@@ -472,8 +474,6 @@ namespace CLP
         void Paint(tConsoleBuffer& backBuf);
 
         std::string GetText() { return mText; }
-        //        COORD GetCursorPos() { return mCursorPos; }
-        //        int64_t GetCursorIndex() { return CursorToTextIndex(mCursorPos); }
 
         void FindNextBreak(int nDir);
         void UpdateCursorPos(COORD localPos);
@@ -538,7 +538,6 @@ namespace CLP
     void InitScreenInfo();
     void SaveConsoleState();
     void RestoreConsoleState();
-    //bool getANSIColorAttribute(const std::string& str, size_t offset, ZAttrib& attribute, size_t& length);
     void DrawAnsiChar(int64_t x, int64_t y, uint8_t c, ZAttrib ca);
 
     std::string ExpandEnvVars(const std::string& s); // replaces any %var% with environment variables 
@@ -548,9 +547,6 @@ namespace CLP
     void ShowEnvVars();
     void ShowLaunchParams();
 
-
-
-    extern TableWin helpTextWin;        // popup help window
     extern TableWin helpTableWin;
 
     extern CONSOLE_SCREEN_BUFFER_INFO screenInfo;

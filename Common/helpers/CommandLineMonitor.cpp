@@ -541,8 +541,8 @@ namespace CLP
             filterTextEntryWin.Paint(backBuffer);
         if (saveLogFilenameEntryWin.mbVisible)
             saveLogFilenameEntryWin.Paint(backBuffer);
-        if (helpTextWin.mbVisible)
-            helpTextWin.Paint(backBuffer);
+//        if (helpTextWin.mbVisible)
+//            helpTextWin.Paint(backBuffer);
         if (helpTableWin.mbVisible)
             helpTableWin.Paint(backBuffer);
 
@@ -626,10 +626,10 @@ namespace CLP
             logWin.SetArea(logWinRect);
             logWin.SetEnableFrame();
 
-            helpTextWin.Clear(kAttribHelpBG, true);
+/*            helpTextWin.Clear(kAttribHelpBG, true);
             helpTextWin.SetArea(viewRect);
             helpTextWin.SetEnableFrame();
-            helpTextWin.bAutoScrollbar = true;
+            helpTextWin.bAutoScrollbar = true;*/
 
             helpTableWin.Clear(kAttribHelpBG, true);
             helpTableWin.SetArea(viewRect);
@@ -674,8 +674,8 @@ namespace CLP
     bool CommandLineMonitor::OnKey(int keycode, char c)
     {
         bool bHandled = false;
-        if (helpTextWin.mbVisible)
-            bHandled = helpTextWin.OnKey(keycode, c);
+//        if (helpTextWin.mbVisible)
+//            bHandled = helpTextWin.OnKey(keycode, c);
         if (helpTableWin.mbVisible)
             bHandled = helpTableWin.OnKey(keycode, c);
         if (filterTextEntryWin.mbVisible && !bHandled)
@@ -749,17 +749,11 @@ namespace CLP
             return helpTableWin.OnMouse(event);
         }
 
-        if (helpTextWin.IsOver(coord.X, coord.Y))
-        {
-            return helpTextWin.OnMouse(event);
-        }
-
         if (logWin.IsOver(coord.X, coord.Y))
         {
             return logWin.OnMouse(event);
         }
 
-        return false;
         return false;
     }
 
@@ -801,7 +795,7 @@ namespace CLP
 
         while (!pCLM->mbDone && !pCLM->mbCanceled)
         {
-            pCLM->mbVisible = helpTableWin.mbVisible || helpTextWin.mbVisible || logWin.mbVisible;
+            pCLM->mbVisible = helpTableWin.mbVisible || /*helpTextWin.mbVisible ||*/ logWin.mbVisible;
 
             pCLM->UpdateVisibility();
 

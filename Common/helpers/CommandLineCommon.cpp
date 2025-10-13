@@ -434,9 +434,7 @@ namespace CLP
     bool bScreenInvalid = true;
     COORD gLastCursorPos = { -1, -1 };
 
-    TableWin helpTextWin;
     TableWin helpTableWin;
-
 
     void SetCursorPosition(COORD coord, bool bForce)
     {
@@ -2085,10 +2083,7 @@ namespace CLP
 
 
         helpTableWin.mTable.Clear();
-//        helpTableWin.mTable.defaultStyle.color = AnsiCol(0xFF888888);
         helpTableWin.mTable.SetBorders("|", DEC_LINE_START "q" DEC_LINE_END, "|", DEC_LINE_START "q" DEC_LINE_END, "|");
-        //varTable.renderWidth = drawWidth;
-
         helpTableWin.mTable.AddRow(SubSectionStyle, "--var--", "--value--");
 
         Table::Style keyStyle(ParamStyle);
@@ -2157,27 +2152,16 @@ namespace CLP
         if (h < 8)
             h = 8;
 
-        helpTextWin.Init(Rect(0, 1, w, h));
-        helpTextWin.Clear(kAttribHelpBG, true);
-        helpTextWin.SetEnableFrame();
-        helpTextWin.bAutoScrollbar = true;
+        helpTableWin.Init(Rect(0, 1, w, h));
+        helpTableWin.Clear(kAttribHelpBG, true);
+        helpTableWin.SetEnableFrame();
+        helpTableWin.bAutoScrollbar = true;
+        helpTableWin.positionCaption[ConsoleWin::Position::LT] = "Launch Arguments";
+        helpTableWin.mTable.AddRow(SectionStyle, " Launch Arguments ");
+        helpTableWin.mTable.AddRow(GetCommandLineA());
+        helpTableWin.mTopVisibleRow = 0;
+        helpTableWin.UpdateCaptions();
         bScreenInvalid = true;
-
-
-        helpTextWin.positionCaption[ConsoleWin::Position::LT] = "Launch Arguments";
-
-
-
-
-
-        Rect drawArea;
-        helpTextWin.GetInnerArea(drawArea);
-        int64_t drawWidth = drawArea.r - drawArea.l - 2;
-
-        helpTextWin.mTable.AddRow(SectionStyle, " Launch Arguments ");
-        helpTextWin.mTable.AddRow(GetCommandLineA());
-        helpTextWin.mTopVisibleRow = 0;
-        helpTextWin.UpdateCaptions();
     }
 
 
