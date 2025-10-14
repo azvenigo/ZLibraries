@@ -90,10 +90,11 @@ namespace CLP
         kSuccess = 0,
         kCanceled = 1,
         kShowHelp = 2,
-        kErrorShowEdit = 3,
-        kErrorAbort = 4,
+        kShowCommandLineHelp = 3,
+        kErrorShowEdit = 4,
+        kErrorAbort = 5,
 #ifdef ENABLE_COMMAND_HISTORY
-        kShowHistory = 5
+        kShowHistory = 6
 #endif
     };
 

@@ -623,19 +623,19 @@ public:
 
     enum eSide : uint8_t
     {
-        LEFT = 0,
-        TOP = 1,
-        RIGHT = 2,
-        BOTTOM = 3,
-        CENTER = 4
-    };
+        // sides
+        LEFT    = 0,
+        TOP     = 1,
+        RIGHT   = 2,
+        BOTTOM  = 3,
+        CENTER  = 4,
 
-/*    enum eSpacing : uint8_t
-    {
-        TIGHT = 0,      // minimum width for content
-        EVEN = 1,      // average width for available width
-        MAX = 2       // maximum width available
-    };*/
+        // corners
+        TL      = 5,
+        TR      = 6,
+        BL      = 7,
+        BR      = 8
+    };
 
     enum eWrapping : uint8_t
     {
@@ -679,6 +679,7 @@ public:
     static Style kCenteredStyle;
     static Style kDefaultStyle;
 
+    static void SetDecLineBorders(Table& t, const std::string _col = "");    // helpful function for setting up dec_line, defaults
 
     typedef std::optional<Style>        tOptionalStyle;
     typedef std::vector<tOptionalStyle> tOptionalStyleArray;
@@ -701,20 +702,33 @@ public:
     typedef std::vector<Cell> tCellArray;
 
 
-    std::string borders[5] =
+    std::string borders[9] =
     {
         "*",  // LEFT
         "*",  // TOP
         "*",  // RIGHT
         "*",  // BOTTOM
-        " "   // COLUMN SEPARATOR
+        " ",  // COLUMN SEPARATOR
+
+        "",   // TL
+        "",   // TR
+        "",   // BL
+        ""    // BR
     };
 
     typedef std::map<size_t, tOptionalStyleArray> tColCountToStyles;
     typedef std::map<size_t, std::vector<size_t>> tColCountToColWidth;
     typedef std::map<size_t, tOptionalStyle> tRowToStyleMap;
 
-    void SetBorders(const std::string& _left, const std::string& _top, const std::string& _right, const std::string& _bottom, const std::string& _center = " ");
+    void SetBorders(const std::string& _left, 
+                    const std::string& _top, 
+                    const std::string& _right, 
+                    const std::string& _bottom, 
+                    const std::string& _center = " ",
+                    const std::string& _TL = "",
+                    const std::string& _TR = "",
+                    const std::string& _BL = "",
+                    const std::string& _BR = "");
 
     // Style is prioritized as follows
     // 1) cell style

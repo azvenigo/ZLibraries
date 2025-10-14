@@ -322,18 +322,37 @@ Table::Style Table::kDefaultStyle = Table::Style(AnsiCol(0xFFFFFFFF), LEFT);
 
 const size_t kMinCellWidth = 3;
 
+void Table::SetDecLineBorders(Table& t, const std::string _col)
+{
+    t.SetBorders(   _col + string(DEC_LINE_START "\x78" DEC_LINE_END),      // LEFT
+                    "\x71",                                                 // TOP
+        _col + string(DEC_LINE_START "\x78" DEC_LINE_END COL_RESET),        // RIGHT
+        "\x71",                                                             // BOTTOM
+        _col + string(DEC_LINE_START "\x78" DEC_LINE_END COL_RESET),        // CENTER
+        _col + string(DEC_LINE_START "\x6c"),                               // TL
+        "\x6b" DEC_LINE_END COL_RESET,                                      // TR
+        _col + string(DEC_LINE_START "\x6d"),                               // BL
+        "\x6a" DEC_LINE_END COL_RESET);                                     // BR
+}
+
+
 
 Table::Table()
 {
 }
 
-void Table::SetBorders(const std::string& _L, const std::string& _T, const std::string& _R, const std::string& _B, const std::string& _C)
+void Table::SetBorders(const std::string& _L, const std::string& _T, const std::string& _R, const std::string& _B, const std::string& _C, const std::string& _TL, const std::string& _TR, const std::string& _BL, const std::string& _BR)
 {
     borders[LEFT] = _L;
     borders[TOP] = _T;
     borders[RIGHT] = _R;
     borders[BOTTOM] = _B;
     borders[CENTER] = _C;
+
+    borders[TL] = _TL;
+    borders[TR] = _TR;
+    borders[BL] = _BL;
+    borders[BR] = _BR;
 }
 
 bool Table::SetColStyles(tOptionalStyleArray styles)
@@ -1284,10 +1303,19 @@ ostream& operator <<(ostream& os, Table& tableOut)
     size_t tableMinWidth = tableOut.GetTableMinWidth();
     size_t renderWidth = tableOut.renderWidth;
 
-    // Draw top border
+    // Draw top border, (with corners if specified);
     if (!tableOut.borders[Table::TOP].empty())
     {
-        os << RepeatString(tableOut.borders[Table::TOP], renderWidth) << COL_RESET << "\n";
+        string tl = tableOut.borders[Table::TL];
+        if (tl.empty())
+            tl = tableOut.borders[Table::TOP];
+        string tr = tableOut.borders[Table::TR];
+        if (tr.empty())
+            tr = tableOut.borders[Table::TOP];
+
+        os << tl;
+        os << RepeatString(tableOut.borders[Table::TOP], renderWidth-2);
+        os << tr + COL_RESET "\n";
     }
 
     for (size_t row_num = 0; row_num < tableOut.mRows.size(); row_num++)
@@ -1295,87 +1323,19 @@ ostream& operator <<(ostream& os, Table& tableOut)
         tableOut.DrawRow(row_num, os);
     }
 
-    /*
-
-    // Now print each row based on column widths
-    size_t row_num = 0;
-    for (const auto& row : tableOut.mRows)
-    {
-        size_t cursor = 0;
-        size_t cols = row.size();
-
-        string separator = tableOut.borders[Table::CENTER];
-#ifdef _DEBUG
-        validateAnsiSequences(separator);
-        validateAnsiSequences(tableOut.borders[Table::LEFT]);
-        validateAnsiSequences(tableOut.borders[Table::TOP]);
-        validateAnsiSequences(tableOut.borders[Table::RIGHT]);
-        validateAnsiSequences(tableOut.borders[Table::BOTTOM]);
-        validateAnsiSequences(COL_RESET);
-
-#endif
-
-
-
-        // Draw left border
-        os << tableOut.borders[Table::LEFT] << COL_RESET;
-        cursor += VisLength(tableOut.borders[Table::LEFT]);
-
-        bool bDrawRightColumn = true;
-        for (size_t col_num = 0; col_num < cols; col_num++)
-        {
-            bool bLastColumnInRow = (col_num == cols - 1);
-
-            size_t colWidth = tableOut.colCountToColWidths[cols][col_num];
-            size_t nDrawWidth = colWidth;
-
-            size_t nEndDraw = renderWidth - VisLength(tableOut.borders[Table::RIGHT]);
-
-            Table::Style style = tableOut.GetStyle(col_num, row_num);
-
-            if (cursor < nEndDraw)   // adding this check in case previously drawn columns were wider than total available
-            {
-                if (bLastColumnInRow)
-                {
-                    // last column is drawn to end
-                    nDrawWidth = nEndDraw - cursor;
-                }
-                else
-                {
-                    nDrawWidth = colWidth;
-                }
-
-#ifdef _DEBUG
-                string sStyleCheck = tableOut.GetCell(col_num, row_num).StyledOut(nDrawWidth, style);
-                validateAnsiSequences(sStyleCheck);
-#endif
-
-                os << tableOut.GetCell(col_num, row_num).StyledOut(nDrawWidth, style);
-
-                cursor += nDrawWidth;
-
-                // Output a separator for all but last column
-                if (!bLastColumnInRow && cursor < nEndDraw)
-                {
-                    os << separator << COL_RESET;
-                    cursor += VisLength(separator);
-                }
-            }
-            bDrawRightColumn = cursor <= nEndDraw;
-        }
-
-        // Draw right border
-        if (bDrawRightColumn)
-            os << tableOut.borders[Table::RIGHT];
-        os << COL_RESET << "\n";
-
-        row_num++;
-    }*/
-
-    // bottom border
+    // Draw bottom border, (with corners if specified);
     if (!tableOut.borders[Table::BOTTOM].empty())
     {
-        os << RepeatString(tableOut.borders[Table::BOTTOM], renderWidth) << COL_RESET << "\n";
+        string bl = tableOut.borders[Table::BL];
+        if (bl.empty())
+            bl = tableOut.borders[Table::BOTTOM];
+        string br = tableOut.borders[Table::BR];
+        if (br.empty())
+            br = tableOut.borders[Table::BOTTOM];
+
+        os << bl;
+        os << RepeatString(tableOut.borders[Table::BOTTOM], renderWidth - 2);
+        os << br + COL_RESET "\n";
     }
 
     return os;

@@ -1661,7 +1661,7 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
         t.AddRow(ParamStyle, "[CTRL-Z]", "Undo");
 
         t.AddRow(ParamStyle, "[UP]", "Command Line History (When cursor at top)");
-
+        Table::SetDecLineBorders(t, COL_GRAY);
 
 
         helpTableWin.UpdateCaptions();

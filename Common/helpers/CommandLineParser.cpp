@@ -930,6 +930,13 @@ namespace CLP
         if (params.empty())
             return kShowHelp;
 
+        if (ContainsArgument("??", params))
+            return kShowCommandLineHelp;
+
+        if (ContainsArgument("?", params))
+            return kShowHelp;
+
+
         string sMode = GetFirstPositionalArgument(params); // mode
         if (bMultiMode)
         {
@@ -937,11 +944,6 @@ namespace CLP
             {
                 return kShowHelp;
             }
-        }
-
-        if (ContainsArgument("?", params))
-        {
-            return kShowHelp;
         }
 
 
@@ -1119,8 +1121,6 @@ namespace CLP
 
     void CommandLineParser::GetHelpTable(string sMode, Table& help)
     {
-        help.SetBorders("*", "*", "*", "*");
-
         bool bMultiMode = !mModeToCommandLineParser.empty();
         if (bMultiMode)
         {
@@ -1156,9 +1156,14 @@ namespace CLP
                 auto it = mModeToCommandLineParser.begin();
                 string sSampleMode = (*it).first;
                 help.AddRow("Help for any command add a '?'", "Example: " + AppStyle.color + appName + " " + sSampleMode + " ? " + ResetStyle.color);
+#ifdef ENABLE_CLE
                 help.AddRow("Command Editor add a '!'", "Example: " + AppStyle.color + appName + " " + sSampleMode + " ! " + ResetStyle.color);
+#endif
+#ifdef ENABLE_COMMAND_HISTORY
+                help.AddRow("To list Command History add \"h!\"", "Example: " + AppStyle.color + appName + " h!" + ResetStyle.color);
+#endif
+                help.AddRow("Additional Command Line Options '??'", "Example: " + AppStyle.color + appName + " ??" + ResetStyle.color);
             }
-
         }
         else
         {
@@ -1250,11 +1255,23 @@ namespace CLP
 
             return false;
         }
+        else if (response == kShowCommandLineHelp)
+        {
+            Table helpTable;
+            GetCLPHelp(helpTable);
+            GetKeyTable(helpTable);
+            helpTable.SetRenderWidth(ScreenW());
+            Table::SetDecLineBorders(helpTable);
+            cout << helpTable;
+
+            return false;
+        }
         else if (response == kShowHelp)
         {
             Table helpTable;
             GetHelpTable(GetFirstPositionalArgument(argArray), helpTable);
             helpTable.SetRenderWidth(ScreenW());
+            Table::SetDecLineBorders(helpTable);
             cout << helpTable;
 
             return false;
@@ -1447,9 +1464,13 @@ namespace CLP
     {
         outTable.AddRow(" ");
         outTable.AddRow(SectionStyle, " General Command Line Help ");
-        outTable.AddRow("The application takes a COMMAND followed by parameters.");
-        outTable.AddRow("Parameters can be positional (1st, 2nd, 3rd, etc.) or named key:value pairs.");
-        outTable.AddRow("Parameters can be required or optional");
+        outTable.AddRow("The application takes a COMMAND followed by PARAMETERS.");
+        outTable.AddRow("Parameters can be required or optional.");
+        outTable.AddRow("Parameters are either");
+        outTable.AddRow("", "POSITIONAL (1st, 2nd, 3rd, etc.)", "Example: " + ParamStyle.color + "App.exe P1 P2 P3");
+        outTable.AddRow("", "or NAMED key:value pairs", "Example: " + ParamStyle.color + "App.exe -key1:value1 -key2:value2");
+        outTable.AddRow("", "Named parameters can be anywhere on the commandline\nand in any order.", "Example: " + ParamStyle.color + "App.exe -key2:value2 P1 P2 -key1:value1 P3");
+
         outTable.AddRow(" ");
         outTable.AddRow("Run with no parameters to get a list of available commands.");
         outTable.AddRow(" ");

@@ -2083,7 +2083,18 @@ namespace CLP
 
 
         helpTableWin.mTable.Clear();
-        helpTableWin.mTable.SetBorders("|", DEC_LINE_START "q" DEC_LINE_END, "|", DEC_LINE_START "q" DEC_LINE_END, "|");
+//        helpTableWin.mTable.SetBorders("|", DEC_LINE_START "q" DEC_LINE_END, "|", DEC_LINE_START "q" DEC_LINE_END, "|");
+/*        helpTableWin.mTable.SetBorders(DEC_LINE_START "\x78" DEC_LINE_END,              // LEFT
+                                        "\x71",                                         // TOP
+                                        DEC_LINE_START "\x78" DEC_LINE_END,             // RIGHT
+                                        "\x71",                                         // BOTTOM
+                                        DEC_LINE_START "\x78" DEC_LINE_END,             // CENTER
+                                        DEC_LINE_START "\x6c",                          // TL
+                                        "\x6b" DEC_LINE_END,                            // TR
+                                        DEC_LINE_START "\x6d",                          // BL
+                                        "\x6a" DEC_LINE_END);                           // BR*/
+        Table::SetDecLineBorders(helpTableWin.mTable, COL_BLUE);
+                                       
         helpTableWin.mTable.AddRow(SubSectionStyle, "--var--", "--value--");
 
         Table::Style keyStyle(ParamStyle);
