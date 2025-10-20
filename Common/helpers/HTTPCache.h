@@ -13,7 +13,7 @@
 #include <mutex>
 #include <memory>
 
-const uint32_t kHTTPCacheLineSize = 4 * 1024;
+const uint32_t kHTTPCacheLineSize = 64 * 1024;
 const uint32_t kMaxCacheLines = 64;
 typedef std::pair<int64_t, int64_t> tIntPair;
 typedef std::chrono::time_point<std::chrono::system_clock> tSysClock;

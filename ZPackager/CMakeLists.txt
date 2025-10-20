@@ -23,7 +23,7 @@ list(APPEND COMMON_FILES
 ../Common/helpers/Crc32Fast.h 
 ../Common/helpers/Crc32Fast.cpp
 ../Common/helpers/ZZFileAPI.h 
-../Common/helpers/ZZFileAPI.cpp 
+../Common/helpers/ZZFile_PC.cpp 
 ../Common/helpers/Registry.h 
 ../Common/helpers/Registry.cpp
 )

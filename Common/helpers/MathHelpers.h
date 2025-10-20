@@ -28,4 +28,18 @@ namespace MH
         return minRest;
     }
 
+
+    template<typename T>
+    T aligned_floor(T offset, T alignment)
+    {
+        return (offset / alignment) * alignment;
+    }
+
+    template<typename T>
+    T  aligned_next(T offset, T alignment)
+    {
+        return ((offset + alignment - 1) / alignment) * alignment;
+    }
+
+
 };

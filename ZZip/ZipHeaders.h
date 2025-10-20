@@ -100,8 +100,8 @@ public:
 
     uint64_t                Size(); // in bytes
 
-    bool                    Read(cZZFile& file, uint64_t nOffsetToLocalFileHeader, uint32_t& nNumBytesProcessed);
-    bool                    Write(cZZFile& file, uint64_t nOffsetToLocalFileHeader);
+    bool                    Read(ZFile::tZFilePtr file, uint64_t nOffsetToLocalFileHeader, uint32_t& nNumBytesProcessed);
+    bool                    Write(ZFile::tZFilePtr file, uint64_t nOffsetToLocalFileHeader);
 
     // offsets
     uint32_t                mLocalFileTag;                  // 0
@@ -139,7 +139,7 @@ public:
     bool                ParseRaw(uint8_t* pBuffer, uint32_t& nNumBytesProcessed);     // Returns the number of bytes parsed for everything below
     static std::string  FieldNames(eToStringFormat format = kTabs);                   // returns tab delimited field names that correspond with the ones returned from ToString
     std::string         ToString(eToStringFormat format = kTabs);
-    bool                Write(cZZFile& file); // assumes must be written at end of file
+    bool                Write(ZFile::tZFilePtr file); // assumes must be written at end of file
 
     uint64_t            Size() { return (uint64_t) kStaticDataSize + (uint64_t) mNumBytesOfComment; }
 
@@ -178,7 +178,7 @@ public:
     bool                ParseRaw(uint8_t* pBuffer, uint32_t& nNumBytesProcessed);     // Returns the number of bytes parsed for everything below
     static std::string  FieldNames(eToStringFormat format = kTabs);                   // returns tab delimited field names that correspond with the ones returned from ToString
     std::string         ToString(eToStringFormat format = kTabs);
-    bool                Write(cZZFile& file);   // assumes must be written at end of file
+    bool                Write(ZFile::tZFilePtr file);   // assumes must be written at end of file
 
     uint64_t            Size() { return (uint64_t) kStaticDataSize + (uint64_t) mnDerivedSizeOfExtensibleDataSector; }
 
@@ -215,7 +215,7 @@ public:
     static std::string  FieldNames(eToStringFormat format = kTabs);                   // returns tab delimited field names that correspond with the ones returned from ToString
     std::string         ToString(eToStringFormat format = kTabs);
 
-    bool                Write(cZZFile& file);   // assumes must be written at end of file
+    bool                Write(ZFile::tZFilePtr file);   // assumes must be written at end of file
     uint64_t            Size() { return kStaticDataSize; }
 
     // offsets
@@ -261,7 +261,7 @@ public:
     static std::string      FieldNames(eToStringFormat format = kTabs);                   // returns tab delimited field names that correspond with the ones returned from ToString
     std::string             ToString(eToStringFormat format = kTabs);
 
-    bool                    Write(cZZFile& file);   // assumes must be written at end of file
+    bool                    Write(ZFile::tZFilePtr file);   // assumes must be written at end of file
 
     uint64_t                Size();                         // in bytes
 
@@ -297,7 +297,7 @@ public:
     cZipCD();
     ~cZipCD();
 
-    bool                    Init(cZZFile& httpFile);
+    bool                    Init(ZFile::tZFilePtr httpFile);
     bool                    GetFileHeader(const std::string& sFilename, cCDFileHeader& fileHeader);        // returns a header (if there is one) for the file in the zip package
     uint64_t                GetNumTotalEntries() { return mCDFileHeaderList.size(); }
     uint64_t                GetNumTotalFiles();
@@ -305,7 +305,7 @@ public:
     uint64_t                GetTotalCompressedBytes();
     uint64_t                GetTotalUncompressedBytes();
 
-    bool                    Write(cZZFile& file);   // assumes must be written at end of file
+    bool                    Write(ZFile::tZFilePtr file);   // assumes must be written at end of file
     uint64_t                Size();     // size of CD in bytes
 
     void                    DumpCD(std::ostream& out, const std::string& sPattern, bool bVerbose, eToStringFormat format);

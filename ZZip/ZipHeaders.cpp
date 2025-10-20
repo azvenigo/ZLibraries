@@ -19,6 +19,7 @@
 #include "helpers/LoggingHelpers.h"
 
 using namespace std;
+using namespace ZFile;
 
 
 string cExtensibleFieldEntry::HeaderToString()
@@ -170,7 +171,7 @@ string cLocalFileHeader::ToString(eToStringFormat format)
         sExtendedFields);
 }
 
-bool cLocalFileHeader::Read(cZZFile& file, uint64_t nOffsetToLocalFileHeader, uint32_t& nNumBytesProcessed)
+bool cLocalFileHeader::Read(tZFilePtr file, uint64_t nOffsetToLocalFileHeader, uint32_t& nNumBytesProcessed)
 {
     // First we calculate how much data we need to read the LocalFileHeader
     // The LocalFileHeader is a static size of 30 bytes + FileNameLength + ExtraFieldLength which are stored at offset 26 and 28 respectively.
@@ -181,14 +182,14 @@ bool cLocalFileHeader::Read(cZZFile& file, uint64_t nOffsetToLocalFileHeader, ui
 
     int64_t nNumRead;
 
-    file.Read((int64_t)nOffsetToLocalFileHeader + kOffsetToFilenameLength, sizeof(uint16_t), (uint8_t*)&nFilenameLength, nNumRead);
-    file.Read((int64_t)nOffsetToLocalFileHeader + kOffsetToFilenameLength + sizeof(uint16_t), sizeof(uint16_t), (uint8_t*)&nExtraFieldLength, nNumRead);
+    file->Read((int64_t)nOffsetToLocalFileHeader + kOffsetToFilenameLength, sizeof(uint16_t), (uint8_t*)&nFilenameLength, nNumRead);
+    file->Read((int64_t)nOffsetToLocalFileHeader + kOffsetToFilenameLength + sizeof(uint16_t), sizeof(uint16_t), (uint8_t*)&nExtraFieldLength, nNumRead);
 
     uint32_t nLocalFileHeaderRawSize = kStaticDataSize + nFilenameLength + nExtraFieldLength;
 
     uint8_t* pBuffer = new uint8_t[nLocalFileHeaderRawSize];
 
-    if (!file.Read(nOffsetToLocalFileHeader, nLocalFileHeaderRawSize, pBuffer, nNumRead))
+    if (!file->Read(nOffsetToLocalFileHeader, nLocalFileHeaderRawSize, pBuffer, nNumRead))
     {
         delete[] pBuffer;
         zout << "Couldn't read LocalFileHeader\n";
@@ -202,35 +203,35 @@ bool cLocalFileHeader::Read(cZZFile& file, uint64_t nOffsetToLocalFileHeader, ui
 
 
 
-bool cLocalFileHeader::Write(cZZFile& file, uint64_t nOffsetToLocalFileHeader)
+bool cLocalFileHeader::Write(tZFilePtr file, uint64_t nOffsetToLocalFileHeader)
 {
     bool bSuccess = true;
     int64_t nWritten = 0;
-    bSuccess &= file.Write(nOffsetToLocalFileHeader, sizeof(uint32_t), (uint8_t*)&mLocalFileTag, nWritten);
-    bSuccess &= file.Write(cZZFile::ZZFILE_NO_SEEK, sizeof(uint16_t), (uint8_t*)&mMinVersionToExtract, nWritten);
-    bSuccess &= file.Write(cZZFile::ZZFILE_NO_SEEK, sizeof(uint16_t), (uint8_t*)&mGeneralPurposeBitFlag, nWritten);
-    bSuccess &= file.Write(cZZFile::ZZFILE_NO_SEEK, sizeof(uint16_t), (uint8_t*)&mCompressionMethod, nWritten);
-    bSuccess &= file.Write(cZZFile::ZZFILE_NO_SEEK, sizeof(uint16_t), (uint8_t*)&mLastModificationTime, nWritten);
-    bSuccess &= file.Write(cZZFile::ZZFILE_NO_SEEK, sizeof(uint16_t), (uint8_t*)&mLastModificationDate, nWritten);
-    bSuccess &= file.Write(cZZFile::ZZFILE_NO_SEEK, sizeof(uint32_t), (uint8_t*)&mCRC32, nWritten);
+    bSuccess &= file->Write(nOffsetToLocalFileHeader, sizeof(uint32_t), (uint8_t*)&mLocalFileTag, nWritten);
+    bSuccess &= file->Write((uint8_t*)&mMinVersionToExtract, sizeof(uint16_t)) == sizeof(uint16_t);
+    bSuccess &= file->Write((uint8_t*)&mGeneralPurposeBitFlag, sizeof(uint16_t)) == sizeof(uint16_t);
+    bSuccess &= file->Write((uint8_t*)&mCompressionMethod, sizeof(uint16_t)) == sizeof(uint16_t);
+    bSuccess &= file->Write((uint8_t*)&mLastModificationTime, sizeof(uint16_t)) == sizeof(uint16_t);
+    bSuccess &= file->Write((uint8_t*)&mLastModificationDate, sizeof(uint16_t)) == sizeof(uint16_t);
+    bSuccess &= file->Write((uint8_t*)&mCRC32, sizeof(uint32_t)) == sizeof(uint32_t);
 
     uint16_t nExtraFieldLengthToWrite = kExtendedFieldLength;
     uint16_t nExtendedFieldLengthToWrite = kExtendedFieldLength - sizeof(uint16_t) - sizeof(uint16_t);
 
     uint32_t nNegOne = (uint32_t)-1;
-    bSuccess &= file.Write(cZZFile::ZZFILE_NO_SEEK, sizeof(uint32_t), (uint8_t*)&nNegOne, nWritten);                              // compressed size
-    bSuccess &= file.Write(cZZFile::ZZFILE_NO_SEEK, sizeof(uint32_t), (uint8_t*)&nNegOne, nWritten);                              // uncompressed size
-    bSuccess &= file.Write(cZZFile::ZZFILE_NO_SEEK, sizeof(uint16_t), (uint8_t*)&mFilenameLength, nWritten);
-    bSuccess &= file.Write(cZZFile::ZZFILE_NO_SEEK, sizeof(uint16_t), (uint8_t*)&nExtraFieldLengthToWrite, nWritten);
+    bSuccess &= file->Write((uint8_t*)&nNegOne, sizeof(uint32_t)) == sizeof(uint32_t);                              // compressed size
+    bSuccess &= file->Write((uint8_t*)&nNegOne, sizeof(uint32_t)) == sizeof(uint32_t);                              // uncompressed size
+    bSuccess &= file->Write((uint8_t*)&mFilenameLength, sizeof(uint16_t)) == sizeof(uint16_t);
+    bSuccess &= file->Write((uint8_t*)&nExtraFieldLengthToWrite, sizeof(uint16_t)) == sizeof(uint16_t);
 
     // write the filename
-    bSuccess &= file.Write(cZZFile::ZZFILE_NO_SEEK, mFilenameLength, (uint8_t*)mFilename.c_str(), nWritten);
+    bSuccess &= file->Write((uint8_t*)mFilename.c_str(), mFilenameLength) == mFilenameLength;
 
     // now write the extra field
-    bSuccess &= file.Write(cZZFile::ZZFILE_NO_SEEK, sizeof(uint16_t), (uint8_t*)&kZipExtraFieldZip64ExtendedInfoTag, nWritten);
-    bSuccess &= file.Write(cZZFile::ZZFILE_NO_SEEK, sizeof(uint16_t), (uint8_t*)&nExtendedFieldLengthToWrite, nWritten);         // extra field just includes this extended field minus tag and size of data
-    bSuccess &= file.Write(cZZFile::ZZFILE_NO_SEEK, sizeof(uint64_t), (uint8_t*)&mUncompressedSize, nWritten);
-    bSuccess &= file.Write(cZZFile::ZZFILE_NO_SEEK, sizeof(uint64_t), (uint8_t*)&mCompressedSize, nWritten);
+    bSuccess &= file->Write((uint8_t*)&kZipExtraFieldZip64ExtendedInfoTag, sizeof(uint16_t)) == sizeof(uint16_t);
+    bSuccess &= file->Write((uint8_t*)&nExtendedFieldLengthToWrite, sizeof(uint16_t)) == sizeof(uint16_t);         // extra field just includes this extended field minus tag and size of data
+    bSuccess &= file->Write((uint8_t*)&mUncompressedSize, sizeof(uint64_t)) == sizeof(uint64_t);
+    bSuccess &= file->Write((uint8_t*)&mCompressedSize, sizeof(uint64_t)) == sizeof(uint64_t);
 
     if (!bSuccess)
     {
@@ -268,27 +269,19 @@ bool cEndOfCDRecord::ParseRaw(uint8_t* pBuffer, uint32_t& nNumBytesProcessed)
     return true;
 }
 
-bool cEndOfCDRecord::Write(cZZFile& file)
+bool cEndOfCDRecord::Write(tZFilePtr file)
 {
-    bool bSuccess = true;
     int64_t nWritten = 0;
-    bSuccess &= file.Write(cZZFile::ZZFILE_SEEK_END, sizeof(uint32_t), (uint8_t*)&mEndOfCDRecTag, nWritten);
-    bSuccess &= file.Write(cZZFile::ZZFILE_NO_SEEK, sizeof(uint16_t), (uint8_t*)&mDiskNum, nWritten);
-    bSuccess &= file.Write(cZZFile::ZZFILE_NO_SEEK, sizeof(uint16_t), (uint8_t*)&mDiskNumOfCD, nWritten);
-    bSuccess &= file.Write(cZZFile::ZZFILE_NO_SEEK, sizeof(uint16_t), (uint8_t*)&mNumCDRecordsThisDisk, nWritten);
-    bSuccess &= file.Write(cZZFile::ZZFILE_NO_SEEK, sizeof(uint16_t), (uint8_t*)&mNumTotalRecords, nWritten);
-    bSuccess &= file.Write(cZZFile::ZZFILE_NO_SEEK, sizeof(uint32_t), (uint8_t*)&mNumBytesOfCD, nWritten);
-    bSuccess &= file.Write(cZZFile::ZZFILE_NO_SEEK, sizeof(uint32_t), (uint8_t*)&mCDStartOffset, nWritten);
-    bSuccess &= file.Write(cZZFile::ZZFILE_NO_SEEK, sizeof(uint16_t), (uint8_t*)&mNumBytesOfComment, nWritten);
-
-
-    bSuccess &= file.Write(cZZFile::ZZFILE_NO_SEEK, (uint32_t) mComment.length(), (uint8_t*)mComment.c_str(), nWritten);
-
-    if (!bSuccess)
-    {
-        zout << "cEndOfCDRecord::Write - Failure to write cEndOfCDRecord!\n";
-        return false;
-    }
+    file->SeekWrite(file->GetFileSize());
+    file->Write((uint8_t*)&mEndOfCDRecTag, sizeof(uint32_t));
+    file->Write((uint8_t*)&mDiskNum, sizeof(uint16_t));
+    file->Write((uint8_t*)&mDiskNumOfCD, sizeof(uint16_t));
+    file->Write((uint8_t*)&mNumCDRecordsThisDisk, sizeof(uint16_t));
+    file->Write((uint8_t*)&mNumTotalRecords, sizeof(uint16_t));
+    file->Write((uint8_t*)&mNumBytesOfCD, sizeof(uint32_t));
+    file->Write((uint8_t*)&mCDStartOffset, sizeof(uint32_t));
+    file->Write((uint8_t*)&mNumBytesOfComment, sizeof(uint16_t));
+    file->Write((uint8_t*)mComment.c_str(), (uint32_t)mComment.length());
 
     return true;
 }
@@ -355,31 +348,24 @@ bool cZip64EndOfCDRecord::ParseRaw(uint8_t* pBuffer, uint32_t& nNumBytesProcesse
     return true;
 }
 
-bool cZip64EndOfCDRecord::Write(cZZFile& file)
+bool cZip64EndOfCDRecord::Write(tZFilePtr file)
 {
-    bool bSuccess = true;
     int64_t nWritten = 0;
-    bSuccess &= file.Write(cZZFile::ZZFILE_SEEK_END, sizeof(uint32_t), (uint8_t*)&mZip64EndOfCDRecTag, nWritten);
-    bSuccess &= file.Write(cZZFile::ZZFILE_NO_SEEK, sizeof(uint64_t), (uint8_t*)&mSizeOfZiP64EndOfCDRecord, nWritten);
-    bSuccess &= file.Write(cZZFile::ZZFILE_NO_SEEK, sizeof(uint16_t), (uint8_t*)&mVersionMadeBy, nWritten);
-    bSuccess &= file.Write(cZZFile::ZZFILE_NO_SEEK, sizeof(uint16_t), (uint8_t*)&mMinVersionToExtract, nWritten);
-    bSuccess &= file.Write(cZZFile::ZZFILE_NO_SEEK, sizeof(uint32_t), (uint8_t*)&mDiskNum, nWritten);
-    bSuccess &= file.Write(cZZFile::ZZFILE_NO_SEEK, sizeof(uint32_t), (uint8_t*)&mDiskNumOfCD, nWritten);
-    bSuccess &= file.Write(cZZFile::ZZFILE_NO_SEEK, sizeof(uint64_t), (uint8_t*)&mNumCDRecordsThisDisk, nWritten);
-    bSuccess &= file.Write(cZZFile::ZZFILE_NO_SEEK, sizeof(uint64_t), (uint8_t*)&mNumTotalRecords, nWritten);
-    bSuccess &= file.Write(cZZFile::ZZFILE_NO_SEEK, sizeof(uint64_t), (uint8_t*)&mNumBytesOfCD, nWritten);
-    bSuccess &= file.Write(cZZFile::ZZFILE_NO_SEEK, sizeof(uint64_t), (uint8_t*)&mCDStartOffset, nWritten);
+    file->SeekWrite(file->GetFileSize());
+    file->Write((uint8_t*)&mZip64EndOfCDRecTag, sizeof(uint32_t));
+    file->Write((uint8_t*)&mSizeOfZiP64EndOfCDRecord, sizeof(uint64_t));
+    file->Write((uint8_t*)&mVersionMadeBy, sizeof(uint16_t));
+    file->Write((uint8_t*)&mMinVersionToExtract, sizeof(uint16_t));
+    file->Write((uint8_t*)&mDiskNum, sizeof(uint32_t));
+    file->Write((uint8_t*)&mDiskNumOfCD, sizeof(uint32_t));
+    file->Write((uint8_t*)&mNumCDRecordsThisDisk, sizeof(uint64_t));
+    file->Write((uint8_t*)&mNumTotalRecords, sizeof(uint64_t));
+    file->Write((uint8_t*)&mNumBytesOfCD, sizeof(uint64_t));
+    file->Write((uint8_t*)&mCDStartOffset, sizeof(uint64_t));
 
     if (mpZip64ExtensibleDataSector)
     {
-        bSuccess &= file.Write(cZZFile::ZZFILE_NO_SEEK, mnDerivedSizeOfExtensibleDataSector, (uint8_t*)mpZip64ExtensibleDataSector, nWritten);
-    }
-
-
-    if (!bSuccess)
-    {
-        zout << "cCDFileHeader::Write - Failure to write CDFileHeader!\n";
-        return false;
+        file->Write((uint8_t*)mpZip64ExtensibleDataSector, mnDerivedSizeOfExtensibleDataSector);
     }
 
     return true;
@@ -425,20 +411,12 @@ bool cZip64EndOfCDLocator::ParseRaw(uint8_t* pBuffer, uint32_t& nNumBytesProcess
     return true;
 }
 
-bool cZip64EndOfCDLocator::Write(cZZFile& file)
+bool cZip64EndOfCDLocator::Write(tZFilePtr file)
 {
-    bool bSuccess = true;
-    int64_t nWritten = 0;
-    bSuccess &= file.Write(cZZFile::ZZFILE_SEEK_END, sizeof(uint32_t), (uint8_t*)&mZip64EndOfCDLocatorTag, nWritten);
-    bSuccess &= file.Write(cZZFile::ZZFILE_NO_SEEK, sizeof(uint32_t), (uint8_t*)&mDiskNumOfCD, nWritten);
-    bSuccess &= file.Write(cZZFile::ZZFILE_NO_SEEK, sizeof(uint64_t), (uint8_t*)&mZip64EndofCDOffset, nWritten);
-    bSuccess &= file.Write(cZZFile::ZZFILE_NO_SEEK, sizeof(uint32_t), (uint8_t*)&mNumTotalDisks, nWritten);
-
-    if (!bSuccess)
-    {
-        zout << "cZip64EndOfCDLocator::Write - Failure to write cZip64EndOfCDLocator!\n";
-        return false;
-    }
+    file->Write((uint8_t*)&mZip64EndOfCDLocatorTag, sizeof(uint32_t));
+    file->Write((uint8_t*)&mDiskNumOfCD, sizeof(uint32_t));
+    file->Write((uint8_t*)&mZip64EndofCDOffset, sizeof(uint64_t));
+    file->Write((uint8_t*)&mNumTotalDisks, sizeof(uint32_t));
 
     return true;
 }
@@ -534,49 +512,43 @@ bool cCDFileHeader::ParseRaw(uint8_t* pBuffer, uint32_t& nNumBytesProcessed)
     return true;
 }
 
-bool cCDFileHeader::Write(cZZFile& file)
+bool cCDFileHeader::Write(tZFilePtr file)
 {
-    bool bSuccess = true;
     int64_t nWritten = 0;
-    bSuccess &= file.Write(cZZFile::ZZFILE_SEEK_END, sizeof(uint32_t), (uint8_t*)&mCDTag, nWritten);
-    bSuccess &= file.Write(cZZFile::ZZFILE_NO_SEEK, sizeof(uint16_t), (uint8_t*)&mVersionMadeBy, nWritten);
-    bSuccess &= file.Write(cZZFile::ZZFILE_NO_SEEK, sizeof(uint16_t), (uint8_t*)&mMinVersionToExtract, nWritten);
-    bSuccess &= file.Write(cZZFile::ZZFILE_NO_SEEK, sizeof(uint16_t), (uint8_t*)&mGeneralPurposeBitFlag, nWritten);
-    bSuccess &= file.Write(cZZFile::ZZFILE_NO_SEEK, sizeof(uint16_t), (uint8_t*)&mCompressionMethod, nWritten);
-    bSuccess &= file.Write(cZZFile::ZZFILE_NO_SEEK, sizeof(uint16_t), (uint8_t*)&mLastModificationTime, nWritten);
-    bSuccess &= file.Write(cZZFile::ZZFILE_NO_SEEK, sizeof(uint16_t), (uint8_t*)&mLastModificationDate, nWritten);
-    bSuccess &= file.Write(cZZFile::ZZFILE_NO_SEEK, sizeof(uint32_t), (uint8_t*)&mCRC32, nWritten);
+    file->SeekWrite(file->GetFileSize());
+    file->Write((uint8_t*)&mCDTag, sizeof(uint32_t));
+    file->Write((uint8_t*)&mVersionMadeBy, sizeof(uint16_t));
+    file->Write((uint8_t*)&mMinVersionToExtract, sizeof(uint16_t));
+    file->Write((uint8_t*)&mGeneralPurposeBitFlag, sizeof(uint16_t));
+    file->Write((uint8_t*)&mCompressionMethod, sizeof(uint16_t));
+    file->Write((uint8_t*)&mLastModificationTime, sizeof(uint16_t));
+    file->Write((uint8_t*)&mLastModificationDate, sizeof(uint16_t));
+    file->Write((uint8_t*)&mCRC32, sizeof(uint32_t));
 
     uint32_t nNegOne = (uint32_t)-1;
-    bSuccess &= file.Write(cZZFile::ZZFILE_NO_SEEK, sizeof(uint32_t), (uint8_t*)&nNegOne, nWritten);                             // compressed size
-    bSuccess &= file.Write(cZZFile::ZZFILE_NO_SEEK, sizeof(uint32_t), (uint8_t*)&nNegOne, nWritten);                             // uncompressed size
-    bSuccess &= file.Write(cZZFile::ZZFILE_NO_SEEK, sizeof(uint16_t), (uint8_t*)&mFilenameLength, nWritten);
-    bSuccess &= file.Write(cZZFile::ZZFILE_NO_SEEK, sizeof(uint16_t), (uint8_t*)&kExtraFieldLength, nWritten);
-    bSuccess &= file.Write(cZZFile::ZZFILE_NO_SEEK, sizeof(uint16_t), (uint8_t*)&mFileCommentLength, nWritten);
+    file->Write((uint8_t*)&nNegOne, sizeof(uint32_t));                             // compressed size
+    file->Write((uint8_t*)&nNegOne, sizeof(uint32_t));                             // uncompressed size
+    file->Write((uint8_t*)&mFilenameLength, sizeof(uint16_t));
+    file->Write((uint8_t*)&kExtraFieldLength, sizeof(uint16_t));
+    file->Write((uint8_t*)&mFileCommentLength, sizeof(uint16_t));
 
     uint16_t n16NegOne = 0xffff;
-    bSuccess &= file.Write(cZZFile::ZZFILE_NO_SEEK, sizeof(uint16_t), (uint8_t*)&n16NegOne, nWritten);
-    bSuccess &= file.Write(cZZFile::ZZFILE_NO_SEEK, sizeof(uint16_t), (uint8_t*)&mInternalFileAttributes, nWritten);
-    bSuccess &= file.Write(cZZFile::ZZFILE_NO_SEEK, sizeof(uint32_t), (uint8_t*)&mExternalFileAttributes, nWritten);
-    bSuccess &= file.Write(cZZFile::ZZFILE_NO_SEEK, sizeof(uint32_t), (uint8_t*)&nNegOne, nWritten);                             // local file header offset
-    bSuccess &= file.Write(cZZFile::ZZFILE_NO_SEEK, mFilenameLength, (uint8_t*)mFileName.c_str(), nWritten);
+    file->Write((uint8_t*)&n16NegOne, sizeof(uint16_t));
+    file->Write((uint8_t*)&mInternalFileAttributes, sizeof(uint16_t));
+    file->Write((uint8_t*)&mExternalFileAttributes, sizeof(uint32_t));
+    file->Write((uint8_t*)&nNegOne, sizeof(uint32_t));                             // local file header offset
+    file->Write((uint8_t*)mFileName.c_str(), mFilenameLength);
 
     // now write the extra field
-    bSuccess &= file.Write(cZZFile::ZZFILE_NO_SEEK, sizeof(uint16_t), (uint8_t*)&kZipExtraFieldZip64ExtendedInfoTag, nWritten);
-    bSuccess &= file.Write(cZZFile::ZZFILE_NO_SEEK, sizeof(uint16_t), (uint8_t*)&kExtendedFieldLength, nWritten);
-    bSuccess &= file.Write(cZZFile::ZZFILE_NO_SEEK, sizeof(uint64_t), (uint8_t*)&mUncompressedSize, nWritten);
-    bSuccess &= file.Write(cZZFile::ZZFILE_NO_SEEK, sizeof(uint64_t), (uint8_t*)&mCompressedSize, nWritten);
-    bSuccess &= file.Write(cZZFile::ZZFILE_NO_SEEK, sizeof(uint64_t), (uint8_t*)&mLocalFileHeaderOffset, nWritten);
+    file->Write((uint8_t*)&kZipExtraFieldZip64ExtendedInfoTag, sizeof(uint16_t));
+    file->Write((uint8_t*)&kExtendedFieldLength, sizeof(uint16_t));
+    file->Write((uint8_t*)&mUncompressedSize, sizeof(uint64_t));
+    file->Write((uint8_t*)&mCompressedSize, sizeof(uint64_t));
+    file->Write((uint8_t*)&mLocalFileHeaderOffset, sizeof(uint64_t));
     uint32_t nDiskNum = mDiskNumFileStart;
-    bSuccess &= file.Write(cZZFile::ZZFILE_NO_SEEK, sizeof(uint32_t), (uint8_t*)&nDiskNum, nWritten);
+    file->Write((uint8_t*)&nDiskNum, sizeof(uint32_t));
 
-    bSuccess &= file.Write(cZZFile::ZZFILE_NO_SEEK, mFileCommentLength, (uint8_t*)mFileComment.c_str(), nWritten);
-
-    if (!bSuccess)
-    {
-        zout << "cCDFileHeader::Write - Failure to write CDFileHeader!\n";
-        return false;
-    }
+    file->Write((uint8_t*)mFileComment.c_str(), mFileCommentLength);
 
     return true;
 }
@@ -631,12 +603,12 @@ cZipCD::~cZipCD()
 {
 }
 
-bool cZipCD::Init(cZZFile& zzFile)
+bool cZipCD::Init(tZFilePtr file)
 {
     // Find the end of CD Record
     const int32_t kMaxSizeOfCDRec = 1024;
 
-    std::streampos nZipFileSize = zzFile.GetFileSize();
+    std::streampos nZipFileSize = file->GetFileSize();
 
     int32_t nReadSizeofCDRec = kMaxSizeOfCDRec;
     if (nReadSizeofCDRec > nZipFileSize)
@@ -648,7 +620,7 @@ bool cZipCD::Init(cZZFile& zzFile)
 
                                                        // fill the buffer with the end of the zip file
     int64_t nBytesRead = 0;
-    if (!zzFile.Read(nSeekPosition, nReadSizeofCDRec, pBuf, nBytesRead))
+    if (!file->Read(nSeekPosition, nReadSizeofCDRec, pBuf, nBytesRead))
     {
         delete[] pBuf;
         zout << "Failed to read " << nReadSizeofCDRec << " bytes for End of CD Record.\n";
@@ -735,7 +707,7 @@ bool cZipCD::Init(cZZFile& zzFile)
 
     pBuf = new uint8_t[(uint32_t)nCDBytes];
     // fill the buffer with the raw CD data
-    if (!zzFile.Read(nOffsetOfCD, (uint32_t)nCDBytes, pBuf, nBytesRead))
+    if (!file->Read(nOffsetOfCD, (uint32_t)nCDBytes, pBuf, nBytesRead))
     {
         delete[] pBuf;
         zout << "Failed to read " << nCDBytes << " bytes for the CD.\n";
@@ -943,7 +915,7 @@ bool cZipCD::GetFileHeader(const string& sFilename, cCDFileHeader& fileHeader)
     return false;
 }
 
-bool cZipCD::Write(cZZFile& file)
+bool cZipCD::Write(tZFilePtr file)
 {
     bool bSuccess = true;
 
@@ -957,7 +929,7 @@ bool cZipCD::Write(cZZFile& file)
     // Write Zip64 End of CD Record
     // but first record the offset to it
     //mZip64EndOfCDLocator.mZip64EndofCDOffset = file.tellg();
-    mZip64EndOfCDLocator.mZip64EndofCDOffset = file.GetFileSize();
+    mZip64EndOfCDLocator.mZip64EndofCDOffset = file->GetFileSize();
 
     bSuccess &= mZip64EndOfCDRecord.Write(file);
 

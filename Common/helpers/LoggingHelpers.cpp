@@ -158,7 +158,7 @@ namespace LOG
     {
         text = _text;
 
-        if (_time == -1)
+        if (_time == (uint64_t)-1)
             time = std::chrono::system_clock::now().time_since_epoch() / std::chrono::microseconds(1);
         else
             time = _time;
@@ -322,8 +322,10 @@ Table::Style Table::kDefaultStyle = Table::Style(AnsiCol(0xFFFFFFFF), LEFT);
 
 const size_t kMinCellWidth = 3;
 
-void Table::SetDecLineBorders(Table& t, const std::string _col)
+void Table::SetDecLineBorders([[maybe_unused]] Table& t, [[maybe_unused]] const std::string _col)
 {
+#ifdef ENABLE_ANSI_OUT
+    // This requires ansi out....otherwise just use defaults
     t.SetBorders(   _col + string(DEC_LINE_START "\x78" DEC_LINE_END),      // LEFT
                     "\x71",                                                 // TOP
         _col + string(DEC_LINE_START "\x78" DEC_LINE_END COL_RESET),        // RIGHT
@@ -333,6 +335,8 @@ void Table::SetDecLineBorders(Table& t, const std::string _col)
         "\x6b" DEC_LINE_END COL_RESET,                                      // TR
         _col + string(DEC_LINE_START "\x6d"),                               // BL
         "\x6a" DEC_LINE_END COL_RESET);                                     // BR
+#else
+#endif
 }
 
 
@@ -526,8 +530,6 @@ size_t Table::GetRowCount() const
 
 size_t Table::Cell::MinWidth() const
 {
-    size_t minw = kMinCellWidth;
-
     if (style.has_value())
     {
         Style st = style.value();
@@ -879,22 +881,27 @@ tStringArray Table::Cell::GetLines(size_t width) const
 
     if (use_st.value().wrapping == CHAR_WRAP)
     {
-        size_t start = 0;
-        size_t end = 0;
+        size_t i = 0;
         string sLine;
         do
         {
-            if (sLine.length() == width || s[end] == '\n')
+            if (s[i] == '\n')
             {
                 rows.push_back(sLine);
                 sLine.clear();
-                start = end + 1;
+                i++;
+            }
+            else if (sLine.length() == width)
+            {
+                rows.push_back(sLine);
+                sLine.clear();
             }
             else
-                sLine += s[end];
-
-            end++;
-        } while (end < s.length());
+            {
+                sLine += s[i];
+                i++;
+            }
+        } while (i < s.length());
 
         if (!sLine.empty())
             rows.push_back(sLine);
@@ -1003,7 +1010,6 @@ Table::tColCountToColWidth Table::GetMinColWidths()
 {
     tColCountToColWidth widths;
 
-    size_t row_num = 0;
     for (const auto& row : mRows)
     {
         size_t cols = row.size();
@@ -1017,7 +1023,6 @@ Table::tColCountToColWidth Table::GetMinColWidths()
 
             col_num++;
         }
-        row_num++;
     }
 
     return widths;
@@ -1066,8 +1071,6 @@ bool Table::AutosizeColumns()
             size_t colWidthAvailable = totalWidthAvailable - (cols - 1) * VisLength(borders[CENTER]);    // subtract space needed for separators
             int64_t remainingWidth = (int64_t)colWidthAvailable;
 
-            size_t avgColWidthForCount = remainingWidth / cols;
-
             for (size_t col_num = 0; col_num < cols; col_num++)
             {
                 tOptionalStyle optStyle = GetColStyle(cols, col_num);
@@ -1091,26 +1094,6 @@ bool Table::AutosizeColumns()
             assert(remainingWidth >= 0);
             if (remainingWidth > 0)
                 colwidths.second[colwidths.second.size() - 1] += remainingWidth;
-
-/*
-            usedWidth += (cols - 1) * VisLength(borders[CENTER]);   // separator between each column
-            for (auto w : colwidths.second)
-                usedWidth += w;
-
-            size_t leftoverWidth = totalWidthAvailable - usedWidth;
-            size_t pad = (leftoverWidth) / cols;
-            if (pad > 0)
-            {
-                for (auto& w : colwidths.second)
-                {
-                    w += pad;
-                    leftoverWidth -= pad;
-                }
-
-                // any leftover add to last column
-                if (leftoverWidth > 0)
-                    colwidths.second[colwidths.second.size() - 1] += leftoverWidth;
-            }*/
         }
     }
 
@@ -1300,7 +1283,6 @@ ostream& operator <<(ostream& os, Table& tableOut)
         tableOut.AutosizeColumns();
     }
 
-    size_t tableMinWidth = tableOut.GetTableMinWidth();
     size_t renderWidth = tableOut.renderWidth;
 
     // Draw top border, (with corners if specified);

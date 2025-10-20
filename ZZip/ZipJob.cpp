@@ -19,6 +19,7 @@
 #include "helpers/LoggingHelpers.h"
 
 using namespace std;
+using namespace ZFile;
 
 inline int64_t GetUSSinceEpoch()
 {
@@ -212,15 +213,15 @@ void ZipJob::RunDiffJob(void* pContext)
 
     eToStringFormat stringFormat = pZipJob->mOutputFormat;
 
-    shared_ptr<cZZFile> pZZFile;
-    if (!cZZFile::Open(pZipJob->msPackageURL, cZZFile::ZZFILE_READ, pZZFile, pZipJob->mbVerbose))
+    tZFilePtr pZZFile;
+    if (!ZFileBase::Open(pZipJob->msPackageURL, pZZFile, ZFileBase::kRead, pZipJob->mbVerbose))
     {
         pZipJob->mJobStatus.SetError(JobStatus::kError_OpenFailed, "Failed to open package: \"" + pZipJob->msPackageURL + "\"");
         return;
     }
 
     cZipCD zipCD;
-    if (!zipCD.Init(*pZZFile))
+    if (!zipCD.Init(pZZFile))
     {
         pZipJob->mJobStatus.SetError(JobStatus::kError_ReadFailed, "Failed to read Zip Central Directory from package: \"" + pZipJob->msPackageURL + "\"");
         return;
@@ -404,8 +405,8 @@ bool ZipJob::FileNeedsUpdate(const string& sPath, uint64_t nComparedFileSize, ui
     if (mbVerbose)
         zout << "Verifying file " << sPath;
 
-    shared_ptr<cZZFile> pLocalFile;
-    if (!cZZFile::Open(sPath, cZZFile::ZZFILE_READ, pLocalFile, mbVerbose))	// If no local file it clearly needs to be updated
+    tZFilePtr pLocalFile;
+    if (!ZFileBase::Open(sPath, pLocalFile, ZFileBase::kRead, mbVerbose))	// If no local file it clearly needs to be updated
     {
         if (mbVerbose)
             zout << "...missing. NEEDS UPDATE.\n";
@@ -427,8 +428,7 @@ bool ZipJob::FileNeedsUpdate(const string& sPath, uint64_t nComparedFileSize, ui
 
     while (nBytesProcessed < (int64_t)nFileSize)
     {
-        int64_t nBytesRead = 0;
-        pLocalFile->Read(cZZFile::ZZFILE_NO_SEEK, kCalcBufferSize, pCalcBuffer.get(), nBytesRead);
+        int64_t nBytesRead = pLocalFile->Read(pCalcBuffer.get(), kCalcBufferSize);
         nCRC = crc32_16bytes(pCalcBuffer.get(), nBytesRead, nCRC);
         nBytesProcessed += nBytesRead;
     }
@@ -682,15 +682,15 @@ void ZipJob::RunListJob(void* pContext)
     if (!pZipJob->msPattern.empty())
         zout << "Files that match pattern: \"" << pZipJob->msPattern << "\"\n";
 
-    shared_ptr<cZZFile> pZZFile;
-    if (!cZZFile::Open(sURL, cZZFile::ZZFILE_READ, pZZFile,  pZipJob->mbVerbose))
+    tZFilePtr pZZFile;
+    if (!ZFileBase::Open(sURL, pZZFile, ZFileBase::kRead, pZipJob->mbVerbose))
     {
         pZipJob->mJobStatus.SetError(JobStatus::kError_OpenFailed, "Failed to open package: \"" + sURL + "\"");
         return;
     }
 
     cZipCD zipCD;
-    if (!zipCD.Init(*pZZFile))
+    if (!zipCD.Init(pZZFile))
     {
         pZipJob->mJobStatus.SetError(JobStatus::kError_ReadFailed, "Failed to read Zip Central Directory from package: \"" + sURL + "\"");
         return;

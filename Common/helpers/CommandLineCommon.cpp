@@ -472,6 +472,7 @@ namespace CLP
 
     void RestoreConsoleState()
     {
+    	  cout << COL_RESET;
         SMALL_RECT writeRegion = { 0, 0, originalScreenInfo.dwSize.X - 1, originalScreenInfo.dwSize.Y - 1 };
         WriteConsoleOutput(mhOutput, &originalConsoleBuf[0], originalScreenInfo.dwSize, { 0, 0 }, &writeRegion);
         SetConsoleCursorPosition(mhOutput, originalScreenInfo.dwCursorPosition);

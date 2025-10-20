@@ -20,6 +20,7 @@
 #include <string>
 #include "ZipHeaders.h"
 #include "zlibAPI.h"
+#include "helpers/ZZFile_PC.h"
 #include <filesystem>
 #include "ZipJob.h"
 #include "helpers/CommandLineParser.h"
@@ -38,7 +39,6 @@ bool                gbSkipCRC		= false;                    // Whether to bypass 
 int64_t            gNumThreads		= std::thread::hardware_concurrency();;	                    // Multithreaded sync/extraction
 string              gsOutputFormat;
 eToStringFormat     gOutputFormat	= kTabs;                    // For lists or diff operations, output in various formats
-extern bool         gbSkipCertCheck;
 
 
 using namespace CLP;
@@ -87,7 +87,7 @@ int main(int argc, char* argv[])
     parser.RegisterParam(ParamDesc("password", &gsAuthPassword, CLP::kNamed | CLP::kOptional, "Auth password"));
 
     parser.RegisterParam(ParamDesc("threads", &gNumThreads, CLP::kNamed | CLP::kOptional, "Number of threads to use when updating or extracting. Defaults to number of CPU cores.", 1, 256));
-    parser.RegisterParam(ParamDesc("skip_cert_check", &gbSkipCertCheck, CLP::kNamed | CLP::kOptional, "If true, bypasses certificate verification on secure connetion. (Careful!)"));
+    parser.RegisterParam(ParamDesc("skip_cert_check", &ZFile::gbSkipCertCheck, CLP::kNamed | CLP::kOptional, "If true, bypasses certificate verification on secure connetion. (Careful!)"));
 
     if (!parser.Parse(argc, argv))
         return -1;

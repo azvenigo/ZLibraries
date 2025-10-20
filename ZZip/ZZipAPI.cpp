@@ -22,6 +22,7 @@
 
 
 using namespace std;
+using namespace ZFile;
 
 uint16_t zip_date_from_std_time(time_t& tt)
 {
@@ -99,7 +100,7 @@ bool ZZipAPI::Shutdown()
             std::streampos nStartOfCDOffset = mpZZFile->GetFileSize();
 
             mZipCD.ComputeCDRecords((uint64_t)nStartOfCDOffset);
-            bool bSuccess = mZipCD.Write(*mpZZFile);
+            bool bSuccess = mZipCD.Write(mpZZFile);
 
             if (!bSuccess)
             {
@@ -119,13 +120,13 @@ bool ZZipAPI::Shutdown()
 
 bool ZZipAPI::OpenForReading()
 {
-    if (!cZZFile::Open(msZipURL, cZZFile::ZZFILE_READ, mpZZFile))
+    if (!ZFileBase::Open(msZipURL, mpZZFile, ZFileBase::kRead))
     {
         std::cerr << "Couldn't open file for reading: \"" << msZipURL << "\"\n";
         return false;
     }
      
-    mZipCD.Init(*mpZZFile);
+    mZipCD.Init(mpZZFile);
 
 
     return true;
@@ -133,7 +134,11 @@ bool ZZipAPI::OpenForReading()
 
 bool ZZipAPI::CreateZipFile(bool bAppend)
 {
-    if (!cZZFile::Open(msZipURL, cZZFile::ZZFILE_WRITE, mpZZFile, bAppend))
+    uint32_t flags = ZFileBase::kWrite;
+    if (!bAppend)
+        flags |= ZFileBase::kTrunc;
+
+    if (!ZFileBase::Open(msZipURL, mpZZFile, flags))
     {
         cerr << "Couldn't open file for writing \"" << msZipURL << "\"!\n";
         return false;
@@ -218,7 +223,7 @@ bool ZZipAPI::ExtractRawStream(const string& sFilename, const string& sOutputFil
     cLocalFileHeader localFileHeader;
 
     uint32_t nHeaderBytesProcessed = 0;
-    if (!localFileHeader.Read(*mpZZFile, cdFileHeader.mLocalFileHeaderOffset, nHeaderBytesProcessed))
+    if (!localFileHeader.Read(mpZZFile, cdFileHeader.mLocalFileHeaderOffset, nHeaderBytesProcessed))
     {
         cerr << "Failed to read localFileHeader.\n";
         return false;
@@ -227,8 +232,8 @@ bool ZZipAPI::ExtractRawStream(const string& sFilename, const string& sOutputFil
     const uint32_t kSize = 16*1024 * 1024;  
     uint8_t* pStream = new uint8_t[kSize];
 
-    shared_ptr<cZZFile> pOutFile;
-    if (!cZZFile::Open(sOutputFilename, cZZFile::ZZFILE_WRITE, pOutFile))
+    tZFilePtr pOutFile;
+    if (!ZFileBase::Open(sOutputFilename, pOutFile, ZFileBase::kWrite | ZFileBase::kTrunc))
     {
         delete[] pStream;
         zout << "Failed to open " << sOutputFilename.c_str() << " for extraction. Reason: " << pOutFile->GetLastError() << "\n";
@@ -254,8 +259,8 @@ bool ZZipAPI::ExtractRawStream(const string& sFilename, const string& sOutputFil
             return false;
         }
 
-        int64_t nBytesWritten = 0;
-        if (!pOutFile->Write(cZZFile::ZZFILE_NO_SEEK, nBytesToProcess, pStream, nBytesWritten))
+        int64_t nBytesWritten = pOutFile->Write(pStream, nBytesToProcess);
+        if (nBytesWritten != nBytesToProcess)
         {
             delete[] pStream;
             cerr << "Failed to seek to write stream for file " << sFilename.c_str() << " to file " << sOutputFilename.c_str() << ".  Reason: " << errno << "\n";
@@ -284,7 +289,7 @@ bool ZZipAPI::DecompressToFile(const string& sFilename, const string& sOutputFil
     cLocalFileHeader localFileHeader;
 
     uint32_t nHeaderBytesProcessed = 0;
-    if (!localFileHeader.Read(*mpZZFile, cdFileHeader.mLocalFileHeaderOffset, nHeaderBytesProcessed))
+    if (!localFileHeader.Read(mpZZFile, cdFileHeader.mLocalFileHeaderOffset, nHeaderBytesProcessed))
     {
         cerr << "Failed to read localFileHeader.\n";
         return false;
@@ -308,8 +313,8 @@ bool ZZipAPI::DecompressToFile(const string& sFilename, const string& sOutputFil
     ZDecompressor decompressor;
     decompressor.Init();
 
-    shared_ptr<cZZFile> pOutFile;
-    if (!cZZFile::Open(sOutputFilename, cZZFile::ZZFILE_WRITE, pOutFile))
+    tZFilePtr pOutFile;
+    if (!ZFileBase::Open(sOutputFilename, pOutFile, ZFileBase::kWrite|ZFileBase::kTrunc))
     {
         delete[] pCompStream;
         zout << "Failed to open " << sOutputFilename.c_str() << " for extraction. Reason: " << errno << "\n";
@@ -344,8 +349,8 @@ bool ZZipAPI::DecompressToFile(const string& sFilename, const string& sOutputFil
             {
                 nStatus = decompressor.Decompress();
                 int64_t nDecompressedBytes = decompressor.GetDecompressedBytes();
-                int64_t nBytesWritten = 0;
-                if (!pOutFile->Write(cZZFile::ZZFILE_NO_SEEK, (uint32_t) decompressor.GetDecompressedBytes(), decompressor.GetDecompressedBuffer(), nBytesWritten))
+                int64_t nBytesWritten = pOutFile->Write(decompressor.GetDecompressedBuffer(), (uint32_t)decompressor.GetDecompressedBytes());
+                if (nBytesWritten != decompressor.GetDecompressedBytes())
                 {
                     delete[] pCompStream;
                     cerr << "Failed to seek to write decompressed stream for file " << sFilename.c_str() << " to file " << sOutputFilename.c_str() << ".  Reason: " << pOutFile->GetLastError() << "\n";
@@ -422,10 +427,10 @@ bool ZZipAPI::AddToZipFile(const string& sFilename, const string& sBaseFolder, P
     /////////////////////////////////////////////////
     // Fill in header info
     cLocalFileHeader newLocalHeader;
-    shared_ptr<cZZFile> pInFile;
+    tZFilePtr pInFile;
     if (bInputIsFile)
     {
-        if (!cZZFile::Open(sFileOrFolder, cZZFile::ZZFILE_READ, pInFile))
+        if (!ZFileBase::Open(sFileOrFolder, pInFile, ZFileBase::kRead))
         {
             zout << "Failed to open " << sFileOrFolder.c_str() << " for compression. Reason: " << pInFile->GetLastError() << "\n";
             return false;
@@ -474,8 +479,9 @@ bool ZZipAPI::AddToZipFile(const string& sFilename, const string& sBaseFolder, P
             if (nBytesProcessed + nBytesToProcess > pInFile->GetFileSize())
                 nBytesToProcess = pInFile->GetFileSize() - nBytesProcessed;
 
-            int64_t nBytesRead = 0;
-            if (!pInFile->Read(cZZFile::ZZFILE_NO_SEEK,  nBytesToProcess, pStream, nBytesRead))
+            int64_t nBytesRead = pInFile->Read(pStream, nBytesToProcess);
+
+            if (nBytesRead != nBytesToProcess)
             {
                 delete[] pStream;
                 cerr << "Failed to read input stream for file " << sFileOrFolder.c_str() << " at offset " << nBytesProcessed << ". Tried to read " << nBytesToProcess << " bytes. Total file size: " << pInFile->GetFileSize() << "\n";
@@ -533,7 +539,7 @@ bool ZZipAPI::AddToZipFile(const string& sFilename, const string& sBaseFolder, P
     }
 
     // seek to start of compression stream data
-    if (!newLocalHeader.Write(*mpZZFile, nOffsetToLocalFileHeader))
+    if (!newLocalHeader.Write(mpZZFile, nOffsetToLocalFileHeader))
     {
         return false;
     }
@@ -639,7 +645,7 @@ bool ZZipAPI::AddToZipFileFromBuffer(uint8_t* pInputBuffer, uint32_t nInputBuffe
     newLocalHeader.mCRC32 = crc32_16bytes(pInputBuffer, nInputBufferSize, 0);
 
     // seek to start of compression stream data
-    if (!newLocalHeader.Write(*mpZZFile, nOffsetToLocalFileHeader))
+    if (!newLocalHeader.Write(mpZZFile, nOffsetToLocalFileHeader))
     {
         return false;
     }
@@ -756,7 +762,7 @@ bool ZZipAPI::DecompressToBuffer(const string& sFilename, uint8_t* pOutputBuffer
     cLocalFileHeader localFileHeader;
 
     uint32_t nNumBytesProcessed = 0;
-    if (!localFileHeader.Read(*mpZZFile, cdFileHeader.mLocalFileHeaderOffset, nNumBytesProcessed))
+    if (!localFileHeader.Read(mpZZFile, cdFileHeader.mLocalFileHeaderOffset, nNumBytesProcessed))
     {
         cerr << "Failed to read localFileHeader.\n";
         return false;

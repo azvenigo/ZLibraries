@@ -32,7 +32,7 @@ set(ZZIP_SOURCES
 
 list(APPEND COMMON_FILES 
 ../Common/helpers/Crc32Fast.h ../Common/helpers/Crc32Fast.cpp
-../Common/helpers/ZZFileAPI.h ../Common/helpers/ZZFileAPI.cpp 
+../Common/helpers/ZZFileAPI.h ../Common/helpers/ZZFile_PC.h ../Common/helpers/ZZFile_PC.cpp 
 ../Common/helpers/FNMatch.h ../Common/helpers/FNMatch.cpp 
 ../Common/helpers/HTTPCache.h ../Common/helpers/HTTPCache.cpp
 ../Common/helpers/ThreadPool.h
@@ -77,6 +77,8 @@ if(MSVC)
     # ignore pdb not found
     set(EXTRA_FLAGS "/WX")
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /ignore:4099")
+    add_compile_definitions(ENABLE_CLM ENABLE_CLE ENABLE_COMMAND_HISTORY ENABLE_HTTP ENABLE_CURL)  
+
 else()
     set(EXTRA_FLAGS "-Wall -Werror -march=x86-64 -pthread")
     set(EXTRA_CXX_FLAGS "-std=c++17")

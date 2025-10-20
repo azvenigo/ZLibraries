@@ -112,11 +112,12 @@ namespace CLP
 
         ZAttrib(const std::string& sAnsi)
         {
+            FromAnsi((uint8_t*)sAnsi.c_str());
         }
 
         operator uint64_t() const
         {
-            return (ba << 56) | (br << 48) | (bg << 40) | (bb << 32) | (a << 24) | (r << 16) | (g << 8) | b;
+            return ((uint64_t)ba << 56) | ((uint64_t)br << 48) | ((uint64_t)bg << 40) | ((uint64_t)bb << 32) | ((uint64_t)a << 24) | ((uint64_t)r << 16) | ((uint64_t)g << 8) | b;
         }
 
         operator std::string() const
@@ -222,6 +223,10 @@ namespace CLP
 
         bool dec_line = false;
     };
+
+    int16_t ScreenW();
+    int16_t ScreenH();
+    void InitScreenInfo();
 
 
 #ifdef ENABLE_CLE
@@ -528,15 +533,11 @@ namespace CLP
 
     };
 
-    SHORT ScreenW();
-    SHORT ScreenH();
-
     std::string GetTextFromClipboard();
     bool CopyTextToClipboard(const std::string& text);
 
     void SetCursorPosition(COORD coord, bool bForce = false);
 
-    void InitScreenInfo();
     void SaveConsoleState();
     void RestoreConsoleState();
     void DrawAnsiChar(int64_t x, int64_t y, uint8_t c, ZAttrib ca);

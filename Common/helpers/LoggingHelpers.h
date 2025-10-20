@@ -16,10 +16,10 @@
 #include <algorithm>
 #include <thread>
 #include <mutex>
+#include <chrono>
 
 #include "StringHelpers.h"
 
-#define ENABLE_ANSI_OUT
 #ifdef ENABLE_ANSI_OUT
 
 #define COL_CUSTOM_STYLE "[CUSTOMSTYLE]"
@@ -142,14 +142,6 @@ namespace LOG
             return logFilteredEntries.size();
         }
 
-/*        const std::deque<LogEntry>& getEntries() const
-        {
-            if (logFilter.empty())
-                return logEntries;
-
-            return logFilteredEntries;
-        }*/
-
         void setFilter(const std::string& sFilter); // if empty string, clears the filter
 
         bool getEntries(uint64_t startingLogCounter, size_t count, std::deque<LogEntry>& outEntries) const;
@@ -183,7 +175,6 @@ namespace LOG
         mutable std::mutex logEntriesMutex;
         size_t logTotalCounter;    // total count of flushes, or entries submitted. For tracking changes even if we max out the logEntries queue
 
-        // 
         tLogEntries logFilteredEntries;
         std::string logFilter;
     };
@@ -652,21 +643,10 @@ public:
             assert(wrapping >= NO_WRAP && wrapping <= WORD_WRAP);
         }
 
-        void operator = (const Style& rhs)
-        {
-            color = rhs.color;
-            alignment = rhs.alignment;
-            space_allocation = rhs.space_allocation;
-            wrapping = rhs.wrapping;
-            padding = rhs.padding;
-            padchar = rhs.padchar;
-        }
-
         friend std::ostream& operator <<(std::ostream& os, Style& style);
 
         std::string color = COL_RESET;
         uint8_t     alignment = LEFT;
-//        uint8_t     spacing = TIGHT;
         float       space_allocation = 0.0;
         uint8_t     wrapping = CHAR_WRAP;
         uint8_t     padding = 1;

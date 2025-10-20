@@ -1,4 +1,5 @@
 #include "CommandLineParser.h"
+#include "CommandLineCommon.h"
 #include <assert.h>
 #include <stdarg.h> 
 #include <sstream>
@@ -1162,7 +1163,7 @@ namespace CLP
 #ifdef ENABLE_COMMAND_HISTORY
                 help.AddRow("To list Command History add \"h!\"", "Example: " + AppStyle.color + appName + " h!" + ResetStyle.color);
 #endif
-                help.AddRow("Additional Command Line Options '??'", "Example: " + AppStyle.color + appName + " ??" + ResetStyle.color);
+                help.AddRow("Additional Command Line Options \"??\"", "Example: " + AppStyle.color + appName + " ??" + ResetStyle.color);
             }
         }
         else
@@ -1247,7 +1248,7 @@ namespace CLP
 
             string sCommandLineExample;
             Table usageTable;
-            usageTable.SetRenderWidth(ScreenW());
+            usageTable.SetRenderWidth(CLP::ScreenW());
             GetCommandLineExample(msMode, sCommandLineExample);
             usageTable.AddRow(CLP::SectionStyle, " Usage ");
             usageTable.AddRow(CLP::ParamStyle, sCommandLineExample);

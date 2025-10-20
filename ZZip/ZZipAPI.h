@@ -64,7 +64,7 @@ private:
     std::string                 msZipURL;               // path to the zip archive or URL
     std::string                 msName;
     std::string                 msPassword;
-    std::shared_ptr<cZZFile>     mpZZFile;               // Abstraction to local file or HTTP file
+    ZFile::tZFilePtr            mpZZFile;               // Abstraction to local file or HTTP file
     cZipCD                      mZipCD;                 // Zip Central Directory including all headers
     bool                        mbInitted;
 };

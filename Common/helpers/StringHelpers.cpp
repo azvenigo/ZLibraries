@@ -683,7 +683,7 @@ std::string SH::convertToASCII(const std::string& input)
 
 
     std::string output;
-    for (size_t i = 0; i < input.length(); ++i) 
+    for (size_t i = startIndex; i < input.length(); ++i)
     {
         unsigned char c = static_cast<unsigned char>(input[i]);
 

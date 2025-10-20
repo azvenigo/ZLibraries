@@ -1,10 +1,7 @@
 #include "FileHelpers.h"
 #include "StringHelpers.h"
-#include "LoggingHelpers.h"
 #include <filesystem>
 #include <iostream>
-#include <fstream>
-#include <system_error>
 
 #ifdef _WIN64
 #define WIN32_LEAN_AND_MEAN
@@ -17,7 +14,6 @@ namespace fs=std::filesystem;
 
 namespace FH
 {
-
     bool ScanFolder(string sFolder, list<string>& fileListResults, bool bRecursive)
     {
         if (bRecursive)
@@ -72,9 +68,9 @@ namespace FH
 
             return sReturnPath;
         }
-        catch (const std::filesystem::filesystem_error& /*e*/)
+        catch (const std::filesystem::filesystem_error& e)
         {
-//            std::cerr << "Filesystem error: " << e.what() << std::endl;
+            std::cerr << "Filesystem error: " << e.what() << std::endl;
         }
         catch (const std::exception& e)
         {
@@ -84,7 +80,7 @@ namespace FH
         return sPath;
     }
 
-    bool HasPermission(std::string sPath, Perms perms)
+    bool HasPermission(const std::string& sPath, Perms perms)
     {
         fs::path path(sPath);
         if (!fs::exists(path))
@@ -135,28 +131,66 @@ namespace FH
         return true;
     }
 
-    bool ReadIntoBuffer(const std::filesystem::path filename, std::vector<uint8_t>& outBuffer)
+    bool FNMatch(const string& pattern, const string& str, bool bCaseSensitive)
     {
-        ifstream inFile(filename, ios::binary);
-        if (!inFile.is_open())
+        if (pattern.empty() || pattern == "*")
+            return true;
+
+        if (pattern == str)
+            return true;
+
+        auto regexEscape = [](const string& s) 
+            {
+            static const string specialChars = "[]{}()\\.*+?|^$";
+            string result;
+            for (char c : s) 
+            {
+                if (specialChars.find(c) != string::npos) 
+                {
+                    result += '\\';
+                }
+                result += c;
+            }
+            return result;
+            };
+
+        string regexPattern;
+        for (size_t i = 0; i < pattern.length(); ++i) 
         {
-            zout << "Unable to open file: " << filename << "\n";
-            return false;
+            char c = pattern[i];
+            switch (c) 
+            {
+            case '*':
+                regexPattern += ".*";
+                break;
+            case '?':
+                regexPattern += ".";
+                break;
+            case '[':
+                // Keep character class as-is
+                regexPattern += '[';
+                while (i < pattern.length() && pattern[i] != ']') 
+                {
+                    regexPattern += pattern[i++];
+                }
+                if (i < pattern.length()) 
+                {
+                    regexPattern += ']';
+                }
+                break;
+            default:
+                regexPattern += regexEscape(string(1, c));
+                break;
+            }
         }
 
-        size_t size = fs::file_size(filename);
-        outBuffer.resize(size);
-        inFile.read((char*)&outBuffer[0], size);
+        int flags = std::regex_constants::ECMAScript;
+        if (!bCaseSensitive)
+            flags |= std::regex_constants::icase;
 
-        if (!inFile)
-        {
-            zout << "Read from:" << filename << " failed. err:" << errno << std::error_code(errno, std::generic_category()).message() << "\n";
-            return false;
-        }
-
-        return true;
+        std::regex patternRegEx(regexPattern, static_cast<std::regex_constants::syntax_option_type>(flags));
+        return regex_match(str, patternRegEx);
     }
-
 
 #ifdef _WIN64
 #define WIN32_LEAN_AND_MEAN
