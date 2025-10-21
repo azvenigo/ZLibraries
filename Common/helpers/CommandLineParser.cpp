@@ -233,9 +233,8 @@ namespace CLP
                             cerr << CLP::ErrorStyle << sFailMessage << CLP::ResetStyle << "\n";
                         return false;
                     }
-
-                    return true;
                 }
+                return true;
             }
             case ParamDesc::kInt64:
             {

@@ -677,7 +677,7 @@ std::string SH::convertToASCII(const std::string& input)
     // If UTF-8 BOM at the beginning, skip it
     if (input.length() >= 3)
     {
-        if (input[0] == 0xef && input[1] == 0xbb && input[2] == 0xbf)
+        if ((uint8_t)input[0] == 0xef && (uint8_t)input[1] == 0xbb && (uint8_t)input[2] == 0xbf)
             startIndex = 3;
     }
 

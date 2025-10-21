@@ -59,7 +59,7 @@ namespace LOG
                 break;
 
             case CSI:
-                // CSI runs until a final byte 0x40–0x7E
+                // CSI runs until a final byte 0x40ï¿½0x7E
                 if (c >= 0x40 && c <= 0x7E) {
                     state = Normal;
                 }
@@ -318,7 +318,8 @@ ostream& operator <<(std::ostream& os, Table::Style& style)
 Table::Style Table::kLeftAlignedStyle = Table::Style(COL_RESET, LEFT);
 Table::Style Table::kRightAlignedStyle = Table::Style(COL_RESET, RIGHT);
 Table::Style Table::kCenteredStyle = Table::Style(COL_RESET, CENTER);
-Table::Style Table::kDefaultStyle = Table::Style(AnsiCol(0xFFFFFFFF), LEFT);
+//Table::Style Table::kDefaultStyle = Table::Style(AnsiCol(0xFFFFFFFF), LEFT);
+Table::Style Table::kDefaultStyle = Table::Style(COL_RESET, LEFT);
 
 const size_t kMinCellWidth = 3;
 

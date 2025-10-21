@@ -6,7 +6,7 @@
 #include "CommandLineParser.h"
 #include "CommandLineCommon.h"
 #include "StringHelpers.h"
-#include <Windows.h>
+//#include <Windows.h>
 #include <list>
 #include <assert.h>
 

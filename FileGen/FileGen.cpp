@@ -248,19 +248,6 @@ int main(int argc, char* argv[])
 
 
 
-
-
-
-
-
-
-
-
-
-    string s("5kib");
-    int64_t num = SH::ToInt(s);
-
-
     string sDestPath;
     string sFilename("data");
     string sExtension("bin");
@@ -311,9 +298,10 @@ int main(int argc, char* argv[])
         return -1;
     }
 
+#ifdef ENABLE_CLM
     CommandLineMonitor monitor;
     monitor.Start();
-
+#endif
     
     bFillSpecificValue = SH::Compare(parser.GetAppMode(), "value", false);
     bRandomFill = SH::Compare(parser.GetAppMode(), "rand", false);
@@ -381,7 +369,10 @@ int main(int argc, char* argv[])
     }
 
     zout << "Done.";
+
+#ifdef ENABLE_CLM
     monitor.End();
+#endif
 
     return 0;
 }

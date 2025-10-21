@@ -10,6 +10,9 @@
 
 #ifdef _WIN64
 #include <Windows.h>
+#else
+#include <sys/ioctl.h>
+#include <unistd.h>
 #endif
 
 using namespace std;
@@ -2182,6 +2185,22 @@ namespace CLP
 
 
 
+#else
+    int16_t CLP::ScreenW()
+    { 
+        struct winsize w;
+        if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &w) == -1)
+            return 120; // some default for failure
+        return w.ws_col;
+    }
+
+    int16_t CLP::ScreenH() 
+    { 
+        struct winsize w;
+        if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &w) == -1)
+            return 30; // some default for failure
+        return w.ws_row;
+    }
 
 #endif // ENABLE_CLE
 

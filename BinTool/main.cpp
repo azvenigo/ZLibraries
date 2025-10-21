@@ -9,7 +9,7 @@
 #include "helpers/sha256.h"
 #include <filesystem>
 #include <fstream>
-#include <Windows.h>
+//#include <Windows.h>
 
 using namespace std;
 using namespace CLP;
