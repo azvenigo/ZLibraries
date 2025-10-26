@@ -33,9 +33,8 @@ public:
     void Paint(tConsoleBuffer& backBuf);
 
     bool LoadFile(std::string filename);
+    void SetFilter(std::string filter) { sFilter = filter; invalid = true; }
     bool ReadPipe();
-
-    void ShowSaveFilenamePrompt();
 
 protected:
     bool        bCTRL_S_Hooked = false;
@@ -54,6 +53,7 @@ protected:
     bool        invalid = true;
     void        HookCTRL_S(bool bHook = true);
 
+    std::string sFilename;
     std::string sFilter;
     tStringList rows;
 
@@ -67,6 +67,7 @@ tStringList ReaderWin::GetLines(const string& rawText) const
 {
     assert(mWidth > 0);
     Table::Style style = Table::kDefaultStyle;
+//    style.wrapping = Table::WORD_WRAP;
 
     // if text fits in width or there's no wrapping just return a single entry
     if (rawText.empty() || style.wrapping == Table::NO_WRAP)
@@ -111,7 +112,11 @@ tStringList ReaderWin::GetLines(const string& rawText) const
         do
         {
             start = nextNonWhitespace(rawText, start); // start with first non-whitespace
+            if (start == string::npos)
+                break;
             end = nextWhitespace(rawText, start);
+            if (end > rawText.length())
+                end = rawText.length();
             rows.push_back(rawText.substr(start, end - start));
             start = end;
         } while (end < rawText.length());
@@ -157,6 +162,7 @@ bool ReaderWin::LoadFile(std::string filename)
     }
 
     mText.assign((char*)&buf[0], buf.size());
+    sFilename = filename;
 
     return true;
 }
@@ -175,6 +181,12 @@ void ReaderWin::DrawToScreen()
 {
     // clear back buffer
     Paint(backBuffer);
+
+    if (filterTextEntryWin.mbVisible)
+        filterTextEntryWin.Paint(backBuffer);
+    if (helpTableWin.mbVisible)
+        helpTableWin.Paint(backBuffer);
+
 
     cout << "\033[?25l";
 
@@ -199,7 +211,7 @@ void ReaderWin::DrawToScreen()
 
 
     //        if (bCursorHidden && !bCursorShouldBeHidden)
-    if (filterTextEntryWin.mbVisible || saveLogFilenameEntryWin.mbVisible)
+    if (filterTextEntryWin.mbVisible)
     {
         cout << "\033[?25h";    // visible cursor
     }
@@ -238,15 +250,7 @@ bool ReaderWin::Execute()
             return false;
         }
     }
-
-
     
-
-
-
-
-
-
 
 
     mode |= ENABLE_MOUSE_INPUT | ENABLE_EXTENDED_FLAGS | ENABLE_WINDOW_INPUT;
@@ -279,6 +283,7 @@ bool ReaderWin::Execute()
     // Clear the raw command buffer and param buffers
     //UpdateFromConsoleSize(true);
 
+    filterTextEntryWin.SetText(sFilter);
 
     UpdateFromConsoleSize(true);  // force update if the screen changed
 
@@ -286,7 +291,10 @@ bool ReaderWin::Execute()
     SaveConsoleState();
     bScreenInvalid = true;
     Init(Rect(0, 1, w, h));
-    Clear(kAttribHelpBG, true);
+
+    ZAttrib kReaderBG(0xFF000000FFff00ff);
+
+    Clear(kReaderBG, false);
     SetEnableFrame();
     bAutoScrollbar = true;
 
@@ -299,7 +307,7 @@ bool ReaderWin::Execute()
         bool bForeground = ConsoleHasFocus();
         if (bForeground)
         {
-            if (filterTextEntryWin.mbVisible || saveLogFilenameEntryWin.mbVisible)
+            if (filterTextEntryWin.mbVisible)
             {
                 filterTextEntryWin.HookHotkeys();
             }
@@ -312,6 +320,7 @@ bool ReaderWin::Execute()
         if (UpdateFromConsoleSize(bScreenInvalid))
         {
             rows = GetLines(mText); // recompute rows
+            UpdateCaptions();
         }
 
         DrawToScreen();
@@ -330,15 +339,6 @@ bool ReaderWin::Execute()
                         filterTextEntryWin.AddUndoEntry();
                         filterTextEntryWin.HandlePaste(GetTextFromClipboard());
                     }
-                    else if (saveLogFilenameEntryWin.mbVisible)
-                    {
-                        saveLogFilenameEntryWin.AddUndoEntry();
-                        saveLogFilenameEntryWin.HandlePaste(GetTextFromClipboard());
-                    }
-                }
-                else if (msg.wParam == CTRL_S_HOTKEY)
-                {
-                    logWin.ShowSaveFilenamePrompt();
                 }
             }
             else
@@ -426,12 +426,6 @@ void ReaderWin::Update()
         invalid = true;
     }
 
-    if (saveLogFilenameEntryWin.GetText() != viewFilename)
-    {
-        viewFilename = saveLogFilenameEntryWin.GetText();
-        invalid = true;
-    }
-
     if (viewTopLine != mTopVisibleRow)
     {
         viewTopLine = mTopVisibleRow;
@@ -441,35 +435,40 @@ void ReaderWin::Update()
     if (!mbVisible || !invalid)
         return;
 
-    positionCaption[ConsoleWin::Position::LT] = "Reader";
+//    positionCaption[ConsoleWin::Position::LT] = "Reader";
+    if (sFilename.empty())
+        positionCaption[ConsoleWin::Position::LT] = "Reader";
+    else
+        positionCaption[ConsoleWin::Position::LT] = "File: " + sFilename;
+
     UpdateCaptions();
 }
 
 void ReaderWin::UpdateCaptions()
 {
+    Rect drawArea;
+    GetInnerArea(drawArea);
+
     int64_t entryCount = GetFilteredCount();
     int64_t viewing = mTopVisibleRow + 1;
     if (viewing > entryCount)
         viewing = entryCount;
+    int64_t bottom = mTopVisibleRow + drawArea.h();
+    if (entryCount < drawArea.h())
+        bottom = entryCount;
 
-    Rect drawArea;
-    GetInnerArea(drawArea);
+    positionCaption[ConsoleWin::Position::LB] = "[CTRL-F:Filter]";
 
-    positionCaption[ConsoleWin::Position::LB] = "[CTRL-F:Filter] [CTRL-S:Save Log]";
-    if (saveLogFilenameEntryWin.mbVisible)
-    {
-        positionCaption[ConsoleWin::Position::LB] = "Save filename:";
-    }
-    else if (sFilter.empty())
+    if (sFilter.empty())
     {
         if (filterTextEntryWin.mbVisible)
             positionCaption[ConsoleWin::Position::LB] = "Set Filter:";
-        positionCaption[ConsoleWin::Position::RT] = "Lines (" + SH::FromInt(mTopVisibleRow + 1) + "-" + SH::FromInt(mTopVisibleRow + drawArea.h()) + "/" + SH::FromInt(entryCount) + ")";
+        positionCaption[ConsoleWin::Position::RT] = "Lines (" + SH::FromInt(viewing) + "-" + SH::FromInt(bottom) + "/" + SH::FromInt(entryCount) + ")";
     }
     else
     {
-        positionCaption[ConsoleWin::Position::LB] = "Filtering: \"" + sFilter + "\"";
-        positionCaption[ConsoleWin::Position::RT] = "Filtered Lines (" + SH::FromInt(mTopVisibleRow + 1) + "-" + SH::FromInt(mTopVisibleRow + drawArea.h()) + "/" + SH::FromInt(entryCount) + ")";
+        positionCaption[ConsoleWin::Position::LB] = "Filtering: " + sFilter + "";
+        positionCaption[ConsoleWin::Position::RT] = "Filtered Lines (" + SH::FromInt(viewing) + "-" + SH::FromInt(bottom) + "/" + SH::FromInt(entryCount) + ")";
     }
 
 
@@ -483,6 +482,11 @@ bool ReaderWin::OnMouse(MOUSE_EVENT_RECORD event)
     COORD localcoord = event.dwMousePosition;
     localcoord.X -= (SHORT)mX;
     localcoord.Y -= (SHORT)mY;
+
+    if (helpTableWin.IsOver(localcoord.X, localcoord.Y))
+    {
+        return helpTableWin.OnMouse(event);
+    }
 
     if (event.dwEventFlags == MOUSE_WHEELED)
     {
@@ -513,9 +517,8 @@ bool ReaderWin::OnKey(int keycode, char c)
 
     if (filterTextEntryWin.mbVisible && !bHandled)
         bHandled = filterTextEntryWin.OnKey(keycode, c);
-
-    if (saveLogFilenameEntryWin.mbVisible && !bHandled)
-        bHandled = saveLogFilenameEntryWin.OnKey(keycode, c);
+    if (helpTableWin.mbVisible && !bHandled)
+        bHandled = helpTableWin.OnKey(keycode, c);
 
     if (filterTextEntryWin.mbVisible)
     {
@@ -528,19 +531,15 @@ bool ReaderWin::OnKey(int keycode, char c)
             filterTextEntryWin.mbCanceled = false;
             filterTextEntryWin.mbDone = false;
             bScreenInvalid = true;
-            return true;
         }
     }
-    if (saveLogFilenameEntryWin.mbVisible)
+
+    if (helpTableWin.mbCanceled || helpTableWin.mbDone)
     {
-        if (saveLogFilenameEntryWin.mbCanceled || saveLogFilenameEntryWin.mbDone)
-        {
-            saveLogFilenameEntryWin.SetVisible(false);
-            saveLogFilenameEntryWin.mbCanceled = false;
-            saveLogFilenameEntryWin.mbDone = false;
-            bScreenInvalid = true;
-            return true;
-        }
+        helpTableWin.SetVisible(false);
+        helpTableWin.mbCanceled = false;
+        helpTableWin.mbDone = false;
+        bScreenInvalid = true;
     }
 
     if (!bHandled)
@@ -700,27 +699,26 @@ bool ReaderWin::UpdateFromConsoleSize(bool bForce)
         if (h < 8)
             h = 8;
 
-        SetArea({ 0,0,w,h });
+
+        Rect viewRect(0, 0, w, h);
+        SetArea(viewRect);
 
         backBuffer.clear();
         backBuffer.resize(w * h);
 
-
         drawStateBuffer.clear();
         drawStateBuffer.resize(w * h);
 
+        helpTableWin.Clear(kAttribHelpBG, true);
+        helpTableWin.SetArea(viewRect);
+        helpTableWin.SetEnableFrame();
+        helpTableWin.bAutoScrollbar = true;
 
-        Rect viewRect(0, 0, w, h);
-        Rect logWinRect(viewRect);
+
         if (filterTextEntryWin.mbVisible)
         {
-            logWinRect.b--;
-            filterTextEntryWin.SetArea(Rect(logWinRect.l, logWinRect.b, logWinRect.r, logWinRect.b + 1));
-        }
-        else if (saveLogFilenameEntryWin.mbVisible)
-        {
-            logWinRect.b--;
-            saveLogFilenameEntryWin.SetArea(Rect(logWinRect.l, logWinRect.b, logWinRect.r, logWinRect.b + 1));
+            viewRect.b--;
+            filterTextEntryWin.SetArea(Rect(viewRect.l, viewRect.b, viewRect.r, viewRect.b + 1));
         }
 
         Update();
@@ -742,6 +740,8 @@ bool ReaderWin::UpdateFromConsoleSize(bool bForce)
 
 int main(int argc, char* argv[])
 {
+    ReaderWin readerWin;
+
     string sFilename;
     string sFilter;
     int64_t nStartLineNumber = 0;
@@ -751,9 +751,9 @@ int main(int argc, char* argv[])
 
     parser.RegisterParam(ParamDesc("PATH", &sFilename,  CLP::kOptional|CLP::kExistingPath, "Optional path to read from if no piped input."));
 
-    parser.RegisterParam(ParamDesc("FILTER", &sFilter, CLP::kOptional, "Filter lines including this text."));
+    parser.RegisterParam(ParamDesc("FILTER", &sFilter, CLP::kNamed|CLP::kOptional, "Filter lines including this text."));
 
-    parser.RegisterParam(ParamDesc("start", &nStartLineNumber, CLP::kOptional | CLP::kNamed, "Starting line number"));
+    parser.RegisterParam(ParamDesc("start", &nStartLineNumber, CLP::kNamed | CLP::kOptional, "Starting line number"));
 
 
     bool bParseSuccess = parser.Parse(argc, argv);
@@ -762,7 +762,6 @@ int main(int argc, char* argv[])
         return -1;
     }                */
 
-    ReaderWin readerWin;
     if (!sFilename.empty() && sFilename[0] != '<') // temporarily detect pipe in via commandline param for vs debugging
     {
         readerWin.LoadFile(sFilename);
@@ -771,6 +770,9 @@ int main(int argc, char* argv[])
     {
         readerWin.ReadPipe();
     }
+
+    if (!sFilter.empty())
+        readerWin.SetFilter(sFilter);
 
     readerWin.Execute();
 
