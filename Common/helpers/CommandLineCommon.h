@@ -369,7 +369,7 @@ namespace CLP
         virtual void SetArea(const Rect& r);
         bool IsOver(int64_t x, int64_t y) { return mbVisible && x >= mX && x <= mX + mWidth && y >= mY && y <= mY + mHeight; }
         void GetArea(Rect& r);
-        void GetInnerArea(Rect& r);  // adjusted for frame
+        void GetInnerArea(Rect& r) const;  // adjusted for frame
 
 
 
@@ -409,6 +409,7 @@ namespace CLP
         void Paint(tConsoleBuffer& backBuf);
         bool OnKey(int keycode, char c);
         virtual bool OnMouse(MOUSE_EVENT_RECORD event);
+        void GetInnerArea(Rect& r) const;  // adjusted for scrollbar when needed
 
         virtual void UpdateCaptions();
 

@@ -341,7 +341,8 @@ namespace CLP
         if ((int64_t)mEntries.size() > mHeight)
         {
             Rect sb(drawArea);
-            sb.l = drawArea.r - 1;
+            sb.l = drawArea.r;
+            sb.r = sb.l + 1;
             DrawScrollbar(sb, 0, mEntries.size() - sb.h() - 1, mTopVisibleRow, kAttribScrollbarBG, kAttribScrollbarThumb);
         }
 

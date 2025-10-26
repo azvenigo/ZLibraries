@@ -65,7 +65,11 @@ protected:
 
 tStringList ReaderWin::GetLines(const string& rawText) const
 {
-    assert(mWidth > 0);
+    Rect drawArea;
+    GetInnerArea(drawArea);
+
+    assert(drawArea.w() > 0);
+
     Table::Style style = Table::kDefaultStyle;
 //    style.wrapping = Table::WORD_WRAP;
 
@@ -89,10 +93,11 @@ tStringList ReaderWin::GetLines(const string& rawText) const
                 if (i + 1 < rawText.size() && rawText[i + 1] == '\n')   
                     i++;
             }
-            else if (sLine.length() == mWidth)
+            else if ((int64_t)sLine.length() >= drawArea.w())
             {
                 rows.push_back(sLine);
                 sLine.clear();
+                sLine += rawText[i];
             }
             else
             {
@@ -223,6 +228,9 @@ bool ReaderWin::Execute()
     mhInput = GetStdHandle(STD_INPUT_HANDLE);
     mhOutput = GetStdHandle(STD_OUTPUT_HANDLE);
 
+    SaveConsoleState();
+
+
     // Main loop to read input events
     INPUT_RECORD inputRecord[128];
     DWORD numEventsRead;
@@ -288,7 +296,6 @@ bool ReaderWin::Execute()
     UpdateFromConsoleSize(true);  // force update if the screen changed
 
 
-    SaveConsoleState();
     bScreenInvalid = true;
     Init(Rect(0, 1, w, h));
 
@@ -677,7 +684,7 @@ void ReaderWin::Paint(tConsoleBuffer& backBuf)
 
     if (filteredCount > drawArea.h())
     {
-        Rect sb(drawArea.r - 1, drawArea.t, drawArea.r, drawArea.b);
+        Rect sb(drawArea.r, drawArea.t, drawArea.r+1, drawArea.b);    // drawArea is reduced by 1 for scrollbar
         DrawScrollbar(sb, 0, filteredCount - drawArea.h(), mTopVisibleRow, kAttribScrollbarBG, kAttribScrollbarThumb);
         drawArea.r--;
     }
@@ -762,10 +769,10 @@ int main(int argc, char* argv[])
 
 
     bool bParseSuccess = parser.Parse(argc, argv);
-/*    if (!bParseSuccess)
+    if (!bParseSuccess)
     {
         return -1;
-    }                */
+    }                
 
     if (!sFilename.empty() && sFilename[0] != '<') // temporarily detect pipe in via commandline param for vs debugging
     {

@@ -475,10 +475,16 @@ namespace CLP
 
     void SaveConsoleState()
     {
-        originalScreenInfo = screenInfo;
+        HANDLE hOutput = CreateFile("CONOUT$", GENERIC_READ | GENERIC_WRITE, FILE_SHARE_WRITE, nullptr, OPEN_EXISTING, 0, nullptr);
+        if (!GetConsoleScreenBufferInfo(hOutput, &originalScreenInfo))
+        {
+            cerr << "Failed to get console info." << endl;
+            return;
+        }
+
         originalConsoleBuf.resize(originalScreenInfo.dwSize.X * originalScreenInfo.dwSize.Y);
         SMALL_RECT readRegion = { 0, 0, originalScreenInfo.dwSize.X - 1, originalScreenInfo.dwSize.Y - 1 };
-        ReadConsoleOutput(mhOutput, &originalConsoleBuf[0], screenInfo.dwSize, { 0, 0 }, &readRegion);
+        ReadConsoleOutput(hOutput, &originalConsoleBuf[0], originalScreenInfo.dwSize, { 0, 0 }, &readRegion);
     }
 
     void RestoreConsoleState()
@@ -634,7 +640,7 @@ namespace CLP
         r.b = r.t + mHeight;
     }
 
-    void ConsoleWin::GetInnerArea(Rect& r)
+    void ConsoleWin::GetInnerArea(Rect& r) const
     {
         r.l = 0;
         r.t = 0;
@@ -1147,7 +1153,7 @@ namespace CLP
         {
 //            int64_t nRows = GetTextOutputRows(mText, drawArea.w());
             int64_t nRows = textArea.h();
-            Rect sb(drawArea.r - 1, drawArea.t, drawArea.r, drawArea.b);
+            Rect sb(drawArea.r, drawArea.t, drawArea.r+1, drawArea.b);
             bDrawScrollbar = nRows > drawArea.h();
             DrawScrollbar(sb, 0, nRows - drawArea.h() - 1, mTopVisibleRow, kAttribScrollbarBG, kAttribScrollbarThumb);
             drawArea.r--;   // adjust draw area for text if scrollbar is visible
@@ -1295,6 +1301,13 @@ namespace CLP
         }
 
         return ConsoleWin::OnMouse(event);
+    }
+
+    void InfoWin::GetInnerArea(Rect& r) const
+    {
+        ConsoleWin::GetInnerArea(r);
+        if (bAutoScrollbar)
+            r.r--;
     }
 
 

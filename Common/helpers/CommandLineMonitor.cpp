@@ -355,7 +355,7 @@ namespace CLP
         {
 //            ZAttrib bg(MAKE_BG(0xff555555));
 //            ZAttrib thumb(MAKE_BG(0xffbbbbbb));
-            Rect sb(drawArea.r - 1, drawArea.t, drawArea.r, drawArea.b);
+            Rect sb(drawArea.r, drawArea.t, drawArea.r+1, drawArea.b);
             DrawScrollbar(sb, 0, LOG::gLogger.getEntryCount()- drawArea.h(), mTopVisibleRow, kAttribScrollbarBG, kAttribScrollbarThumb);
             drawArea.r--;
         }
