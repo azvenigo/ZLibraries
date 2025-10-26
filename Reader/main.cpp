@@ -367,7 +367,9 @@ bool ReaderWin::Execute()
                 }
                 else if (inputRecord[i].EventType == KEY_EVENT && inputRecord[i].Event.KeyEvent.bKeyDown)
                 {
-                    OnKey(inputRecord[i].Event.KeyEvent.wVirtualKeyCode, inputRecord[i].Event.KeyEvent.uChar.AsciiChar);
+                    int keycode = inputRecord[i].Event.KeyEvent.wVirtualKeyCode;
+                    char c = inputRecord[i].Event.KeyEvent.uChar.AsciiChar;
+                    OnKey(keycode, c);
                 }
             }
         }
@@ -507,81 +509,114 @@ bool ReaderWin::OnKey(int keycode, char c)
     GetInnerArea(drawArea);
 
     bool bCTRLHeld = GetKeyState(VK_CONTROL) & 0x800;
-
-
     int64_t entryCount = rows.size();
 
-    if (keycode == VK_UP)
+    if (filterTextEntryWin.mbVisible && !bHandled)
+        bHandled = filterTextEntryWin.OnKey(keycode, c);
+
+    if (saveLogFilenameEntryWin.mbVisible && !bHandled)
+        bHandled = saveLogFilenameEntryWin.OnKey(keycode, c);
+
+    if (filterTextEntryWin.mbVisible)
     {
-        mTopVisibleRow--;
-        invalid = true;
-        bHandled = true;
-    }
-    else if (keycode == VK_DOWN)
-    {
-        mTopVisibleRow++;
-        invalid = true;
-        bHandled = true;
-    }
-    else if (keycode == VK_HOME)
-    {
-        mTopVisibleRow = 0;
-        invalid = true;
-        bHandled = true;
-    }
-    else if (keycode == VK_PRIOR)
-    {
-        mTopVisibleRow -= drawArea.h();
-        invalid = true;
-        bHandled = true;
-    }
-    else if (keycode == VK_NEXT)
-    {
-        mTopVisibleRow += drawArea.h();
-        invalid = true;
-        bHandled = true;
-    }
-    else if (keycode == VK_END)
-    {
-        mTopVisibleRow = entryCount - drawArea.h();
-        invalid = true;
-        bHandled = true;
-    }
-    else if (keycode == 'f' || keycode == 'F')
-    {
-        if (bCTRLHeld)
+        if (filterTextEntryWin.mbCanceled)
+            filterTextEntryWin.SetText("");
+
+        if (filterTextEntryWin.mbCanceled || filterTextEntryWin.mbDone)
         {
-            if (!filterTextEntryWin.mbVisible)
-            {
-                filterTextEntryWin.Clear(ZAttrib(0xff666699ffffffff));
-                filterTextEntryWin.SetArea(Rect(mX + 11, mY + mHeight - 1, mX + mWidth, mY + mHeight));
-                filterTextEntryWin.SetVisible();
-                invalid = true;
-            }
-            bHandled = true;
+            filterTextEntryWin.SetVisible(false);
+            filterTextEntryWin.mbCanceled = false;
+            filterTextEntryWin.mbDone = false;
+            bScreenInvalid = true;
+            return true;
         }
     }
-    else if (keycode == VK_ESCAPE)
+    if (saveLogFilenameEntryWin.mbVisible)
     {
-        mbDone = true;
-        mbVisible = false;
-        bScreenInvalid = true;
-        return true;
+        if (saveLogFilenameEntryWin.mbCanceled || saveLogFilenameEntryWin.mbDone)
+        {
+            saveLogFilenameEntryWin.SetVisible(false);
+            saveLogFilenameEntryWin.mbCanceled = false;
+            saveLogFilenameEntryWin.mbDone = false;
+            bScreenInvalid = true;
+            return true;
+        }
     }
-    else if (keycode == VK_F1)
+
+    if (!bHandled)
     {
-        logWin.mbVisible = !logWin.mbVisible;
-        return true;
-    }
-    else if (keycode == VK_F2)
-    {
-        ShowEnvVars();
-        return true;
-    }
-    else if (keycode == VK_F3)
-    {
-        ShowLaunchParams();
-        return true;
+        if (keycode == VK_UP)
+        {
+            mTopVisibleRow--;
+            invalid = true;
+            bHandled = true;
+        }
+        else if (keycode == VK_DOWN)
+        {
+            mTopVisibleRow++;
+            invalid = true;
+            bHandled = true;
+        }
+        else if (keycode == VK_HOME)
+        {
+            mTopVisibleRow = 0;
+            invalid = true;
+            bHandled = true;
+        }
+        else if (keycode == VK_PRIOR)
+        {
+            mTopVisibleRow -= drawArea.h();
+            invalid = true;
+            bHandled = true;
+        }
+        else if (keycode == VK_NEXT)
+        {
+            mTopVisibleRow += drawArea.h();
+            invalid = true;
+            bHandled = true;
+        }
+        else if (keycode == VK_END)
+        {
+            mTopVisibleRow = entryCount - drawArea.h();
+            invalid = true;
+            bHandled = true;
+        }
+        else if (keycode == 'f' || keycode == 'F')
+        {
+            if (bCTRLHeld)
+            {
+                if (!filterTextEntryWin.mbVisible)
+                {
+                    filterTextEntryWin.Clear(ZAttrib(0xff666699ffffffff));
+                    filterTextEntryWin.SetArea(Rect(mX + 11, mY + mHeight - 1, mX + mWidth, mY + mHeight));
+                    filterTextEntryWin.SetVisible();
+                    invalid = true;
+                }
+                bHandled = true;
+            }
+        }
+        else if (keycode == VK_ESCAPE)
+        {
+            mbDone = true;
+            mbVisible = false;
+            bScreenInvalid = true;
+            return true;
+        }
+        else if (keycode == VK_F1)
+        {
+            logWin.mbVisible = !logWin.mbVisible;
+            return true;
+        }
+        else if (keycode == VK_F2)
+        {
+            ShowEnvVars();
+            return true;
+        }
+        else if (keycode == VK_F3)
+        {
+            ShowLaunchParams();
+            return true;
+        }
     }
 
     Update();
@@ -622,11 +657,10 @@ void ReaderWin::Paint(tConsoleBuffer& backBuf)
             if (bInclude)
             {
                 DrawClippedText(Rect(drawArea.l, drawrow, drawArea.r, drawrow + 1), s, WHITE_ON_BLACK, false, &drawArea);
+                drawrow++;
             }
             it++;
         }
-
-        drawrow++;
     }
 
     if (filteredCount > drawArea.h())
@@ -695,8 +729,9 @@ bool ReaderWin::UpdateFromConsoleSize(bool bForce)
 
     Rect drawArea;
     GetInnerArea(drawArea);
-    if (mTopVisibleRow > (int64_t)rows.size() - drawArea.h())
-        mTopVisibleRow = (int64_t)rows.size() - drawArea.h();
+    int64_t filteredCount = GetFilteredCount();
+    if (mTopVisibleRow > filteredCount - drawArea.h())
+        mTopVisibleRow = filteredCount - drawArea.h();
     if (mTopVisibleRow < 0)
         mTopVisibleRow = 0;
 

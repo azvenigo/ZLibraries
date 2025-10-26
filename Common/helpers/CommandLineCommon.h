@@ -67,6 +67,20 @@ const uint64_t WHITE_ON_GRAY = ((uint64_t)WHITE << 32) | GRAY;
 #define GET_BB(x) ((x & 0x000000ff00000000) >> 32)
 
 
+
+#ifdef ENABLE_ANSI_OUT
+// DEC_LINE characters 
+#define SCROLLBAR_TRACK_TOP '\x77'
+#define SCROLLBAR_TRACK_CENTER '\x78'
+#define SCROLLBAR_TRACK_BOTTOM '\x76'
+#define SCROLLBAR_THUMB '\xb1'
+#else
+#define SCROLLBAR_TRACK_TOP '|'
+#define SCROLLBAR_TRACK_CENTER '|'
+#define SCROLLBAR_TRACK_BOTTOM '|'
+#define SCROLLBAR_THUMB '#'
+#endif
+
 typedef std::list<std::string> tStringList;
 
 namespace CLP

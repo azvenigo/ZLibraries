@@ -1217,12 +1217,13 @@ namespace CLP
         track.dec_line = true;
 
         Rect trackRect(r);
-        DrawCharClipped('\x77', trackRect.l, trackRect.t, track);
-        DrawCharClipped('\x76', trackRect.l, trackRect.b-1,  track);
+
+        DrawCharClipped(SCROLLBAR_TRACK_TOP, trackRect.l, trackRect.t, track);
+        DrawCharClipped(SCROLLBAR_TRACK_BOTTOM, trackRect.l, trackRect.b-1,  track);
         trackRect.t++;
         trackRect.b--;
 
-        Fill('\x78', trackRect, track);
+        Fill(SCROLLBAR_TRACK_CENTER, trackRect, track);
 
         int64_t trackSize = sbSize - thumbSize;  // 48 - 29 = 19
         if (trackSize <= 0) 
@@ -1249,7 +1250,7 @@ namespace CLP
             rThumb.r = r.r;
         }
 
-        Fill('\xb1', rThumb, thumb);
+        Fill(SCROLLBAR_THUMB, rThumb, thumb);
     }
 
 
