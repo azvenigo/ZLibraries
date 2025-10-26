@@ -426,6 +426,15 @@ void ReaderWin::Update()
         invalid = true;
     }
 
+    Rect drawArea;
+    GetInnerArea(drawArea);
+    int64_t filteredCount = GetFilteredCount();
+    if (mTopVisibleRow > filteredCount - drawArea.h())
+        mTopVisibleRow = filteredCount - drawArea.h();
+    if (mTopVisibleRow < 0)
+        mTopVisibleRow = 0;
+
+
     if (viewTopLine != mTopVisibleRow)
     {
         viewTopLine = mTopVisibleRow;
@@ -501,6 +510,8 @@ bool ReaderWin::OnMouse(MOUSE_EVENT_RECORD event)
             mTopVisibleRow -= mHeight / 4;
             invalid = true;
         }
+
+        Update();
     }
 
     return ConsoleWin::OnMouse(event);
@@ -639,7 +650,9 @@ void ReaderWin::Paint(tConsoleBuffer& backBuf)
     int64_t startrow = 0;
     while (startrow < mTopVisibleRow && it != rows.end())
     {
-        startrow++;
+        bool bInclude = sFilter.empty() || SH::Contains(*it, sFilter, false);  // either always include if filter is empty, or if s contains the filter text
+        if (bInclude)
+            startrow++;
         it++;
     }
 
@@ -724,14 +737,6 @@ bool ReaderWin::UpdateFromConsoleSize(bool bForce)
         Update();
         bChanges = true;
     }
-
-    Rect drawArea;
-    GetInnerArea(drawArea);
-    int64_t filteredCount = GetFilteredCount();
-    if (mTopVisibleRow > filteredCount - drawArea.h())
-        mTopVisibleRow = filteredCount - drawArea.h();
-    if (mTopVisibleRow < 0)
-        mTopVisibleRow = 0;
 
     return bChanges;
 }
