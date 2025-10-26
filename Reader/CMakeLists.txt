@@ -2,14 +2,20 @@
 cmake_minimum_required(VERSION 3.7.1)
 ################################################################################
 
-project(CLMonitorTest)
+project(Reader)
 
 ####################
-# CLMonitorTest
+# Reader
 set(SM_SOURCES 
 main.cpp
-
 )
+
+list(APPEND COMMON_FILES 
+../Common/helpers/ZZFileAPI.h
+../Common/helpers/ZZFile_PC.h
+../Common/helpers/ZZFile_PC.cpp
+)
+
 
 
 ####################
@@ -57,6 +63,6 @@ endif()
 link_directories(${LINK_DIRS})
 include_directories(${INCLUDE_DIRS})
 
-add_executable(CLMonitorTest ${SOURCES} ${INCLUDES})
-target_link_libraries(CLMonitorTest ${LINK_LIBS})
+add_executable(Reader ${SOURCES} ${INCLUDES})
+target_link_libraries(Reader ${LINK_LIBS})
     

@@ -19,7 +19,7 @@ if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
 	set(CMAKE_CONFIGURATION_TYPES "Debug;Release" CACHE STRING "" FORCE)
 
   add_definitions(-D_CRT_SECURE_NO_WARNINGS)
-  add_compile_definitions(ENABLE_CLM ENABLE_CLE ENABLE_COMMAND_HISTORY)  
+  add_compile_definitions(ENABLE_CLM ENABLE_CLE ENABLE_COMMAND_HISTORY ENABLE_ANSI_OUT)  
 	set(CMAKE_CXX_FLAGS_MDDEBUG   "${CMAKE_CXX_FLAGS_DEBUG}")
 	set(CMAKE_CXX_FLAGS_MDRELEASE "${CMAKE_CXX_FLAGS_RELEASE}")
 	STRING(REPLACE "/MD"  "/MT"  CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE}")
@@ -58,5 +58,6 @@ add_subdirectory(BinTool)
 add_subdirectory(ZZip)
 add_subdirectory(ZPackager)
 add_subdirectory(CLMonitorTest)
+add_subdirectory(Reader)
 
 ################################################################################

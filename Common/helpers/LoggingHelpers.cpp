@@ -6,8 +6,6 @@
 using namespace std;
 
 #define PAD(n, c) string(n, c)
-size_t nextWhitespace(const std::string& s, size_t offset) { return s.find_first_of(" \t\n\r\f\v", offset); }
-size_t nextNonWhitespace(const std::string& s, size_t offset) { return s.find_first_not_of(" \t\n\r\f\v", offset); }
 
 namespace LOG
 {
@@ -886,11 +884,14 @@ tStringArray Table::Cell::GetLines(size_t width) const
         string sLine;
         do
         {
-            if (s[i] == '\n')
+            if (s[i] == '\n' || s[i] == '\r')
             {
                 rows.push_back(sLine);
                 sLine.clear();
-                i++;
+
+                if (i + 1 < s.size() && s[i + 1] == '\n')
+                    i++;
+
             }
             else if (sLine.length() == width)
             {
@@ -900,8 +901,8 @@ tStringArray Table::Cell::GetLines(size_t width) const
             else
             {
                 sLine += s[i];
-                i++;
             }
+            i++;
         } while (i < s.length());
 
         if (!sLine.empty())

@@ -83,6 +83,8 @@
 #endif
 
 bool validateAnsiSequences(const std::string& input);
+inline size_t nextWhitespace(const std::string& s, size_t offset) { return s.find_first_of(" \t\n\r\f\v", offset); }
+inline size_t nextNonWhitespace(const std::string& s, size_t offset) { return s.find_first_not_of(" \t\n\r\f\v", offset); }
 
 namespace LOG
 {
@@ -102,7 +104,8 @@ namespace LOG
 #define OUT_DEFAULT(statement)  { if (LOG::gnVerbosityLevel >= LVL_DEFAULT) statement; }
 #define OUT_DIAG(statement)     { if (LOG::gnVerbosityLevel >= LVL_DIAG_BASIC) {statement;} }
 #define OUT_DIAG_FULL(statement){ if (LOG::gnVerbosityLevel >= LVL_DIAG_FULL) {statement;} }
-#define OUT_ERR(statement)      { statement; cerr << std::flush; assert(false); }
+#define OUT_ERR(message)      { cout << COL_RED "ERROR: " COL_RESET << message << std::flush; }
+#define OUT_ABORT(statement)      { statement; cerr << std::flush; assert(false); }
 
 
 #define OUT_HEX(statement)          std::hex << statement << std::dec 

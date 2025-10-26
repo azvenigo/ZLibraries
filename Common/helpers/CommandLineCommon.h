@@ -67,6 +67,20 @@ const uint64_t WHITE_ON_GRAY = ((uint64_t)WHITE << 32) | GRAY;
 #define GET_BB(x) ((x & 0x000000ff00000000) >> 32)
 
 
+
+#ifdef ENABLE_ANSI_OUT
+// DEC_LINE characters 
+#define SCROLLBAR_TRACK_TOP '\x77'
+#define SCROLLBAR_TRACK_CENTER '\x78'
+#define SCROLLBAR_TRACK_BOTTOM '\x76'
+#define SCROLLBAR_THUMB '\xb1'
+#else
+#define SCROLLBAR_TRACK_TOP '|'
+#define SCROLLBAR_TRACK_CENTER '|'
+#define SCROLLBAR_TRACK_BOTTOM '|'
+#define SCROLLBAR_THUMB '#'
+#endif
+
 typedef std::list<std::string> tStringList;
 
 namespace CLP
@@ -228,6 +242,7 @@ namespace CLP
     int16_t ScreenH();
     void InitScreenInfo();
 
+    bool ConsoleHasFocus();
 
 #ifdef ENABLE_CLE
 
@@ -354,7 +369,7 @@ namespace CLP
         virtual void SetArea(const Rect& r);
         bool IsOver(int64_t x, int64_t y) { return mbVisible && x >= mX && x <= mX + mWidth && y >= mY && y <= mY + mHeight; }
         void GetArea(Rect& r);
-        void GetInnerArea(Rect& r);  // adjusted for frame
+        void GetInnerArea(Rect& r) const;  // adjusted for frame
 
 
 
@@ -394,6 +409,7 @@ namespace CLP
         void Paint(tConsoleBuffer& backBuf);
         bool OnKey(int keycode, char c);
         virtual bool OnMouse(MOUSE_EVENT_RECORD event);
+        void GetInnerArea(Rect& r) const;  // adjusted for scrollbar when needed
 
         virtual void UpdateCaptions();
 

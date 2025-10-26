@@ -564,7 +564,7 @@ namespace CLP
                 *((float*)pDesc->mpValue) = (float)SH::ToDouble(sValue);    // set the registered float
                 break;
             default:    // ParamDesc::kString
-                *((string*)pDesc->mpValue) = sValue;     // set the registered string
+                *((string*)pDesc->mpValue) = CommandLineParser::StripEnclosure(sValue);     // set the registered string
                 break;
             }
             return true;
@@ -601,7 +601,7 @@ namespace CLP
                 *((float*)pPositionalDesc->mpValue) = (float)SH::ToDouble(sArg);
                 break;
             default:    // ParamDesc::kString
-                *((string*)pPositionalDesc->mpValue) = sArg;     // set the registered string
+                *((string*)pPositionalDesc->mpValue) = CommandLineParser::StripEnclosure(sArg);     // set the registered string
             }
             return true;
         }
@@ -927,9 +927,6 @@ namespace CLP
 #endif        
         bool bMultiMode = !mModeToCommandLineParser.empty();
 
-        if (params.empty())
-            return kShowHelp;
-
         if (ContainsArgument("??", params))
             return kShowCommandLineHelp;
 
@@ -940,6 +937,9 @@ namespace CLP
         string sMode = GetFirstPositionalArgument(params); // mode
         if (bMultiMode)
         {
+            if (params.empty())
+                return kShowHelp;
+
             if (!IsRegisteredMode(sMode))
             {
                 return kShowHelp;
