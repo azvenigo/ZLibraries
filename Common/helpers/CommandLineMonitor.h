@@ -93,7 +93,7 @@ namespace CLP
 
         static void ThreadProc(CommandLineMonitor* pCLM);
 
-        void UpdateFromConsoleSize(bool bForce = false);
+        bool UpdateFromConsoleSize(bool bForce = false);
         void UpdateDisplay();
         void DrawToScreen();
         void UpdateVisibility();

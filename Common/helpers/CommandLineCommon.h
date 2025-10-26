@@ -228,6 +228,7 @@ namespace CLP
     int16_t ScreenH();
     void InitScreenInfo();
 
+    bool ConsoleHasFocus();
 
 #ifdef ENABLE_CLE
 

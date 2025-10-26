@@ -58,5 +58,6 @@ add_subdirectory(BinTool)
 add_subdirectory(ZZip)
 add_subdirectory(ZPackager)
 add_subdirectory(CLMonitorTest)
+add_subdirectory(Reader)
 
 ################################################################################

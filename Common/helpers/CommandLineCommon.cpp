@@ -465,6 +465,14 @@ namespace CLP
         bScreenInfoInitialized = true;
     }
 
+    bool ConsoleHasFocus()
+    {
+        HWND consoleWnd = GetConsoleWindow();
+        if (!consoleWnd) return false;
+
+        return (GetForegroundWindow() == consoleWnd);
+    }
+
     void SaveConsoleState()
     {
         originalScreenInfo = screenInfo;
@@ -1277,11 +1285,11 @@ namespace CLP
             SHORT wheelDelta = HIWORD(event.dwButtonState);
             if (wheelDelta < 0)
             {
-                return OnKey(VK_DOWN, 4);
+                return OnKey(VK_DOWN, (char)(mHeight / 4));
             }
             else
             {
-                return OnKey(VK_UP, 4);
+                return OnKey(VK_UP, (char)(mHeight / 4));
             }
         }
 

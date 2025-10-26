@@ -578,15 +578,16 @@ namespace CLP
         }
     }
 
-    void CommandLineMonitor::UpdateFromConsoleSize(bool bForce)
+    bool CommandLineMonitor::UpdateFromConsoleSize(bool bForce)
     {
         CONSOLE_SCREEN_BUFFER_INFO newScreenInfo;
         if (!GetConsoleScreenBufferInfo(mhOutput, &newScreenInfo))
         {
             cerr << "Failed to get console info." << endl;
-            return;
+            return false;
         }
 
+        bool bChanges = false;
         if ((newScreenInfo.dwSize.X != screenInfo.dwSize.X || newScreenInfo.dwSize.Y != screenInfo.dwSize.Y) || bForce)
         {
             screenInfo = newScreenInfo;
@@ -635,8 +636,12 @@ namespace CLP
             helpTableWin.SetArea(viewRect);
             helpTableWin.SetEnableFrame();
             helpTableWin.bAutoScrollbar = true;
-            
+
+            bChanges = true;
+           
         }
+
+        return bChanges;
     }
 
     void CommandLineMonitor::UpdateVisibility()
@@ -757,14 +762,6 @@ namespace CLP
         return false;
     }
 
-
-    bool ConsoleHasFocus()
-    {
-        HWND consoleWnd = GetConsoleWindow();
-        if (!consoleWnd) return false;
-
-        return (GetForegroundWindow() == consoleWnd);
-    }
 
     void CommandLineMonitor::ThreadProc(CommandLineMonitor* pCLM)
     {

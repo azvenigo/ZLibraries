@@ -1541,13 +1541,13 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
         return Edit(CommandLineParser::ToString(params), outEditedCommandLine);
     }
 
-    void CommandLineEditor::UpdateFromConsoleSize(bool bForce)
+    bool CommandLineEditor::UpdateFromConsoleSize(bool bForce)
     {
         CONSOLE_SCREEN_BUFFER_INFO newScreenInfo;
         if (!GetConsoleScreenBufferInfo(mhOutput, &newScreenInfo))
         {
             cerr << "Failed to get console info." << endl;
-            return;
+            return false;
         }
 
         if ((newScreenInfo.dwSize.X != screenInfo.dwSize.X || newScreenInfo.dwSize.Y != screenInfo.dwSize.Y) || bForce)
@@ -1600,7 +1600,10 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
             popupListWin.positionCaption[ConsoleWin::Position::RB] = "[UP/DOWN][ENTER-Select][ESC-Cancel]";
 
             UpdateDisplay();
+            return true;
         }
+
+        return false; // no changes
     }
 
     void CommandLineEditor::ShowHelp()

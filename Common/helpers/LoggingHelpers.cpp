@@ -6,8 +6,6 @@
 using namespace std;
 
 #define PAD(n, c) string(n, c)
-size_t nextWhitespace(const std::string& s, size_t offset) { return s.find_first_of(" \t\n\r\f\v", offset); }
-size_t nextNonWhitespace(const std::string& s, size_t offset) { return s.find_first_not_of(" \t\n\r\f\v", offset); }
 
 namespace LOG
 {
