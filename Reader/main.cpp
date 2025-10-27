@@ -70,12 +70,7 @@ inline bool IsWhitespace(char c)
 
 inline bool IsBreakingChar(char c)
 {
-    bool bBreaking = c == ';' || c == '.' || IsWhitespace(c);
-    if (bBreaking)
-    {
-        int stophere = 5;
-    }
-    return bBreaking;
+    return c == ';' || c == '.' || IsWhitespace(c);
 }
 
 
