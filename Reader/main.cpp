@@ -41,6 +41,7 @@ protected:
     void        Update();
     bool        UpdateFromConsoleSize(bool bForce = false);
     tStringList GetLines(const string& rawText) const;
+    int64_t     CalculateWordsThatFitInWidth(int64_t nLineWidth, const uint8_t* pChars, int64_t nNumChars) const;
 
     void        DrawToScreen();
     int64_t     GetFilteredCount();
@@ -62,6 +63,58 @@ protected:
 
 };
 
+inline bool IsWhitespace(char c)
+{
+    return  c == ' ' || c == '\n' || c == '\r' || c == '\t' || c == '\f' || c == '\v';
+}
+
+inline bool IsBreakingChar(char c)
+{
+    bool bBreaking = c == ';' || c == '.' || IsWhitespace(c);
+    if (bBreaking)
+    {
+        int stophere = 5;
+    }
+    return bBreaking;
+}
+
+
+int64_t ReaderWin::CalculateWordsThatFitInWidth(int64_t nLineWidth, const uint8_t* pChars, int64_t nNumChars) const
+{
+    const uint8_t* pEnd = pChars + nLineWidth;
+    if (pEnd > pChars + nNumChars)
+        pEnd = pChars + nNumChars;
+
+    // Find first nextline if one exists between start and linewidth
+    for (const uint8_t* pFind = pChars; pFind < pChars + nLineWidth && pFind < pEnd; pFind++)
+    {
+        if (*pFind == '\r' || *pFind == '\n')
+        {
+            pFind++;    // skip
+
+            // If nextchar is combo \r \n skip it too
+            if (pFind < pEnd+1 && (*(pFind+1) == '\r' || *(pFind + 1) == '\n'))
+                pFind++;
+
+            return pFind - pChars;
+        }
+    }
+
+    // no nextlines..... if string is larger than nLineWidth, return whole thing
+    if (nNumChars < nLineWidth)
+        return nNumChars;
+
+    // No nextlines......find the last breaking char
+    const uint8_t* pFind = pChars + nLineWidth;
+    while (pFind > pChars && !IsBreakingChar(*pFind))
+        pFind--;
+
+    if (pFind == pChars)        // no breaking chars found......return a whole line
+        return nLineWidth;
+
+    return pFind - pChars+1;    // include breaking char
+}
+
 
 tStringList ReaderWin::GetLines(const string& rawText) const
 {
@@ -71,7 +124,7 @@ tStringList ReaderWin::GetLines(const string& rawText) const
     assert(drawArea.w() > 0);
 
     Table::Style style = Table::kDefaultStyle;
-//    style.wrapping = Table::WORD_WRAP;
+    style.wrapping = Table::WORD_WRAP;
 
     // if text fits in width or there's no wrapping just return a single entry
     if (rawText.empty() || style.wrapping == Table::NO_WRAP)
@@ -116,12 +169,7 @@ tStringList ReaderWin::GetLines(const string& rawText) const
         size_t end = 0;
         do
         {
-            start = nextNonWhitespace(rawText, start); // start with first non-whitespace
-            if (start == string::npos)
-                break;
-            end = nextWhitespace(rawText, start);
-            if (end > rawText.length())
-                end = rawText.length();
+            end = start + CalculateWordsThatFitInWidth(drawArea.w(), (uint8_t*)&rawText[start], rawText.length() - start);
             rows.push_back(rawText.substr(start, end - start));
             start = end;
         } while (end < rawText.length());
