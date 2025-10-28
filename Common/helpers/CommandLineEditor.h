@@ -109,7 +109,6 @@ namespace CLP
         std::string     GetMode();      // first positional entry
 
         bool UpdateFromConsoleSize(bool bForce = false);
-        void UpdateDisplay();
         void DrawToScreen();
         void ShowHelp();
 

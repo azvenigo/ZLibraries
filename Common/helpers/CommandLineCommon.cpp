@@ -428,44 +428,30 @@ namespace CLP
 
 
 
-    HANDLE mhInput;
+/*    HANDLE mhInput;
     HANDLE mhOutput;
     std::vector<CHAR_INFO> originalConsoleBuf;
+    std::vector<CHAR_INFO> workingConsoleBuf;
     CONSOLE_SCREEN_BUFFER_INFO originalScreenInfo;
     CONSOLE_SCREEN_BUFFER_INFO screenInfo;
     bool bScreenInfoInitialized = false;
     bool bScreenInvalid = true;
-    COORD gLastCursorPos = { -1, -1 };
+    COORD gLastCursorPos = { -1, -1 };*/
+
+    NativeConsole gConsole;
 
     TableWin helpTableWin;
 
-    void SetCursorPosition(COORD coord, bool bForce)
+    void NativeConsole::SetCursorPosition(COORD coord, bool bForce)
     {
-        if (bForce || coord.X != gLastCursorPos.X || coord.Y != gLastCursorPos.Y)
+        if (bForce || coord.X != lastCursorPos.X || coord.Y != lastCursorPos.Y)
         {
             cout << "\033[" + SH::FromInt(coord.X+1) + "G\033[" + SH::FromInt(coord.Y+1) + "d" << flush;
-            gLastCursorPos = coord;
+            lastCursorPos = coord;
         }
     }
 
-    void InitScreenInfo()
-    {
-        HANDLE hOutput = GetStdHandle(STD_OUTPUT_HANDLE);
-        if (hOutput == INVALID_HANDLE_VALUE)
-        {
-            cerr << "Failed to get standard output handle." << endl;
-            return;
-        }
-
-        if (!GetConsoleScreenBufferInfo(hOutput, &screenInfo))
-        {
-            cerr << "Failed to get console info." << endl;
-        }
-
-        bScreenInfoInitialized = true;
-    }
-
-    bool ConsoleHasFocus()
+    bool NativeConsole::ConsoleHasFocus()
     {
         HWND consoleWnd = GetConsoleWindow();
         if (!consoleWnd) return false;
@@ -473,50 +459,447 @@ namespace CLP
         return (GetForegroundWindow() == consoleWnd);
     }
 
-    void SaveConsoleState()
+
+    bool NativeConsole::ScreenChanged() const
     {
+        CONSOLE_SCREEN_BUFFER_INFO newScreenInfo;
+        if (!GetConsoleScreenBufferInfo(mhOutput, &newScreenInfo))
+        {
+            cerr << "Failed to get console info." << endl;
+            return false;
+        }
+
+        return newScreenInfo.dwSize.X != screenInfo.dwSize.X || newScreenInfo.dwSize.Y != screenInfo.dwSize.Y;
+    }
+
+    bool NativeConsole::UpdateScreenInfo()
+    {
+        // TBD.....does this need thread safety?
+        CONSOLE_SCREEN_BUFFER_INFO newScreenInfo;
+        if (!GetConsoleScreenBufferInfo(mhOutput, &newScreenInfo))
+        {
+            cerr << "Failed to get console info." << endl;
+            return false;
+        }
+
+        if (newScreenInfo.dwSize.X == screenInfo.dwSize.X && newScreenInfo.dwSize.Y == screenInfo.dwSize.Y)
+            return false;
+
+        screenInfo = newScreenInfo;
+        mBackBuffer.resize(newScreenInfo.dwSize.X * newScreenInfo.dwSize.Y);
+        mDrawStateBuffer.resize(newScreenInfo.dwSize.X * newScreenInfo.dwSize.Y);
+
+        mbScreenInvalid = true;
+        return true;
+    }
+
+    // Helper function to check if RGB values match one of the 16 standard console colors
+    bool IsStandard16Color(uint8_t r, uint8_t g, uint8_t b)
+    {
+        // Standard console color table
+        static const uint8_t standardColors[16][3] =
+        {
+            {0,   0,   0},   // 0: Black
+            {0,   0,   128}, // 1: Dark Blue
+            {0,   128, 0},   // 2: Dark Green
+            {0,   128, 128}, // 3: Dark Cyan
+            {128, 0,   0},   // 4: Dark Red
+            {128, 0,   128}, // 5: Dark Magenta
+            {128, 128, 0},   // 6: Dark Yellow
+            {192, 192, 192}, // 7: Gray
+            {128, 128, 128}, // 8: Dark Gray
+            {0,   0,   255}, // 9: Blue
+            {0,   255, 0},   // 10: Green
+            {0,   255, 255}, // 11: Cyan
+            {255, 0,   0},   // 12: Red
+            {255, 0,   255}, // 13: Magenta
+            {255, 255, 0},   // 14: Yellow
+            {255, 255, 255}  // 15: White
+        };
+
+        for (int i = 0; i < 16; i++)
+        {
+            if (standardColors[i][0] == r &&
+                standardColors[i][1] == g &&
+                standardColors[i][2] == b)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    // Helper to convert RGB to color index (0-15)
+    uint8_t RGBToColorIndex(uint8_t r, uint8_t g, uint8_t b)
+    {
+        static const uint8_t standardColors[16][3] =
+        {
+            {0,   0,   0},   {0,   0,   128}, {0,   128, 0},   {0,   128, 128},
+            {128, 0,   0},   {128, 0,   128}, {128, 128, 0},   {192, 192, 192},
+            {128, 128, 128}, {0,   0,   255}, {0,   255, 0},   {0,   255, 255},
+            {255, 0,   0},   {255, 0,   255}, {255, 255, 0},   {255, 255, 255}
+        };
+
+        for (uint8_t i = 0; i < 16; i++)
+        {
+            if (standardColors[i][0] == r &&
+                standardColors[i][1] == g &&
+                standardColors[i][2] == b)
+            {
+                return i;
+            }
+        }
+
+        return 7; // Default to gray if not found
+    }
+
+    WORD ZAttribToConsoleAttributes(const ZAttrib& attrib)
+    {
+        // This assumes CanUseWriteConsoleOutput returned true
+        uint8_t fgIndex = RGBToColorIndex(attrib.r, attrib.g, attrib.b);
+        uint8_t bgIndex = RGBToColorIndex(attrib.br, attrib.bg, attrib.bb);
+
+        return (WORD)((bgIndex << 4) | fgIndex);
+    }
+
+
+    bool CanUseWriteConsoleOutput(const ZChar& c)
+    {
+        // 1. Check if character is in the valid range
+        // WriteConsoleOutput can handle extended ASCII (0-255)
+        // but null characters should be avoided
+        if (c.c == 0)
+        {
+            return false;
+        }
+
+        // 2. Check if dec_line is set (DEC line drawing mode)
+        // WriteConsoleOutput doesn't handle special line drawing the same way as ANSI
+        if (c.attrib.dec_line)
+        {
+            return false;
+        }
+
+        // 3. Check if colors are standard 16-color palette
+        // WriteConsoleOutput's CHAR_INFO uses 4-bit color indices (0-15)
+        // We need to check if the RGB values map cleanly to the standard palette
+
+        // Standard Windows console colors (as RGB):
+        // 0=Black(0,0,0), 1=DarkBlue(0,0,128), 2=DarkGreen(0,128,0), 3=DarkCyan(0,128,128)
+        // 4=DarkRed(128,0,0), 5=DarkMagenta(128,0,128), 6=DarkYellow(128,128,0), 7=Gray(192,192,192)
+        // 8=DarkGray(128,128,128), 9=Blue(0,0,255), 10=Green(0,255,0), 11=Cyan(0,255,255)
+        // 12=Red(255,0,0), 13=Magenta(255,0,255), 14=Yellow(255,255,0), 15=White(255,255,255)
+
+        // If alpha is not 255, we can't represent it in WriteConsoleOutput
+        if (c.attrib.a != 255 || c.attrib.ba != 255)
+        {
+            return false;
+        }
+
+        // Check if foreground and background colors match the standard 16-color palette
+        if (!IsStandard16Color(c.attrib.r, c.attrib.g, c.attrib.b))
+        {
+            return false;
+        }
+
+        if (!IsStandard16Color(c.attrib.br, c.attrib.bg, c.attrib.bb))
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+
+    bool NativeConsole::Init()
+    {
+        if (mbInitted)
+            return true;
+
+        mhOutput = GetStdHandle(STD_OUTPUT_HANDLE);
+        if (mhOutput == INVALID_HANDLE_VALUE)
+        {
+            cerr << "Failed to get standard output handle." << endl;
+            return false;
+        }
+
+        UpdateScreenInfo();
+
         HANDLE hOutput = CreateFile("CONOUT$", GENERIC_READ | GENERIC_WRITE, FILE_SHARE_WRITE, nullptr, OPEN_EXISTING, 0, nullptr);
         if (!GetConsoleScreenBufferInfo(hOutput, &originalScreenInfo))
         {
             cerr << "Failed to get console info." << endl;
-            return;
+            return false;
         }
 
+        // Save console state
         originalConsoleBuf.resize(originalScreenInfo.dwSize.X * originalScreenInfo.dwSize.Y);
         SMALL_RECT readRegion = { 0, 0, originalScreenInfo.dwSize.X - 1, originalScreenInfo.dwSize.Y - 1 };
-        ReadConsoleOutput(hOutput, &originalConsoleBuf[0], originalScreenInfo.dwSize, { 0, 0 }, &readRegion);
+        ReadConsoleOutput(mhOutput, &originalConsoleBuf[0], originalScreenInfo.dwSize, { 0, 0 }, &readRegion);
+
+
+
+
+        // Set console mode to allow reading mouse and key events
+        DWORD mode;
+        if (!GetConsoleMode(mhInput, &mode))
+        {
+            // Piped input...... reopen for interactive input
+            CloseHandle(mhInput);
+            mhInput = CreateFileA("CONIN$", GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL);
+
+            if (mhInput == INVALID_HANDLE_VALUE)
+            {
+                cerr << "Failed to get console mode." << endl;
+                return false;
+            }
+
+            SetStdHandle(STD_INPUT_HANDLE, mhInput);
+            if (!GetConsoleMode(mhInput, &mode))
+            {
+                cerr << "Failed to get console mode after creating new stdin" << endl;
+                return false;
+            }
+        }
+
+
+
+        mode |= ENABLE_MOUSE_INPUT | ENABLE_EXTENDED_FLAGS | ENABLE_WINDOW_INPUT;
+        mode &= ~(ENABLE_PROCESSED_INPUT | ENABLE_QUICK_EDIT_MODE);
+
+        if (!SetConsoleMode(mhInput, mode))
+        {
+            cerr << "Failed to set console mode." << endl;
+            return false;
+        }
+
+        mBufferHandle = CreateConsoleScreenBuffer(GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, CONSOLE_TEXTMODE_BUFFER, NULL);
+        SetStdHandle(STD_OUTPUT_HANDLE, mBufferHandle);
+        SetConsoleActiveScreenBuffer(mBufferHandle);
+
+
+        mbInitted = true;
+        return true;
     }
 
-    void RestoreConsoleState()
+    bool NativeConsole::Shutdown()
     {
-    	  cout << COL_RESET;
+        if (!mbInitted)
+            return true;
+
+
+        // Restore console state
+        cout << "\033[?25h" << COL_WHITE << COL_BG_BLACK << DEC_LINE_END << COL_RESET;    // show cursor, reset colors, ensure dec line mode is off
         SMALL_RECT writeRegion = { 0, 0, originalScreenInfo.dwSize.X - 1, originalScreenInfo.dwSize.Y - 1 };
         WriteConsoleOutput(mhOutput, &originalConsoleBuf[0], originalScreenInfo.dwSize, { 0, 0 }, &writeRegion);
         SetConsoleCursorPosition(mhOutput, originalScreenInfo.dwCursorPosition);
         SetConsoleTextAttribute(mhOutput, originalScreenInfo.wAttributes);
+
+        mbInitted = false;
+        return true;
     }
 
-    SHORT ScreenW()
-    { 
-        if (!bScreenInfoInitialized)
-        {
-            InitScreenInfo();
-        }
 
-        return screenInfo.srWindow.Right - screenInfo.srWindow.Left + 1; 
+    int16_t NativeConsole::Width()
+    { 
+        Init();
+
+        return screenInfo.srWindow.Right - screenInfo.srWindow.Left + 1;
     }
 
-    SHORT ScreenH() 
+    int16_t NativeConsole::Height()
     { 
-        if (!bScreenInfoInitialized)
-        {
-            InitScreenInfo();
-        }
-
+        Init();
         return screenInfo.srWindow.Bottom - screenInfo.srWindow.Top + 1;
     }
 
-    void DrawAnsiChar(int64_t x, int64_t y, uint8_t c, ZAttrib ca)
+    bool NativeConsole::Render()
+    {
+        // force for now
+        mbScreenInvalid = true;
+
+
+        if (!mbScreenInvalid)
+            return false;
+
+
+        string ansiOut;
+
+        cout << "\033[?25l";
+
+        COORD savePos = lastCursorPos;
+        int32_t w = Width();
+        int32_t h = Height();
+
+        assert(mDrawStateBuffer.size() == w * h);
+        assert(mBackBuffer.size() == w * h);
+
+        // Compatible regions
+        for (int y = 0; y < h; y++)
+        {
+            for (int x = 0; x < w; x++)
+            {
+                int idx = y * w + x;
+                if (mDrawStateBuffer[idx] == mBackBuffer[idx] || CanUseWriteConsoleOutput(b
+            }
+        }
+
+        // Write remaining regions
+        std::string ansiOutput;
+        ZAttrib currentAttrib;
+
+        for (int y = 0; y < h; y++)
+        {
+            for (int x = 0; x < w; x++)
+            {
+                int idx = y * w + x;
+
+                // Skip if unchanged or already written by WriteConsoleOutput
+                if (mDrawStateBuffer[idx] == mBackBuffer[idx] || CanUseWriteConsoleOutput(mBackBuffer[idx]))
+                {
+                    continue;
+                }
+
+                // Position cursor (batch these to minimize escapes)
+                ansiOutput += "\033[" + std::to_string(y + 1) + ";" + std::to_string(x + 1) + "H";
+
+                // Change attributes if needed
+                if (mBackBuffer[idx].attrib != currentAttrib)
+                {
+                    ansiOutput += mBackBuffer[idx].attrib.ToAnsi();
+                    currentAttrib = mBackBuffer[idx].attrib;
+                }
+
+                // Write character
+                ansiOutput += (char)mBackBuffer[idx].c;
+            }
+        }
+
+        if (!ansiOutput.empty())
+        {
+            DWORD written;
+            WriteConsole(mBufferHandle, ansiOutput.c_str(), (DWORD)ansiOutput.length(), &written, NULL);
+
+            int stophere = 5;
+        }
+
+        //SetCursorPosition(savePos);
+        mDrawStateBuffer = mBackBuffer;
+        mbScreenInvalid = false;
+        return true;
+    }
+
+/*    bool NativeConsole::Render()
+    {
+        // force for now
+        mbScreenInvalid = true;
+
+
+        if (!mbScreenInvalid)
+            return false;
+
+
+        cout << "\033[?25l";
+
+        COORD savePos = lastCursorPos;
+        int32_t w = Width();
+        int32_t h = Height();
+
+        assert(mDrawStateBuffer.size() == w * h);
+        assert(mBackBuffer.size() == w * h);
+
+        // Compatible regions
+        for (int y = 0; y < h; y++)
+        {
+            int x = 0;
+            while (x < w)
+            {
+                // Skip unchanged
+                while (x < w && mBackBuffer[y * w + x] == mDrawStateBuffer[y * w + x])
+                {
+                    x++;
+                }
+
+                if (x >= w) break;
+
+                // Find run of changed, compatible chars
+                int startX = x;
+                std::vector<CHAR_INFO> chars;
+
+                while (x < w && mBackBuffer[y * w + x] != mDrawStateBuffer[y * w + x] && CanUseWriteConsoleOutput(mDrawStateBuffer[y * w + x]))
+                {
+                    CHAR_INFO ci;
+                    ci.Char.AsciiChar = mDrawStateBuffer[y * w + x].c;
+                    ci.Attributes = ZAttribToConsoleAttributes(mDrawStateBuffer[y * w + x].attrib);
+                    chars.push_back(ci);
+                    x++;
+                }
+
+                // Write this run
+                if (!chars.empty())
+                {
+                    COORD bufSize = { (SHORT)chars.size(), 1 };
+                    COORD bufCoord = { 0, 0 };
+                    SMALL_RECT region = { (SHORT)startX, (SHORT)y, (SHORT)(startX + chars.size() - 1), (SHORT)y };
+                    WriteConsoleOutput(mBufferHandle, chars.data(), bufSize, bufCoord, &region);
+                }
+
+                // now skip any incompattible chars
+                while (x < w && /*frontBuf[y * w + x] != backBuf[y * w + x] &&*/ !CanUseWriteConsoleOutput(mDrawStateBuffer[y * w + x]))
+                {
+                    x++;
+                }
+            }
+        }
+
+        // Write remaining regions
+        std::string ansiOutput;
+        ZAttrib currentAttrib;
+
+        for (int y = 0; y < h; y++)
+        {
+            for (int x = 0; x < w; x++)
+            {
+                int idx = y * w + x;
+
+                // Skip if unchanged or already written by WriteConsoleOutput
+                if (mDrawStateBuffer[idx] == mBackBuffer[idx] || CanUseWriteConsoleOutput(mBackBuffer[idx]))
+                {
+                    continue;
+                }
+
+                // Position cursor (batch these to minimize escapes)
+                ansiOutput += "\033[" + std::to_string(y + 1) + ";" + std::to_string(x + 1) + "H";
+
+                // Change attributes if needed
+                if (mBackBuffer[idx].attrib != currentAttrib)
+                {
+                    ansiOutput += mBackBuffer[idx].attrib.ToAnsi();
+                    currentAttrib = mBackBuffer[idx].attrib;
+                }
+
+                // Write character
+                ansiOutput += (char)mBackBuffer[idx].c;
+            }
+        }
+
+        if (!ansiOutput.empty())
+        {
+            DWORD written;
+            WriteConsole(mBufferHandle, ansiOutput.c_str(), (DWORD)ansiOutput.length(), &written, NULL);
+
+            int stophere = 5;
+        }
+
+        //SetCursorPosition(savePos);
+        mDrawStateBuffer = mBackBuffer;
+        mbScreenInvalid = false;
+        return true;
+    }
+
+*/
+/*    void NativeConsole::DrawAnsiChar(int64_t x, int64_t y, uint8_t c, ZAttrib ca)
     {
         static ZAttrib lastC;
         SetCursorPosition(COORD((SHORT)x, (SHORT)y));
@@ -540,14 +923,14 @@ namespace CLP
         else
             s += c;
         cout << s;
-        gLastCursorPos.X++;    // cursor advances after drawing
-        if (gLastCursorPos.X > screenInfo.srWindow.Right - screenInfo.srWindow.Left)
+        lastCursorPos.X++;    // cursor advances after drawing
+        if (lastCursorPos.X > screenInfo.srWindow.Right - screenInfo.srWindow.Left)
         {
-            gLastCursorPos.X = 0;
-            gLastCursorPos.Y++;
+            lastCursorPos.X = 0;
+            lastCursorPos.Y++;
         }
     };
-
+    */
 
     std::string ExpandEnvVars(const std::string& s)
     {
@@ -931,8 +1314,8 @@ namespace CLP
 
     void ConsoleWin::RenderToBackBuf(tConsoleBuffer& backBuf)
     {
-        int64_t dr = ScreenW();
-        int64_t db = ScreenH();
+        int64_t dr = gConsole.Width();
+        int64_t db = gConsole.Height();
 
         for (int64_t sy = 0; sy < mHeight; sy++)
         {
@@ -1278,7 +1661,7 @@ namespace CLP
             positionCaption[ConsoleWin::Position::RT].clear();
         }
 
-        bScreenInvalid = true;
+        gConsole.Invalidate();
     }
 
     bool InfoWin::OnMouse(MOUSE_EVENT_RECORD event)
@@ -1389,7 +1772,7 @@ namespace CLP
 
                 selectionstart = (int)CursorToTextIndex(localcoord);
                 selectionend = selectionstart;
-                bScreenInvalid = true;
+                gConsole.Invalidate();
                 bMouseCapturing = true;
                 return true;
             }
@@ -1403,7 +1786,7 @@ namespace CLP
                     ClearSelection();
                 }
 
-                bScreenInvalid = true;
+                gConsole.Invalidate();
                 bMouseCapturing = false;
                 return true;
             }
@@ -1414,7 +1797,7 @@ namespace CLP
             if (bMouseCapturing)
             {
                 selectionend = (int)CursorToTextIndex(localcoord);
-                bScreenInvalid = true;
+                gConsole.Invalidate();
             }
         }
 
@@ -1457,7 +1840,7 @@ namespace CLP
         //        SetConsoleCursorPosition(GetStdHandle(STD_OUTPUT_HANDLE), LocalCursorToGlobal(mLocalCursorPos));
 
         COORD global = LocalCursorToGlobal(mLocalCursorPos);
-        SetCursorPosition(global, true);
+        gConsole.SetCursorPosition(global, true);
 //        cout << "\033[" << global.X + 1 << "G\033[" << global.Y << "d" << std::flush;
     }
 
@@ -2083,8 +2466,8 @@ namespace CLP
     {
         string sText;
 
-        SHORT w = ScreenW();
-        SHORT h = ScreenH();
+        SHORT w = gConsole.Width();
+        SHORT h = gConsole.Height();
 
         if (w < 1)
             w = 1;
@@ -2095,7 +2478,7 @@ namespace CLP
         helpTableWin.Clear(kAttribHelpBG, true);
         helpTableWin.SetEnableFrame();
         helpTableWin.bAutoScrollbar = true;
-        bScreenInvalid = true;
+        gConsole.Invalidate();
 
 
 
@@ -2181,8 +2564,8 @@ namespace CLP
     {
         string sText;
 
-        SHORT w = ScreenW();
-        SHORT h = ScreenH();
+        SHORT w = gConsole.Width();
+        SHORT h = gConsole.Height();
 
         if (w < 1)
             w = 1;
@@ -2198,7 +2581,7 @@ namespace CLP
         helpTableWin.mTable.AddRow(GetCommandLineA());
         helpTableWin.mTopVisibleRow = 0;
         helpTableWin.UpdateCaptions();
-        bScreenInvalid = true;
+        gConsole.Invalidate();
     }
 
 
@@ -2258,7 +2641,7 @@ namespace CLP
                     commandHistory.pop_front();
             }
 
-            bScreenInvalid = true;
+            gConsole.Invalidate();
 
             return true;
         }
@@ -2297,7 +2680,7 @@ namespace CLP
         }
 
         commandHistory.emplace_back(sCommandLine);
-        bScreenInvalid = true;
+        gConsole.Invalidate();
 
         return true;
     }

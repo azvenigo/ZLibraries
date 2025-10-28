@@ -2,6 +2,7 @@
 #include <fstream>
 #include "helpers/CommandLineParser.h"
 #include "helpers/CommandLineMonitor.h"
+#include "helpers/CommandLineCommon.h"
 #include "helpers/InlineFormatter.h"
 #include "helpers/RandHelpers.h"
 #include "helpers/StringHelpers.h"
@@ -57,10 +58,6 @@ protected:
     std::string sFilename;
     std::string sFilter;
     tStringList rows;
-
-    tConsoleBuffer backBuffer;      // for double buffering
-    tConsoleBuffer drawStateBuffer; // for rendering only delta
-
 };
 
 inline bool IsWhitespace(char c)
@@ -225,53 +222,29 @@ bool ReaderWin::ReadPipe()
 }
 
 
+
+
 void ReaderWin::DrawToScreen()
 {
     // clear back buffer
-    Paint(backBuffer);
+    Paint(gConsole.BackBuffer());
 
     if (filterTextEntryWin.mbVisible)
-        filterTextEntryWin.Paint(backBuffer);
+        filterTextEntryWin.Paint(gConsole.BackBuffer());
     if (helpTableWin.mbVisible)
-        helpTableWin.Paint(backBuffer);
+        helpTableWin.Paint(gConsole.BackBuffer());
 
-
-    cout << "\033[?25l";
-
-    COORD savePos = gLastCursorPos;
-
-    for (int64_t y = 0; y < ScreenH(); y++)
-    {
-        for (int64_t x = 0; x < ScreenW(); x++)
-        {
-            int64_t i = (y * ScreenW()) + x;
-            if (bScreenInvalid || backBuffer[i] != drawStateBuffer[i])
-            {
-                DrawAnsiChar(x, y, backBuffer[i].c, backBuffer[i].attrib);
-            }
-        }
-    }
-
-    SetCursorPosition(savePos);
-
-    drawStateBuffer = backBuffer;
-    bScreenInvalid = false;
-
-
-    //        if (bCursorHidden && !bCursorShouldBeHidden)
-    if (filterTextEntryWin.mbVisible)
-    {
-        cout << "\033[?25h";    // visible cursor
-    }
+    gConsole.Render();
 }
 
 
 bool ReaderWin::Execute()
 {
-    mhInput = GetStdHandle(STD_INPUT_HANDLE);
-    mhOutput = GetStdHandle(STD_OUTPUT_HANDLE);
-
-    SaveConsoleState();
+    if (!gConsole.Init())
+    {
+        cout << "Failed to initialize.....aborting\n";
+        return false;
+    }
 
 
     // Main loop to read input events
@@ -279,68 +252,14 @@ bool ReaderWin::Execute()
     DWORD numEventsRead;
 
 
-    InitScreenInfo();
-    // Set console mode to allow reading mouse and key events
-    DWORD mode;
-    if (!GetConsoleMode(mhInput, &mode))
-    {
-        // Piped input...... reopen for interactive input
-        CloseHandle(mhInput);
-        mhInput = CreateFileA("CONIN$", GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0,NULL);
-
-        if (mhInput == INVALID_HANDLE_VALUE)
-        {
-            cerr << "Failed to get console mode." << endl;
-            return false;
-        }
-
-        SetStdHandle(STD_INPUT_HANDLE, mhInput);
-        if (!GetConsoleMode(mhInput, &mode))
-        {
-            cerr << "Failed to get console mode after creating new stdin" << endl;
-            return false;
-        }
-    }
-    
-
-
-    mode |= ENABLE_MOUSE_INPUT | ENABLE_EXTENDED_FLAGS | ENABLE_WINDOW_INPUT;
-    mode &= ~(ENABLE_PROCESSED_INPUT | ENABLE_QUICK_EDIT_MODE);
-
-    if (!SetConsoleMode(mhInput, mode))
-    {
-        cerr << "Failed to set console mode." << endl;
-        return false;
-    }
-
-
-    SHORT w = ScreenW();
-    SHORT h = ScreenH();
-
-
-    std::vector<CHAR_INFO> blank(w * h);
-    for (int i = 0; i < blank.size(); i++)
-    {
-        blank[i].Char.AsciiChar = ' ';
-        blank[i].Attributes = 0;
-    }
-    SMALL_RECT smallrect(0, 0, w, h);
-    //WriteConsoleOutput(mhOutput, &blank[0], screenInfo.dwSize, { 0, 0 }, &smallrect);
-
-    backBuffer.resize(w * h);
-    drawStateBuffer.resize(w * h);
-
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     // Clear the raw command buffer and param buffers
     //UpdateFromConsoleSize(true);
 
     filterTextEntryWin.SetText(sFilter);
 
-    UpdateFromConsoleSize(true);  // force update if the screen changed
 
-
-    bScreenInvalid = true;
-    Init(Rect(0, 1, w, h));
+    Init(Rect(0, 1, gConsole.Width(), gConsole.Height()));
 
     ZAttrib kReaderBG(0xFF000000FFff00ff);
 
@@ -354,7 +273,7 @@ bool ReaderWin::Execute()
 
     while (!mbDone)
     {
-        bool bForeground = ConsoleHasFocus();
+        bool bForeground = gConsole.ConsoleHasFocus();
         if (bForeground)
         {
             if (filterTextEntryWin.mbVisible)
@@ -367,7 +286,7 @@ bool ReaderWin::Execute()
             }
         }
 
-        if (UpdateFromConsoleSize(bScreenInvalid))
+        if (UpdateFromConsoleSize())
         {
             rows = GetLines(mText); // recompute rows
             UpdateCaptions();
@@ -398,11 +317,11 @@ bool ReaderWin::Execute()
             }
         }
 
-        if (PeekConsoleInput(mhInput, inputRecord, 128, &numEventsRead) && numEventsRead > 0)
+        if (PeekConsoleInput(gConsole.InputHandle(), inputRecord, 128, &numEventsRead) && numEventsRead > 0)
         {
             for (DWORD i = 0; i < numEventsRead; i++)
             {
-                if (!ReadConsoleInput(mhInput, inputRecord, 1, &numEventsRead))
+                if (!ReadConsoleInput(gConsole.InputHandle(), inputRecord, 1, &numEventsRead))
                 {
                     cerr << "Failed to read console input." << endl;
                     return false;
@@ -425,8 +344,8 @@ bool ReaderWin::Execute()
         }
     }
 
-    cout << "\033[?25h" << COL_WHITE << COL_BG_BLACK << DEC_LINE_END;    // show cursor, reset colors, ensure dec line mode is off
-    RestoreConsoleState();
+    //RestoreConsoleState();
+    gConsole.Shutdown();
 
     return true;
 }
@@ -591,7 +510,7 @@ bool ReaderWin::OnKey(int keycode, char c)
             filterTextEntryWin.SetVisible(false);
             filterTextEntryWin.mbCanceled = false;
             filterTextEntryWin.mbDone = false;
-            bScreenInvalid = true;
+            gConsole.Invalidate();
         }
     }
 
@@ -600,7 +519,7 @@ bool ReaderWin::OnKey(int keycode, char c)
         helpTableWin.SetVisible(false);
         helpTableWin.mbCanceled = false;
         helpTableWin.mbDone = false;
-        bScreenInvalid = true;
+        gConsole.Invalidate();
     }
 
     if (!bHandled)
@@ -659,7 +578,7 @@ bool ReaderWin::OnKey(int keycode, char c)
         {
             mbDone = true;
             mbVisible = false;
-            bScreenInvalid = true;
+            gConsole.Invalidate();
             return true;
         }
         else if (keycode == VK_F1)
@@ -739,22 +658,13 @@ void ReaderWin::Paint(tConsoleBuffer& backBuf)
 
 bool ReaderWin::UpdateFromConsoleSize(bool bForce)
 {
-    CONSOLE_SCREEN_BUFFER_INFO newScreenInfo;
-    if (!GetConsoleScreenBufferInfo(mhOutput, &newScreenInfo))
+    if (bForce || gConsole.ScreenChanged())
     {
-        cerr << "Failed to get console info." << endl;
-        return false;
-    }
-
-    bool bChanges = false;
-    if ((newScreenInfo.dwSize.X != screenInfo.dwSize.X || newScreenInfo.dwSize.Y != screenInfo.dwSize.Y) || bForce)
-    {
-        screenInfo = newScreenInfo;
-        bScreenInvalid = true;
+        gConsole.UpdateScreenInfo();
         invalid = true;
 
-        SHORT w = ScreenW();
-        SHORT h = ScreenH();
+        SHORT w = gConsole.Width();
+        SHORT h = gConsole.Height();
 
 
         if (w < 1)
@@ -765,12 +675,6 @@ bool ReaderWin::UpdateFromConsoleSize(bool bForce)
 
         Rect viewRect(0, 0, w, h);
         SetArea(viewRect);
-
-        backBuffer.clear();
-        backBuffer.resize(w * h);
-
-        drawStateBuffer.clear();
-        drawStateBuffer.resize(w * h);
 
         helpTableWin.Clear(kAttribHelpBG, true);
         helpTableWin.SetArea(viewRect);
@@ -785,10 +689,10 @@ bool ReaderWin::UpdateFromConsoleSize(bool bForce)
         }
 
         Update();
-        bChanges = true;
+        return true;
     }
 
-    return bChanges;
+    return false;
 }
 
 

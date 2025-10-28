@@ -238,12 +238,6 @@ namespace CLP
         bool dec_line = false;
     };
 
-    int16_t ScreenW();
-    int16_t ScreenH();
-    void InitScreenInfo();
-
-    bool ConsoleHasFocus();
-
 #ifdef ENABLE_CLE
 
     struct ZChar
@@ -259,6 +253,12 @@ namespace CLP
     typedef std::list<std::string> tStringList;
     typedef std::vector<ZAttrib> tAttribArray;
     typedef std::vector<ZChar> tConsoleBuffer;
+
+
+    bool IsStandard16Color(uint8_t r, uint8_t g, uint8_t b);
+    uint8_t RGBToColorIndex(uint8_t r, uint8_t g, uint8_t b);
+    WORD ZAttribToConsoleAttributes(const ZAttrib& attrib);
+    bool CanUseWriteConsoleOutput(const ZChar& c);
 
     // Styles
     extern ZAttrib kAttribAppName;
@@ -309,6 +309,76 @@ namespace CLP
 
     typedef std::vector<ZAttrib> tAttribArray;
     typedef std::vector<ZChar> tConsoleBuffer;
+
+
+
+    class NativeConsole
+    {
+    public:
+        NativeConsole()
+        {
+            lastCursorPos = { -1,-1 };
+        }
+
+        bool Init();
+        bool Shutdown();
+
+        bool GetInitted() const { return mbInitted; }
+
+        int16_t Width();
+        int16_t Height();
+        HANDLE InputHandle() const { return mhInput; }
+
+
+        void SetCursorPosition(COORD coord, bool bForce);
+
+        bool ConsoleHasFocus();
+
+        CONSOLE_SCREEN_BUFFER_INFO Screen() const { return screenInfo; }
+        bool ScreenChanged() const;
+        bool UpdateScreenInfo();
+
+        inline tConsoleBuffer& BackBuffer()
+        {
+            return mBackBuffer;
+        }
+
+
+        void DrawAnsiChar(int64_t x, int64_t y, uint8_t c, ZAttrib ca);
+
+        bool Render();
+
+        bool Invalid() const { return mbScreenInvalid; }
+        void Invalidate() { mbScreenInvalid = true; }
+        void Flip();
+
+        COORD lastCursorPos;
+
+    private:
+        void SaveConsoleState();
+        void RestoreConsoleState();
+
+
+        bool mbInitted = false;
+        bool mbScreenInvalid = true;
+        HANDLE mBufferHandle;
+
+        tConsoleBuffer mBackBuffer;
+        tConsoleBuffer mDrawStateBuffer;
+
+        int64_t frontBufferIndex = 0;
+        CONSOLE_SCREEN_BUFFER_INFO screenInfo;
+        CONSOLE_SCREEN_BUFFER_INFO originalScreenInfo;
+        std::vector<CHAR_INFO> originalConsoleBuf;
+
+
+
+        HANDLE mhInput = INVALID_HANDLE_VALUE;
+        HANDLE mhOutput = INVALID_HANDLE_VALUE;
+    };
+
+    extern NativeConsole gConsole;
+
 
 
     class ConsoleWin
@@ -552,11 +622,11 @@ namespace CLP
     std::string GetTextFromClipboard();
     bool CopyTextToClipboard(const std::string& text);
 
-    void SetCursorPosition(COORD coord, bool bForce = false);
+//    void SetCursorPosition(COORD coord, bool bForce = false);
 
-    void SaveConsoleState();
-    void RestoreConsoleState();
-    void DrawAnsiChar(int64_t x, int64_t y, uint8_t c, ZAttrib ca);
+//    void SaveConsoleState();
+//    void RestoreConsoleState();
+//    void DrawAnsiChar(int64_t x, int64_t y, uint8_t c, ZAttrib ca);
 
     std::string ExpandEnvVars(const std::string& s); // replaces any %var% with environment variables 
     typedef std::pair<std::string, std::string> tKeyVal;
@@ -567,11 +637,6 @@ namespace CLP
 
     extern TableWin helpTableWin;
 
-    extern CONSOLE_SCREEN_BUFFER_INFO screenInfo;
-    extern bool bScreenInvalid;
-    extern HANDLE mhInput;
-    extern HANDLE mhOutput;
-    extern COORD gLastCursorPos;
 #endif // ENABLE_CLE
 
     extern std::string appPath;

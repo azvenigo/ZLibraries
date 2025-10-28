@@ -541,60 +541,20 @@ namespace CLP
             filterTextEntryWin.Paint(backBuffer);
         if (saveLogFilenameEntryWin.mbVisible)
             saveLogFilenameEntryWin.Paint(backBuffer);
-//        if (helpTextWin.mbVisible)
-//            helpTextWin.Paint(backBuffer);
         if (helpTableWin.mbVisible)
             helpTableWin.Paint(backBuffer);
 
-        cout << "\033[?25l";
-//        cout << "\033[?25h";    // visible cursor
-//        cout << "\x1b[1 q";    // visible cursor
-
-
-        COORD savePos = gLastCursorPos;
-
-        for (int64_t y = 0; y < ScreenH(); y++)
-        {
-            for (int64_t x = 0; x < ScreenW(); x++)
-            {
-                int64_t i = (y * ScreenW()) + x;
-                if (bScreenInvalid || backBuffer[i] != drawStateBuffer[i])
-                {
-                    DrawAnsiChar(x, y, backBuffer[i].c, backBuffer[i].attrib);
-                }
-            }
-        }
-
-        SetCursorPosition(savePos);
-
-        drawStateBuffer = backBuffer;
-        bScreenInvalid = false;
-
-
-        //        if (bCursorHidden && !bCursorShouldBeHidden)
-        if (filterTextEntryWin.mbVisible || saveLogFilenameEntryWin.mbVisible)
-        {
-            cout << "\033[?25h";    // visible cursor
-        }
+        gConsole.Render();
     }
 
     bool CommandLineMonitor::UpdateFromConsoleSize(bool bForce)
     {
-        CONSOLE_SCREEN_BUFFER_INFO newScreenInfo;
-        if (!GetConsoleScreenBufferInfo(mhOutput, &newScreenInfo))
+        if (bForce || gConsole.ScreenChanged())
         {
-            cerr << "Failed to get console info." << endl;
-            return false;
-        }
+            gConsole.UpdateScreenInfo();
 
-        bool bChanges = false;
-        if ((newScreenInfo.dwSize.X != screenInfo.dwSize.X || newScreenInfo.dwSize.Y != screenInfo.dwSize.Y) || bForce)
-        {
-            screenInfo = newScreenInfo;
-            bScreenInvalid = true;
-
-            SHORT w = ScreenW();
-            SHORT h = ScreenH();
+            SHORT w = gConsole.Width();
+            SHORT h = gConsole.Height();
 
             if (w < 1)
                 w = 1;
@@ -627,47 +587,40 @@ namespace CLP
             logWin.SetArea(logWinRect);
             logWin.SetEnableFrame();
 
-/*            helpTextWin.Clear(kAttribHelpBG, true);
-            helpTextWin.SetArea(viewRect);
-            helpTextWin.SetEnableFrame();
-            helpTextWin.bAutoScrollbar = true;*/
-
             helpTableWin.Clear(kAttribHelpBG, true);
             helpTableWin.SetArea(viewRect);
             helpTableWin.SetEnableFrame();
             helpTableWin.bAutoScrollbar = true;
 
-            bChanges = true;
+            return true;
            
         }
 
-        return bChanges;
+        return false;
     }
 
     void CommandLineMonitor::UpdateVisibility()
     {
         if (mbVisible && mbLastVisibleState == false)
         {
-            SaveConsoleState();
+            gConsole.Init();
             if (!filterTextEntryWin.mbVisible && !saveLogFilenameEntryWin.mbVisible)
                 cout << "\033[?25l";    // hide cursor
-
-            bScreenInvalid = true;
         }
 
         if (!mbVisible && mbLastVisibleState == true)
         {
             logWin.SetVisible(false);
             cout << "\033[?25h" << COL_WHITE << COL_BG_BLACK << DEC_LINE_END;    // show cursor, reset colors, ensure dec line mode is off
-            RestoreConsoleState();
+            int64_t height = gConsole.Height();
+            gConsole.Shutdown();
 
             LOG::tLogEntries entries;
-            LOG::gLogger.tail(ScreenH(), entries);
+            LOG::gLogger.tail(height, entries);
             for (const auto& entry : entries)
             {
                 cout << entry.text << std::endl;
             }
-            bScreenInvalid = true;
         }
 
         //LOG::gLogOut.m_outputToFallback = !mbVisible;
@@ -700,7 +653,7 @@ namespace CLP
                 filterTextEntryWin.SetVisible(false);
                 filterTextEntryWin.mbCanceled = false;
                 filterTextEntryWin.mbDone = false;
-                bScreenInvalid = true;
+                gConsole.Invalidate();
                 return true;
             }
         }
@@ -711,7 +664,7 @@ namespace CLP
                 saveLogFilenameEntryWin.SetVisible(false);
                 saveLogFilenameEntryWin.mbCanceled = false;
                 saveLogFilenameEntryWin.mbDone = false;
-                bScreenInvalid = true;
+                gConsole.Invalidate();
                 return true;
             }
         }
@@ -722,7 +675,7 @@ namespace CLP
             {
                 mbDone = true;
                 mbVisible = false;
-                bScreenInvalid = true;
+                gConsole.Invalidate();
                 return true;
             }
             else if (keycode == VK_F1)
@@ -769,8 +722,8 @@ namespace CLP
         INPUT_RECORD inputRecord[128];
         DWORD numEventsRead;
 
-        SHORT w = ScreenW();
-        SHORT h = ScreenH();
+        SHORT w = gConsole.Width();
+        SHORT h = gConsole.Height();
 
 
         std::vector<CHAR_INFO> blank(w * h);
@@ -797,8 +750,7 @@ namespace CLP
             pCLM->UpdateVisibility();
 
 
-            bool bForeground = ConsoleHasFocus();
-            if (bForeground)
+            if (gConsole.ConsoleHasFocus())
             {
                 if (filterTextEntryWin.mbVisible || saveLogFilenameEntryWin.mbVisible)
                 {
@@ -816,7 +768,8 @@ namespace CLP
 
             if (pCLM->mbVisible)
             {
-                pCLM->UpdateFromConsoleSize(bScreenInvalid);  // force update if the screen changed
+//                pCLM->UpdateFromConsoleSize(bScreenInvalid);  // force update if the screen changed
+                gConsole.UpdateScreenInfo();
                 pCLM->UpdateDisplay();
                 logWin.Update();
             }
@@ -852,11 +805,11 @@ namespace CLP
                 }
             }
 
-            if (PeekConsoleInput(mhInput, inputRecord, 128, &numEventsRead) && numEventsRead > 0)
+            if (PeekConsoleInput(gConsole.InputHandle(), inputRecord, 128, &numEventsRead) && numEventsRead > 0)
             {
                 for (DWORD i = 0; i < numEventsRead; i++)
                 {
-                    if (!ReadConsoleInput(mhInput, inputRecord, 1, &numEventsRead))
+                    if (!ReadConsoleInput(gConsole.InputHandle(), inputRecord, 1, &numEventsRead))
                     {
                         cerr << "Failed to read console input." << endl;
                         return;
@@ -887,32 +840,7 @@ namespace CLP
         mbDone = false;
         mbCanceled = false;
 
-        // Get the handle to the standard input
-        mhInput = GetStdHandle(STD_INPUT_HANDLE);
-        mhOutput = GetStdHandle(STD_OUTPUT_HANDLE);
-        if (mhInput == INVALID_HANDLE_VALUE || mhOutput == INVALID_HANDLE_VALUE)
-        {
-            cerr << "Failed to get standard input/output handle." << endl;
-            return;
-        }
-
-        InitScreenInfo();
-
-        // Set console mode to allow reading mouse and key events
-        DWORD mode;
-        if (!GetConsoleMode(mhInput, &mode))
-        {
-            cerr << "Failed to get console mode." << endl;
-            return;
-        }
-        mode |= ENABLE_MOUSE_INPUT | ENABLE_EXTENDED_FLAGS | ENABLE_WINDOW_INPUT;
-        mode &= ~(ENABLE_PROCESSED_INPUT | ENABLE_QUICK_EDIT_MODE);
-
-        if (!SetConsoleMode(mhInput, mode))
-        {
-            cerr << "Failed to set console mode." << endl;
-            return;
-        }
+        gConsole.Init();
 
         monitorthread = thread(ThreadProc, this);
     }

@@ -1247,7 +1247,7 @@ namespace CLP
 
             string sCommandLineExample;
             Table usageTable;
-            usageTable.SetRenderWidth(CLP::ScreenW());
+            usageTable.SetRenderWidth(gConsole.Width());
             GetCommandLineExample(msMode, sCommandLineExample);
             usageTable.AddRow(CLP::SectionStyle, " Usage ");
             usageTable.AddRow(CLP::ParamStyle, sCommandLineExample);
@@ -1260,7 +1260,7 @@ namespace CLP
             Table helpTable;
             GetCLPHelp(helpTable);
             GetKeyTable(helpTable);
-            helpTable.SetRenderWidth(ScreenW());
+            helpTable.SetRenderWidth(gConsole.Width());
             Table::SetDecLineBorders(helpTable);
             cout << helpTable;
 
@@ -1270,7 +1270,7 @@ namespace CLP
         {
             Table helpTable;
             GetHelpTable(GetFirstPositionalArgument(argArray), helpTable);
-            helpTable.SetRenderWidth(ScreenW());
+            helpTable.SetRenderWidth(gConsole.Width());
             Table::SetDecLineBorders(helpTable);
             cout << helpTable;
 

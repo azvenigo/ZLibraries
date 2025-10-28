@@ -219,7 +219,7 @@ namespace CLP
         bool bSHIFTHeld = GetKeyState(VK_SHIFT) & 0x800;
         bool bHandled = false;
 
-        bScreenInvalid = true;
+        gConsole.Invalidate();
 
         do
         {
@@ -241,7 +241,7 @@ namespace CLP
                     historyWin.SetVisible(true);
                     historyWin.positionCaption[Position::CT] = "History";
                     historyWin.positionCaption[Position::RB] = "[ESC-Cancel] [ENTER-Select] [DEL-Delete Entry]";
-                    historyWin.mMinWidth = ScreenW();
+                    historyWin.mMinWidth = gConsole.Width();
                     historyWin.SetEntries(commandHistory, mText, selectionstart, mY);
                     bHandled = true;
                 }
@@ -271,7 +271,7 @@ namespace CLP
             if (event.dwButtonState == RIGHTMOST_BUTTON_PRESSED)
             {
                 mLocalCursorPos = localcoord;
-                bScreenInvalid = true;
+                gConsole.Invalidate();
                 return HandleParamContext();
             }
         }
@@ -285,7 +285,7 @@ namespace CLP
 
             selectionstart = start;
             selectionend = end;
-            bScreenInvalid = true;
+            gConsole.Invalidate();
             return true;
         }
 
@@ -372,7 +372,7 @@ namespace CLP
             if (event.dwButtonState == FROM_LEFT_1ST_BUTTON_PRESSED)
             {
                 mSelection = mTopVisibleRow + localcoord.Y;
-                bScreenInvalid = true;
+                gConsole.Invalidate();
             }
         }
         else if (event.dwEventFlags == DOUBLE_CLICK)
@@ -401,7 +401,7 @@ namespace CLP
         bool bHandled = false;
         bool bCTRLHeld = GetKeyState(VK_CONTROL) & 0x800;
         bool bSHIFTHeld = GetKeyState(VK_SHIFT) & 0x800;
-        bScreenInvalid = true;
+        gConsole.Invalidate();
 
         switch (keycode)
         {
@@ -489,7 +489,7 @@ namespace CLP
     {
         bool bCTRLHeld = GetKeyState(VK_CONTROL) & 0x800;
         bool bSHIFTHeld = GetKeyState(VK_SHIFT) & 0x800;
-        bScreenInvalid = true;
+        gConsole.Invalidate();
 
         switch (keycode)
         {
@@ -525,7 +525,7 @@ namespace CLP
         mAnchorB = anchor_b;
         mWidth = 0;
         mHeight = 0;
-        bScreenInvalid = true;
+        gConsole.Invalidate();
 
         // find nearest selection from the entries
 
@@ -598,17 +598,17 @@ namespace CLP
             r.b = mAnchorB - 1;
         }
 
-        if (width > ScreenW())
+        if (width > gConsole.Width())
         {
             r.l = 1;
-            r.r = ScreenW() - 1;
+            r.r = gConsole.Width() - 1;
         }
 
 
         // move window to fit on screen
-        if (r.r > ScreenW())
+        if (r.r > gConsole.Width())
         {
-            int64_t shiftleft = r.r - ScreenW();
+            int64_t shiftleft = r.r - gConsole.Width();
             r.l -= shiftleft;
             r.r -= shiftleft;
         }
@@ -618,9 +618,9 @@ namespace CLP
             r.l += shiftright;
             r.r += shiftright;
         }
-        if (r.b > ScreenH())
+        if (r.b > gConsole.Height())
         {
-            int64_t shiftdown = r.b - ScreenH();
+            int64_t shiftdown = r.b - gConsole.Height();
             r.t += shiftdown;
             r.b += shiftdown;
         }
@@ -640,7 +640,7 @@ namespace CLP
         bool bHandled = false;
         bool bCTRLHeld = GetKeyState(VK_CONTROL) & 0x800;
         bool bSHIFTHeld = GetKeyState(VK_SHIFT) & 0x800;
-        bScreenInvalid = true;
+        gConsole.Invalidate();
 
         switch (keycode)
         {
@@ -761,7 +761,7 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
 
     string sRaw(rawCommandBuf.GetText());
 
-    size_t rows = std::max<size_t>(1, (sRaw.size() + ScreenW() - 1) / ScreenW());
+    size_t rows = std::max<size_t>(1, (sRaw.size() + gConsole.Width() - 1) / gConsole.Width());
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     // if the command line is bigger than the screen, show the last n rows that fit
@@ -798,7 +798,7 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
             }
         }
 
-        int64_t paddedScreenW = ScreenW() - 2;  // 1 char between each of the three columns
+        int64_t paddedScreenW = gConsole.Width() - 2;  // 1 char between each of the three columns
 
         // if there's enough room for the final column
         if (colWidths[kColName] + colWidths[kColEntry] < (paddedScreenW-kMinUsageCol))
@@ -859,7 +859,7 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
 
         // next list positional params
         row++;
-        string sSection = "-positional params-" + string(ScreenW(), '-');
+        string sSection = "-positional params-" + string(gConsole.Width(), '-');
         DrawClippedText(Rect(drawArea.l, row, drawArea.r, row+1), sSection, kAttribSection, false, &drawArea);
         row++;
 
@@ -922,7 +922,7 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
 
 
             row++;
-            sSection = "-named params-" + string(ScreenW(), '-');
+            sSection = "-named params-" + string(gConsole.Width(), '-');
             DrawClippedText(Rect(drawArea.l, row, drawArea.r, row+1), sSection, kAttribSection, false, &drawArea);
             row++;
 
@@ -988,7 +988,7 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
         // no commands entered
         Table commandsTable;
         pCLP->GetCommandsTable(commandsTable);
-        commandsTable.AlignWidth(ScreenW());
+        commandsTable.AlignWidth(gConsole.Width());
         string sCommands = commandsTable;
         DrawClippedAnsiText(drawArea, sCommands, true, &drawArea);
     }
@@ -996,13 +996,6 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
     ConsoleWin::RenderToBackBuf(backBuf);
     return;
 }
-
-
-    void CommandLineEditor::UpdateDisplay()
-    {
-        assert(bScreenInvalid);
-        DrawToScreen();
-    }
 
 
 
@@ -1014,7 +1007,7 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
 
     bool FolderList::Scan(std::string sSelectedPath, int64_t anchor_l, int64_t anchor_b)
     {
-        bScreenInvalid = true;
+        gConsole.Invalidate();
 
         string sPath = FindClosestParentPath(sSelectedPath);
         if (!fs::exists(sPath))
@@ -1136,7 +1129,7 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
         size_t start = string::npos;
         size_t end = string::npos;
         string sText;
-        bScreenInvalid = true;
+        gConsole.Invalidate();
 
 
         int64_t cursorIndex = CursorToTextIndex(mLocalCursorPos);
@@ -1364,39 +1357,11 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
             popupFolderListWin.Paint(backBuffer);
         }
 
-        bool bCursorHidden = false;
-        for (int64_t y = 0; y < ScreenH(); y++)
-        {
-            for (int64_t x = 0; x < ScreenW(); x++)
-            {
-                int64_t i = (y * ScreenW()) + x;
-                if (bScreenInvalid || backBuffer[i] != drawStateBuffer[i])
-                {
-                    if (!bCursorHidden)
-                    {
-                        bCursorHidden = true;
-                        cout << "\033[?25l";
-                    }
+        bool bChanges = gConsole.Render();
 
-//                    bScreenInvalid = true;
-                    if (backBuffer[i] != drawStateBuffer[i])
-                        DrawAnsiChar(x, y, backBuffer[i].c, backBuffer[i].attrib);
-                }
-            }
-        }
-
-        if (bScreenInvalid)
+        if (bChanges)
         {
-            bScreenInvalid = false;
-            drawStateBuffer = backBuffer;
             rawCommandBuf.UpdateCursorPos(rawCommandBuf.mLocalCursorPos);
-        }
-
-//        DrawAnsiChar(0, 0, '*', 0xffff00ffff00ff00);
-
-        if (bCursorHidden && !bCursorShouldBeHidden)
-        {
-            cout << "\033[?25h";
         }
     }
 
@@ -1526,7 +1491,7 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
         if (mLastParsedText == sText)
             return;
 
-        bScreenInvalid = true;
+        gConsole.Invalidate();
 
         mLastParsedText = sText;
 
@@ -1544,20 +1509,12 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
 
     bool CommandLineEditor::UpdateFromConsoleSize(bool bForce)
     {
-        CONSOLE_SCREEN_BUFFER_INFO newScreenInfo;
-        if (!GetConsoleScreenBufferInfo(mhOutput, &newScreenInfo))
+        if (bForce || gConsole.ScreenChanged())
         {
-            cerr << "Failed to get console info." << endl;
-            return false;
-        }
+            gConsole.Invalidate();
 
-        if ((newScreenInfo.dwSize.X != screenInfo.dwSize.X || newScreenInfo.dwSize.Y != screenInfo.dwSize.Y) || bForce)
-        {
-            screenInfo = newScreenInfo;
-            bScreenInvalid = true;
-
-            SHORT w = ScreenW();
-            SHORT h = ScreenH();
+            SHORT w = gConsole.Width();
+            SHORT h = gConsole.Height();
 
             if (w < 1)
                 w = 1;
@@ -1600,7 +1557,7 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
             popupListWin.mMinWidth = 32;
             popupListWin.positionCaption[ConsoleWin::Position::RB] = "[UP/DOWN][ENTER-Select][ESC-Cancel]";
 
-            UpdateDisplay();
+            DrawToScreen();
             return true;
         }
 
@@ -1609,9 +1566,9 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
 
     void CommandLineEditor::ShowHelp()
     {
-        helpTableWin.Init(Rect(0, 1, ScreenW(), ScreenH()));
+        helpTableWin.Init(Rect(0, 1, gConsole.Width(), gConsole.Height()));
         helpTableWin.Clear(kAttribHelpBG, true);
-        bScreenInvalid = true;
+        gConsole.Invalidate();
 
         Rect drawArea;
         helpTableWin.GetInnerArea(drawArea);
@@ -1713,7 +1670,7 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
 
     bool CommandLineEditor::OnKey(int keycode, char c)
     {
-        bScreenInvalid = true;
+        gConsole.Invalidate();
 
         if (popupListWin.mbVisible)
         {
@@ -1798,71 +1755,19 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
     eResponse CommandLineEditor::Edit(const string& sCommandLine, std::string& outEditedCommandLine)
     {
         // Get the handle to the standard input
-        mhInput = GetStdHandle(STD_INPUT_HANDLE);
-        mhOutput = GetStdHandle(STD_OUTPUT_HANDLE);
-        if (mhInput == INVALID_HANDLE_VALUE || mhOutput == INVALID_HANDLE_VALUE)
+        if (!gConsole.Init())
         {
-            cerr << "Failed to get standard input/output handle." << endl;
             return kErrorAbort;
         }
-
         ResetCols();
 
-        InitScreenInfo();
-
-        SHORT w = ScreenW();
-        SHORT h = ScreenH();
-
-
-
-
-
-        HANDLE hOutput = GetStdHandle(STD_OUTPUT_HANDLE);
-        DWORD outputMode;
-        GetConsoleMode(hOutput, &outputMode);
-        outputMode |= ENABLE_VIRTUAL_TERMINAL_PROCESSING;
-        //outputMode &= ~ENABLE_WRAP_AT_EOL_OUTPUT;
-        SetConsoleMode(hOutput, outputMode);
-
-
-        // Set console mode to allow reading mouse and key events
-        DWORD mode;
-        if (!GetConsoleMode(mhInput, &mode))
-        {
-            cerr << "Failed to get console mode." << endl;
-            return kErrorAbort;
-        }
-
-//        PrintConsoleInputMode(mode);
-
-        mode |= ENABLE_MOUSE_INPUT | ENABLE_EXTENDED_FLAGS | ENABLE_WINDOW_INPUT;
-        mode &= ~(ENABLE_PROCESSED_INPUT| ENABLE_QUICK_EDIT_MODE);
-
-        if (!SetConsoleMode(mhInput, mode))
-        {
-            cerr << "Failed to set console mode." << endl;
-            return kErrorAbort;
-        }
-
-
-        SaveConsoleState();
-        std::vector<CHAR_INFO> blank(w * h);
-        for (int i = 0; i < blank.size(); i++)
-        {
-            blank[i].Char.AsciiChar = ' ';
-            blank[i].Attributes = 0;
-        }
-        SMALL_RECT smallrect(0, 0, w, h);
-        WriteConsoleOutput(mhOutput, &blank[0], screenInfo.dwSize, { 0, 0 }, &smallrect);
+        int16_t w = gConsole.Width();
+        int16_t h = gConsole.Height();
 
 
         // Main loop to read input events
         INPUT_RECORD inputRecord[128];
         DWORD numEventsRead;
-
-
-
-
 
 
 
@@ -1911,11 +1816,10 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
         {
             UpdateFromConsoleSize();
             UpdateParams();
-            if (bScreenInvalid)
+            if (gConsole.Invalid())
             {
                 UpdateUsageWin();
-                UpdateDisplay();
-                bScreenInvalid = false;
+                gConsole.Render();
             }
             else
             {
@@ -1930,7 +1834,7 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
                 {
                     rawCommandBuf.AddUndoEntry();
                     rawCommandBuf.HandlePaste(GetTextFromClipboard());
-                    bScreenInvalid = true;
+                    gConsole.Invalidate();
                 }
                 else
                 {
@@ -1968,7 +1872,7 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
         UnregisterHotKey(nullptr, CTRL_V_HOTKEY);
         UnregisterHotKey(nullptr, SHIFT_INSERT_HOTKEY);
 
-        RestoreConsoleState();
+        gConsole.Shutdown();
 
         string OutCommandLine = fs::path(CLP::appPath + "\\" + CLP::appName).string() + " " + rawCommandBuf.GetText();
 
