@@ -463,20 +463,24 @@ namespace CLP
     bool NativeConsole::ScreenChanged() const
     {
         CONSOLE_SCREEN_BUFFER_INFO newScreenInfo;
-        if (!GetConsoleScreenBufferInfo(mhOutput, &newScreenInfo))
+        if (!GetConsoleScreenBufferInfo(mBufferHandle, &newScreenInfo))
         {
             cerr << "Failed to get console info." << endl;
             return false;
         }
 
-        return newScreenInfo.dwSize.X != screenInfo.dwSize.X || newScreenInfo.dwSize.Y != screenInfo.dwSize.Y;
+        bool bChanged = newScreenInfo.dwSize.X != screenInfo.dwSize.X || newScreenInfo.dwSize.Y != screenInfo.dwSize.Y;
+        if (bChanged)
+            int stophere = 5;
+
+        return bChanged;
     }
 
     bool NativeConsole::UpdateScreenInfo()
     {
         // TBD.....does this need thread safety?
         CONSOLE_SCREEN_BUFFER_INFO newScreenInfo;
-        if (!GetConsoleScreenBufferInfo(mhOutput, &newScreenInfo))
+        if (!GetConsoleScreenBufferInfo(mBufferHandle, &newScreenInfo))
         {
             cerr << "Failed to get console info." << endl;
             return false;
@@ -486,8 +490,16 @@ namespace CLP
             return false;
 
         screenInfo = newScreenInfo;
+        mBackBuffer.clear();
+        mDrawStateBuffer.clear();
         mBackBuffer.resize(newScreenInfo.dwSize.X * newScreenInfo.dwSize.Y);
         mDrawStateBuffer.resize(newScreenInfo.dwSize.X * newScreenInfo.dwSize.Y);
+
+        DWORD written;
+        COORD origin = { 0, 0 };
+        FillConsoleOutputCharacter(mBufferHandle, ' ', newScreenInfo.dwSize.X * newScreenInfo.dwSize.Y, origin, &written);
+        FillConsoleOutputAttribute(mBufferHandle, 0x07, newScreenInfo.dwSize.X * newScreenInfo.dwSize.Y, origin, &written);
+
 
         mbScreenInvalid = true;
         return true;
@@ -624,10 +636,8 @@ namespace CLP
             return false;
         }
 
-        UpdateScreenInfo();
-
-        HANDLE hOutput = CreateFile("CONOUT$", GENERIC_READ | GENERIC_WRITE, FILE_SHARE_WRITE, nullptr, OPEN_EXISTING, 0, nullptr);
-        if (!GetConsoleScreenBufferInfo(hOutput, &originalScreenInfo))
+        mhOutput = CreateFile("CONOUT$", GENERIC_READ | GENERIC_WRITE, FILE_SHARE_WRITE, nullptr, OPEN_EXISTING, 0, nullptr);
+        if (!GetConsoleScreenBufferInfo(mhOutput, &originalScreenInfo))
         {
             cerr << "Failed to get console info." << endl;
             return false;
@@ -679,6 +689,36 @@ namespace CLP
         SetConsoleActiveScreenBuffer(mBufferHandle);
 
 
+        //// working on getting the sizing not cause the stride glitch
+        /*
+
+        CONSOLE_SCREEN_BUFFER_INFOEX infoEx = { sizeof(CONSOLE_SCREEN_BUFFER_INFOEX) };
+        GetConsoleScreenBufferInfoEx(mBufferHandle, &infoEx);
+
+        // Set a large fixed buffer
+        infoEx.dwSize.X = 500;
+        infoEx.dwSize.Y = 500;
+
+        // Keep window size reasonable
+        infoEx.srWindow.Right = infoEx.srWindow.Left + originalScreenInfo.dwSize.X;  
+        infoEx.srWindow.Bottom = infoEx.srWindow.Top + originalScreenInfo.dwSize.Y;  
+
+        SetConsoleScreenBufferInfoEx(mBufferHandle, &infoEx);
+
+        */
+
+
+
+
+
+
+
+
+
+
+        UpdateScreenInfo();
+
+        mbScreenInvalid = true;
         mbInitted = true;
         return true;
     }
@@ -716,17 +756,14 @@ namespace CLP
 
     bool NativeConsole::Render()
     {
-        // force for now
-        mbScreenInvalid = true;
-
-
         if (!mbScreenInvalid)
             return false;
 
 
-        string ansiOut;
+        std::string resetDecLine = "\033[?25l\033(B";  // Reset to ASCII mode and hide cursor
+        DWORD written;
+        WriteConsole(mBufferHandle, resetDecLine.c_str(), (DWORD)resetDecLine.length(), &written, NULL);
 
-        cout << "\033[?25l";
 
         COORD savePos = lastCursorPos;
         int32_t w = Width();
@@ -738,53 +775,91 @@ namespace CLP
         // Compatible regions
         for (int y = 0; y < h; y++)
         {
-            for (int x = 0; x < w; x++)
+            int x = 0;
+            while (x < w)
             {
-                int idx = y * w + x;
-                if (mDrawStateBuffer[idx] == mBackBuffer[idx] || CanUseWriteConsoleOutput(b
+                // Skip unchanged
+                while (x < w && mBackBuffer[y * w + x] == mDrawStateBuffer[y * w + x])
+                {
+                    x++;
+                }
+
+                if (x >= w) break;
+
+                // Find run of changed, compatible chars
+                int startX = x;
+                std::vector<CHAR_INFO> chars;
+
+                while (x < w && mBackBuffer[y * w + x] != mDrawStateBuffer[y * w + x] && CanUseWriteConsoleOutput(mBackBuffer[y * w + x]))
+                {
+                    CHAR_INFO ci;
+                    char c = mBackBuffer[y * w + x].c;
+                    if (c < 32)
+                        c = ' ';
+                    ci.Char.AsciiChar = c;
+                    ci.Attributes = ZAttribToConsoleAttributes(mBackBuffer[y * w + x].attrib);
+                    chars.push_back(ci);
+                    x++;
+                }
+
+                // Write this run
+                if (!chars.empty())
+                {
+                    COORD bufSize = { (SHORT)chars.size(), 1 };
+                    COORD bufCoord = { 0, 0 };
+                    SMALL_RECT region = { (SHORT)startX, (SHORT)y, (SHORT)(startX + chars.size() - 1), (SHORT)y };
+                    WriteConsoleOutput(mBufferHandle, chars.data(), bufSize, bufCoord, &region);
+                }
+
+                // now skip any incompattible chars
+                while (x < w && !CanUseWriteConsoleOutput(mBackBuffer[y * w + x]))
+                {
+                    x++;
+                }
             }
         }
 
-        // Write remaining regions
-        std::string ansiOutput;
+
+        // ansi regions
+        string ansiOut;
         ZAttrib currentAttrib;
+        bool needAttribReset = true;  // Force first attribute write
+
 
         for (int y = 0; y < h; y++)
         {
             for (int x = 0; x < w; x++)
             {
                 int idx = y * w + x;
-
-                // Skip if unchanged or already written by WriteConsoleOutput
-                if (mDrawStateBuffer[idx] == mBackBuffer[idx] || CanUseWriteConsoleOutput(mBackBuffer[idx]))
-                {
+                ZChar c = mBackBuffer[idx];
+                if (mDrawStateBuffer[idx] == c || CanUseWriteConsoleOutput(c))
                     continue;
-                }
+                
+                // ansi
+                ansiOut += "\033[" + std::to_string(y + 1) + ";" + std::to_string(x + 1) + "H";
 
-                // Position cursor (batch these to minimize escapes)
-                ansiOutput += "\033[" + std::to_string(y + 1) + ";" + std::to_string(x + 1) + "H";
-
-                // Change attributes if needed
-                if (mBackBuffer[idx].attrib != currentAttrib)
+                if (needAttribReset || c.attrib != currentAttrib)
                 {
-                    ansiOutput += mBackBuffer[idx].attrib.ToAnsi();
-                    currentAttrib = mBackBuffer[idx].attrib;
+                    ansiOut += c.attrib.ToAnsi();
+                    currentAttrib = c.attrib;
+                    needAttribReset = false;
                 }
 
-                // Write character
-                ansiOutput += (char)mBackBuffer[idx].c;
+                // Write character (handle control chars and a==0 like before)
+                if (c.c < 32)
+                    ansiOut += ' ';
+                else
+                    ansiOut += (char)c.c;
             }
         }
 
-        if (!ansiOutput.empty())
+        if (!ansiOut.empty())
         {
             DWORD written;
-            WriteConsole(mBufferHandle, ansiOutput.c_str(), (DWORD)ansiOutput.length(), &written, NULL);
-
-            int stophere = 5;
+            WriteConsole(mBufferHandle, ansiOut.c_str(), (DWORD)ansiOut.length(), &written, NULL);
         }
 
-        //SetCursorPosition(savePos);
+        SetCursorPosition(savePos, true);
         mDrawStateBuffer = mBackBuffer;
         mbScreenInvalid = false;
         return true;
@@ -846,7 +921,7 @@ namespace CLP
                 }
 
                 // now skip any incompattible chars
-                while (x < w && /*frontBuf[y * w + x] != backBuf[y * w + x] &&*/ !CanUseWriteConsoleOutput(mDrawStateBuffer[y * w + x]))
+                while (x < w && /*frontBuf[y * w + x] != backBuf[y * w + x] &&*//* !CanUseWriteConsoleOutput(mDrawStateBuffer[y * w + x]))
                 {
                     x++;
                 }

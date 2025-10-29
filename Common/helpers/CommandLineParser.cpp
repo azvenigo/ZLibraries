@@ -902,6 +902,28 @@ namespace CLP
     }
 
 
+    void CommandLineParser::ShowHelp()
+    {
+        Table helpTable;
+//        GetHelpTable(GetFirstPositionalArgument(argArray), helpTable);
+        GetHelpTable(msMode, helpTable);
+        helpTable.SetRenderWidth(gConsole.Width());
+        Table::SetDecLineBorders(helpTable);
+        cout << helpTable;
+    }
+
+    void CommandLineParser::ShowCommandLineHelp()
+    {
+        Table helpTable;
+        GetCLPHelp(helpTable);
+        GetKeyTable(helpTable);
+        helpTable.SetRenderWidth(gConsole.Width());
+        Table::SetDecLineBorders(helpTable);
+        cout << helpTable;
+
+    }
+
+
     CLP::eResponse CommandLineParser::TryParse(const tStringArray& params)    // params without app name
     {
         msMode.clear();
@@ -1168,6 +1190,15 @@ namespace CLP
         else
         {
             GetAppDescriptionHelpTable(help);
+            GetModeHelpTable("", help);
+            GetUsageTable("", help);
+            help.AddRow(" ");
+            help.AddRow(CLP::SectionStyle, " Additional Help ");
+            help.AddRow(" ");
+#ifdef ENABLE_COMMAND_HISTORY
+            help.AddRow("To list Command History add \"h!\"", "Example: " + AppStyle.color + appName + " h!" + ResetStyle.color);
+#endif
+            help.AddRow("Additional Command Line Options \"??\"", "Example: " + AppStyle.color + appName + " ??" + ResetStyle.color);
         }
 
         return;
@@ -1257,23 +1288,12 @@ namespace CLP
         }
         else if (response == kShowCommandLineHelp)
         {
-            Table helpTable;
-            GetCLPHelp(helpTable);
-            GetKeyTable(helpTable);
-            helpTable.SetRenderWidth(gConsole.Width());
-            Table::SetDecLineBorders(helpTable);
-            cout << helpTable;
-
+            ShowCommandLineHelp();
             return false;
         }
         else if (response == kShowHelp)
         {
-            Table helpTable;
-            GetHelpTable(GetFirstPositionalArgument(argArray), helpTable);
-            helpTable.SetRenderWidth(gConsole.Width());
-            Table::SetDecLineBorders(helpTable);
-            cout << helpTable;
-
+            ShowHelp();
             return false;
         }
         

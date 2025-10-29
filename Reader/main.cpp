@@ -8,6 +8,9 @@
 #include "helpers/StringHelpers.h"
 #include "helpers/ZZFileAPI.h"
 #include <filesystem>
+#include <fcntl.h>
+#include <windows.h>
+#include <io.h>
 
 InlineFormatter gFormatter;
 
@@ -214,13 +217,31 @@ bool ReaderWin::LoadFile(std::string filename)
 
 bool ReaderWin::ReadPipe()
 {
+    // 1) check if stdin is redirected
+    if (_isatty(_fileno(stdin))) {
+        // stdin is a console, not a pipe/file
+        return false;
+    }
+
+    // 2) use peek instead of in_avail()
     std::stringstream buf;
-    buf << cin.rdbuf();
-    mText = buf.str();
+    char tmp[4096];
 
-    return true;
+    // Peek to see if any bytes are there
+    HANDLE h = GetStdHandle(STD_INPUT_HANDLE);
+    DWORD bytesAvail = 0;
+    if (PeekNamedPipe(h, nullptr, 0, nullptr, &bytesAvail, nullptr) && bytesAvail > 0)
+    {
+        // there is data — now read it all
+        while (std::cin.read(tmp, sizeof(tmp)) || std::cin.gcount() > 0) {
+            buf.write(tmp, std::cin.gcount());
+        }
+        mText = buf.str();
+        return true;
+    }
+
+    return false;
 }
-
 
 
 
@@ -326,6 +347,14 @@ bool ReaderWin::Execute()
                     cerr << "Failed to read console input." << endl;
                     return false;
                 }
+
+                // Work on getting sizing stride fix
+                /*
+                if (inputRecord[i].EventType == WINDOW_BUFFER_SIZE_EVENT)
+                {
+                    gConsole.UpdateScreenInfo();
+                    invalid = true;
+                }*/
 
                 if (inputRecord[i].EventType == MOUSE_EVENT)
                 {
@@ -502,6 +531,8 @@ bool ReaderWin::OnKey(int keycode, char c)
 
     if (filterTextEntryWin.mbVisible)
     {
+        gConsole.Invalidate();
+
         if (filterTextEntryWin.mbCanceled)
             filterTextEntryWin.SetText("");
 
@@ -510,7 +541,7 @@ bool ReaderWin::OnKey(int keycode, char c)
             filterTextEntryWin.SetVisible(false);
             filterTextEntryWin.mbCanceled = false;
             filterTextEntryWin.mbDone = false;
-            gConsole.Invalidate();
+            invalid = true;
         }
     }
 
@@ -520,6 +551,7 @@ bool ReaderWin::OnKey(int keycode, char c)
         helpTableWin.mbCanceled = false;
         helpTableWin.mbDone = false;
         gConsole.Invalidate();
+        invalid = true;
     }
 
     if (!bHandled)
@@ -652,6 +684,7 @@ void ReaderWin::Paint(tConsoleBuffer& backBuf)
     }
 
     ConsoleWin::RenderToBackBuf(backBuf);
+    gConsole.Invalidate();
     invalid = false;
 }
 
@@ -727,7 +760,11 @@ int main(int argc, char* argv[])
     }
     else
     {
-        readerWin.ReadPipe();
+        if (!readerWin.ReadPipe())
+        {
+            parser.ShowHelp();
+            return -1;
+        }
     }
 
     if (!sFilter.empty())

@@ -330,12 +330,20 @@ namespace CLP
         // Additional info
         bool            AddInfo(std::string sMode, const std::string& sInfo);
 
+
+        // Show Help
+        void            ShowHelp();
+        void            ShowCommandLineHelp();
+
+
         // utility functions
         static tStringArray     ToArray(int argc, char* argv[]);
         static tStringArray     ToArray(const std::string& sCommandLine);
         static std::string      ToString(const tStringArray& stringList);
         static std::string      EncloseWhitespaces(const std::string& value);     // if value contains whitespaces, surround with quotes
         static std::string      StripEnclosure(const std::string& value);         // remove surrounding quotes
+
+
 
         // Configuration
         bool            enableVerbositySetting = true;

@@ -349,7 +349,10 @@ namespace CLP
         bool Render();
 
         bool Invalid() const { return mbScreenInvalid; }
-        void Invalidate() { mbScreenInvalid = true; }
+        void Invalidate() 
+        { 
+            mbScreenInvalid = true; 
+        }
         void Flip();
 
         COORD lastCursorPos;
@@ -372,6 +375,8 @@ namespace CLP
         std::vector<CHAR_INFO> originalConsoleBuf;
 
 
+
+        HANDLE mhOriginalOutput = INVALID_HANDLE_VALUE;
 
         HANDLE mhInput = INVALID_HANDLE_VALUE;
         HANDLE mhOutput = INVALID_HANDLE_VALUE;
