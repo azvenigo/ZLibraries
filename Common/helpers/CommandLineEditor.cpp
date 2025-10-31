@@ -658,6 +658,9 @@ namespace CLP
                 string selection(mPath + CommandLineParser::StripEnclosure(GetSelection()));
                 if (fs::is_directory(selection))
                     Scan(selection, mAnchorL, mAnchorB);
+                else if (IsRootFolder(CommandLineParser::StripEnclosure(GetSelection())))
+                    Scan(CommandLineParser::StripEnclosure(GetSelection()), mAnchorL, mAnchorB);
+
                 return true;
             }
             case VK_RETURN:
@@ -665,14 +668,6 @@ namespace CLP
                 string selection(CommandLineParser::StripEnclosure(GetSelection()));
                 if (selection == kEmptyFolderCaption)
                     selection = mPath;
-
-                // if selecting a new drive to scan, just scan instead of returning
-                if (IsRootFolder(selection))
-                {
-                    Scan(selection, mAnchorL, mAnchorB);
-                    return true;
-                }
-
 
                 rawCommandBuf.AddUndoEntry();
                 rawCommandBuf.HandlePaste(CommandLineParser::EncloseWhitespaces(mPath + selection));
@@ -1330,16 +1325,11 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
         SHORT paramListRows = (SHORT)enteredParams.size();
 
 
-        // clear back buffer
-        memset(&backBuffer[0], 0, backBuffer.size() * sizeof(ZChar));
-        bool bCursorShouldBeHidden = false;
-
-        if (helpTableWin.mbVisible || popupListWin.mbVisible || popupFolderListWin.mbVisible || historyWin.mbVisible)
-            bCursorShouldBeHidden = true;
+        gConsole.SetCursorVisible(!helpTableWin.mbVisible && !popupListWin.mbVisible && !popupFolderListWin.mbVisible && !historyWin.mbVisible);
 
         if (helpTableWin.mbVisible)
         {
-            helpTableWin.Paint(backBuffer);
+            helpTableWin.Paint(gConsole.BackBuffer());
         }
         else
         {
@@ -1348,13 +1338,13 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
                 sTop += " [UP-History (" + SH::FromInt(commandHistory.size()) + ")]";
             topInfoBuf.SetText(string(COL_BLACK) + sTop);
 
-            paramListBuf.Paint(backBuffer);
-            rawCommandBuf.Paint(backBuffer);
-            usageBuf.Paint(backBuffer);
-            topInfoBuf.Paint(backBuffer);
-            popupListWin.Paint(backBuffer);
-            historyWin.Paint(backBuffer);
-            popupFolderListWin.Paint(backBuffer);
+            paramListBuf.Paint(gConsole.BackBuffer());
+            rawCommandBuf.Paint(gConsole.BackBuffer());
+            usageBuf.Paint(gConsole.BackBuffer());
+            topInfoBuf.Paint(gConsole.BackBuffer());
+            popupListWin.Paint(gConsole.BackBuffer());
+            historyWin.Paint(gConsole.BackBuffer());
+            popupFolderListWin.Paint(gConsole.BackBuffer());
         }
 
         bool bChanges = gConsole.Render();
@@ -1509,7 +1499,7 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
 
     bool CommandLineEditor::UpdateFromConsoleSize(bool bForce)
     {
-        if (bForce || gConsole.ScreenChanged())
+        if (bForce || gConsole.UpdateScreenInfo())
         {
             gConsole.Invalidate();
 
@@ -1520,14 +1510,6 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
                 w = 1;
             if (h < 8)
                 h = 8;
-
-
-            backBuffer.clear();
-            backBuffer.resize(w*h);
-
-
-            drawStateBuffer.clear();
-            drawStateBuffer.resize(w * h);
 
             topInfoBuf.Clear(kAttribTopInfoBG);
             topInfoBuf.SetArea(Rect(0, 1, w, 2));
@@ -1715,36 +1697,43 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
 
         if (helpTableWin.IsOver(coord.X, coord.Y))
         {
+            gConsole.Invalidate();
             return helpTableWin.OnMouse(event);
         }
 
         if (popupListWin.IsOver(coord.X, coord.Y))
         {
+            gConsole.Invalidate();
             return popupListWin.OnMouse(event);
         }
 
         if (historyWin.IsOver(coord.X, coord.Y))
         {
+            gConsole.Invalidate();
             return historyWin.OnMouse(event);
         }
 
         if (popupFolderListWin.IsOver(coord.X, coord.Y))
         {
+            gConsole.Invalidate();
             return popupFolderListWin.OnMouse(event);
         }
 
         if (paramListBuf.IsOver(coord.X, coord.Y))
         {
+            gConsole.Invalidate();
             return paramListBuf.OnMouse(event);
         }
 
         if (rawCommandBuf.IsOver(coord.X, coord.Y))
         {
+            gConsole.Invalidate();
             return rawCommandBuf.OnMouse(event);
         }
 
         if (topInfoBuf.IsOver(coord.X, coord.Y))
         {
+            gConsole.Invalidate();
             return topInfoBuf.OnMouse(event);
         }
 
@@ -1785,8 +1774,6 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
          
         LoadHistory();
 
-        backBuffer.resize(w*h);
-        drawStateBuffer.resize(w * h);
         rawCommandBuf.Init(Rect(0, h - 4, w, h));
         rawCommandBuf.SetVisible();
 
@@ -1819,6 +1806,7 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
             if (gConsole.Invalid())
             {
                 UpdateUsageWin();
+                DrawToScreen();
                 gConsole.Render();
             }
             else
@@ -1844,9 +1832,9 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
             }
 
             DWORD numEventsAvailable;
-            if (GetNumberOfConsoleInputEvents(mhInput, &numEventsAvailable) && numEventsAvailable > 0)
+            if (GetNumberOfConsoleInputEvents(gConsole.InputHandle(), &numEventsAvailable) && numEventsAvailable > 0)
             {
-                if (ReadConsoleInput(mhInput, inputRecord, 128, &numEventsRead) && numEventsRead > 0)
+                if (ReadConsoleInput(gConsole.InputHandle(), inputRecord, 128, &numEventsRead) && numEventsRead > 0)
                 {
                     for (DWORD i = 0; i < numEventsRead; i++)
                     {

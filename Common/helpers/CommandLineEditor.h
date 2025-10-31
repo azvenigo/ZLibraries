@@ -118,15 +118,6 @@ namespace CLP
         void UpdateParams();        // parse mText and break into parameter fields
         std::string     mLastParsedText;
 
-        HANDLE mhInput;
-        HANDLE mhOutput;
-        std::vector<CHAR_INFO> originalConsoleBuf;
-        CONSOLE_SCREEN_BUFFER_INFO originalScreenInfo;
-
-
-        tConsoleBuffer backBuffer;      // for double buffering
-        tConsoleBuffer drawStateBuffer; // for rendering only delta
-
         std::string EnteredParamsToText();
         tEnteredParams ParamsFromText(const std::string& sText);
 

@@ -333,6 +333,7 @@ namespace CLP
         void SetCursorPosition(COORD coord, bool bForce);
 
         bool ConsoleHasFocus();
+        void SetCursorVisible(bool bVisible = true);
 
         CONSOLE_SCREEN_BUFFER_INFO Screen() const { return screenInfo; }
         bool ScreenChanged() const;
@@ -364,6 +365,7 @@ namespace CLP
 
         bool mbInitted = false;
         bool mbScreenInvalid = true;
+        bool mbCursorVisible = true;
         HANDLE mBufferHandle;
 
         tConsoleBuffer mBackBuffer;

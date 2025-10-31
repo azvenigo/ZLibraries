@@ -532,27 +532,22 @@ namespace CLP
 
     void CommandLineMonitor::DrawToScreen()
     {
-        // clear back buffer
-        memset(&backBuffer[0], 0, backBuffer.size() * sizeof(ZChar));
-
         if (logWin.mbVisible)
-            logWin.Paint(backBuffer);
+            logWin.Paint(gConsole.BackBuffer());
         if (filterTextEntryWin.mbVisible)
-            filterTextEntryWin.Paint(backBuffer);
+            filterTextEntryWin.Paint(gConsole.BackBuffer());
         if (saveLogFilenameEntryWin.mbVisible)
-            saveLogFilenameEntryWin.Paint(backBuffer);
+            saveLogFilenameEntryWin.Paint(gConsole.BackBuffer());
         if (helpTableWin.mbVisible)
-            helpTableWin.Paint(backBuffer);
+            helpTableWin.Paint(gConsole.BackBuffer());
 
         gConsole.Render();
     }
 
     bool CommandLineMonitor::UpdateFromConsoleSize(bool bForce)
     {
-        if (bForce || gConsole.ScreenChanged())
+        if (bForce || gConsole.UpdateScreenInfo())
         {
-            gConsole.UpdateScreenInfo();
-
             SHORT w = gConsole.Width();
             SHORT h = gConsole.Height();
 
@@ -561,16 +556,9 @@ namespace CLP
             if (h < 8)
                 h = 8;
 
-
-            backBuffer.clear();
-            backBuffer.resize(w*h);
-
-
-            drawStateBuffer.clear();
-            drawStateBuffer.resize(w * h);
-
-
             Rect viewRect(0, 0, w, h);
+
+
             Rect logWinRect(viewRect);
             if (filterTextEntryWin.mbVisible)
             {
@@ -631,6 +619,8 @@ namespace CLP
 
     bool CommandLineMonitor::OnKey(int keycode, char c)
     {
+        gConsole.Invalidate();
+
         bool bHandled = false;
 //        if (helpTextWin.mbVisible)
 //            bHandled = helpTextWin.OnKey(keycode, c);
@@ -653,7 +643,6 @@ namespace CLP
                 filterTextEntryWin.SetVisible(false);
                 filterTextEntryWin.mbCanceled = false;
                 filterTextEntryWin.mbDone = false;
-                gConsole.Invalidate();
                 return true;
             }
         }
@@ -664,7 +653,6 @@ namespace CLP
                 saveLogFilenameEntryWin.SetVisible(false);
                 saveLogFilenameEntryWin.mbCanceled = false;
                 saveLogFilenameEntryWin.mbDone = false;
-                gConsole.Invalidate();
                 return true;
             }
         }
@@ -675,7 +663,6 @@ namespace CLP
             {
                 mbDone = true;
                 mbVisible = false;
-                gConsole.Invalidate();
                 return true;
             }
             else if (keycode == VK_F1)
@@ -704,11 +691,13 @@ namespace CLP
 
         if (helpTableWin.IsOver(coord.X, coord.Y))
         {
+            gConsole.Invalidate();
             return helpTableWin.OnMouse(event);
         }
 
         if (logWin.IsOver(coord.X, coord.Y))
         {
+            gConsole.Invalidate();
             return logWin.OnMouse(event);
         }
 
@@ -733,15 +722,10 @@ namespace CLP
             blank[i].Attributes = 0;
         }
         SMALL_RECT smallrect(0, 0, w, h);
-        //WriteConsoleOutput(mhOutput, &blank[0], screenInfo.dwSize, { 0, 0 }, &smallrect);
-
-
-        pCLM->backBuffer.resize(w*h);
-        pCLM->drawStateBuffer.resize(w * h);
 
         ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
         // Clear the raw command buffer and param buffers
-        //UpdateFromConsoleSize(true);
+        pCLM->UpdateFromConsoleSize(true);
 
         while (!pCLM->mbDone && !pCLM->mbCanceled)
         {
@@ -768,7 +752,7 @@ namespace CLP
 
             if (pCLM->mbVisible)
             {
-//                pCLM->UpdateFromConsoleSize(bScreenInvalid);  // force update if the screen changed
+                pCLM->UpdateFromConsoleSize();  // force update if the screen changed
                 gConsole.UpdateScreenInfo();
                 pCLM->UpdateDisplay();
                 logWin.Update();

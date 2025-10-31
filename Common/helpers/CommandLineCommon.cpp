@@ -444,12 +444,29 @@ namespace CLP
 
     void NativeConsole::SetCursorPosition(COORD coord, bool bForce)
     {
+        string out;
         if (bForce || coord.X != lastCursorPos.X || coord.Y != lastCursorPos.Y)
         {
-            cout << "\033[" + SH::FromInt(coord.X+1) + "G\033[" + SH::FromInt(coord.Y+1) + "d" << flush;
+            out = "\033[" + SH::FromInt(coord.X + 1) + "G\033[" + SH::FromInt(coord.Y + 1) + "d";
             lastCursorPos = coord;
         }
+
+        if (mbCursorVisible)
+            out += "\033[?25h";
+        else
+            out += "\033[?25l";
+
+        DWORD written;
+        WriteConsole(mBufferHandle, out.c_str(), (DWORD)out.length(), &written, NULL);
     }
+
+    void NativeConsole::SetCursorVisible(bool bVisible)
+    {
+        if (mbCursorVisible != bVisible)
+            mbScreenInvalid = true;
+        mbCursorVisible = bVisible;
+    }
+
 
     bool NativeConsole::ConsoleHasFocus()
     {
@@ -470,9 +487,6 @@ namespace CLP
         }
 
         bool bChanged = newScreenInfo.dwSize.X != screenInfo.dwSize.X || newScreenInfo.dwSize.Y != screenInfo.dwSize.Y;
-        if (bChanged)
-            int stophere = 5;
-
         return bChanged;
     }
 

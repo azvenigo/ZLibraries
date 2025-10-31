@@ -98,9 +98,6 @@ namespace CLP
         void DrawToScreen();
         void UpdateVisibility();
 
-        tConsoleBuffer backBuffer;      // for double buffering
-        tConsoleBuffer drawStateBuffer; // for rendering only delta
-
         std::thread monitorthread;
 
         bool mbVisible;

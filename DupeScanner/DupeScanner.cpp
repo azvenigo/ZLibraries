@@ -26,7 +26,7 @@ void DiffFolders(fs::path source, fs::path dest)
 
     Table diff;
     diff.SetBorders("", "*", "", "*");
-    diff.SetRenderWidth(ScreenW());
+    diff.SetRenderWidth(gConsole.Width());
 
     diff.AddRow("SRC", source);
     diff.AddRow("DST", dest);
