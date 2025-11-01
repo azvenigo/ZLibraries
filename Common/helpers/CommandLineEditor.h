@@ -77,6 +77,8 @@ namespace CLP
         bool            Scan(std::string sPath, int64_t origin_l, int64_t origin_b);  // bottom left corner to auto size from
         std::string     FindClosestParentPath(std::string sPath);    // given some path with possibly non-existant elements, walk up the chain until finding an existing parent
         virtual bool    OnKey(int keycode, char c);
+        virtual bool    OnMouse(MOUSE_EVENT_RECORD event);
+
 
         void            UpdateCaptions();
         tStringList     mEntries;

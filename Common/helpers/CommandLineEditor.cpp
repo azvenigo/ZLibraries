@@ -683,6 +683,25 @@ namespace CLP
         return bHandled;
     }
 
+    bool FolderList::OnMouse(MOUSE_EVENT_RECORD event)
+    {
+        COORD localcoord = event.dwMousePosition;
+        localcoord.X -= (SHORT)mX;
+        localcoord.Y -= (SHORT)(mY + 1);
+
+        // override base double-click for directories
+        if (event.dwEventFlags == DOUBLE_CLICK)
+        {
+            mSelection = mTopVisibleRow + localcoord.Y;
+            string selection(mPath + CommandLineParser::StripEnclosure(GetSelection()));
+            if (fs::is_directory(selection) || IsRootFolder(CommandLineParser::StripEnclosure(GetSelection())))
+                return OnKey(VK_TAB, 0);
+        }
+
+        return ListboxWin::OnMouse(event);
+    }
+
+
     void FolderList::UpdateCaptions()
     {
         if (SH::EndsWith(GetSelection(), "\\"))
@@ -1080,6 +1099,10 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
                     pBuf += sDrive.length()+1;
                 }
 
+            }
+            else
+            {
+                folders.push_front("..");   
             }
 
 
@@ -1697,43 +1720,36 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
 
         if (helpTableWin.IsOver(coord.X, coord.Y))
         {
-            gConsole.Invalidate();
             return helpTableWin.OnMouse(event);
         }
 
         if (popupListWin.IsOver(coord.X, coord.Y))
         {
-            gConsole.Invalidate();
             return popupListWin.OnMouse(event);
         }
 
         if (historyWin.IsOver(coord.X, coord.Y))
         {
-            gConsole.Invalidate();
             return historyWin.OnMouse(event);
         }
 
         if (popupFolderListWin.IsOver(coord.X, coord.Y))
         {
-            gConsole.Invalidate();
             return popupFolderListWin.OnMouse(event);
         }
 
         if (paramListBuf.IsOver(coord.X, coord.Y))
         {
-            gConsole.Invalidate();
             return paramListBuf.OnMouse(event);
         }
 
         if (rawCommandBuf.IsOver(coord.X, coord.Y))
         {
-            gConsole.Invalidate();
             return rawCommandBuf.OnMouse(event);
         }
 
         if (topInfoBuf.IsOver(coord.X, coord.Y))
         {
-            gConsole.Invalidate();
             return topInfoBuf.OnMouse(event);
         }
 

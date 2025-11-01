@@ -703,29 +703,6 @@ namespace CLP
         SetConsoleActiveScreenBuffer(mBufferHandle);
 
 
-        //// working on getting the sizing not cause the stride glitch
-        /*
-
-        CONSOLE_SCREEN_BUFFER_INFOEX infoEx = { sizeof(CONSOLE_SCREEN_BUFFER_INFOEX) };
-        GetConsoleScreenBufferInfoEx(mBufferHandle, &infoEx);
-
-        // Set a large fixed buffer
-        infoEx.dwSize.X = 500;
-        infoEx.dwSize.Y = 500;
-
-        // Keep window size reasonable
-        infoEx.srWindow.Right = infoEx.srWindow.Left + originalScreenInfo.dwSize.X;  
-        infoEx.srWindow.Bottom = infoEx.srWindow.Top + originalScreenInfo.dwSize.Y;  
-
-        SetConsoleScreenBufferInfoEx(mBufferHandle, &infoEx);
-
-        */
-
-
-
-
-
-
 
 
 
