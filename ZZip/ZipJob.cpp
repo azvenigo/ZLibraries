@@ -17,15 +17,10 @@
 #include "helpers/ThreadPool.h"
 #include "helpers/ZZFileAPI.h"
 #include "helpers/LoggingHelpers.h"
+#include "helpers/CommandLineCommon.h"
 
 using namespace std;
 using namespace ZFile;
-
-inline int64_t GetUSSinceEpoch()
-{
-    return std::chrono::system_clock::now().time_since_epoch() / std::chrono::microseconds(1);
-}
-
 
 ZipJob::~ZipJob()
 {

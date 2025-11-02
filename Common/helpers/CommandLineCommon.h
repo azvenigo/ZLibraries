@@ -4,6 +4,7 @@
 #include "LoggingHelpers.h"
 #include "StringHelpers.h"
 #include <list>
+#include <chrono>
 #include <assert.h>
 #include <algorithm>
 #include <stdlib.h>
@@ -82,6 +83,12 @@ const uint64_t WHITE_ON_GRAY = ((uint64_t)WHITE << 32) | GRAY;
 #endif
 
 typedef std::list<std::string> tStringList;
+
+inline int64_t GetUSSinceEpoch()
+{
+    return std::chrono::system_clock::now().time_since_epoch() / std::chrono::microseconds(1);
+}
+
 
 namespace CLP
 {

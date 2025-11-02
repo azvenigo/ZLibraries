@@ -367,29 +367,36 @@ namespace CLP
         COORD localcoord = event.dwMousePosition;
         localcoord.X -= (SHORT)mX;
         localcoord.Y -= (SHORT)(mY+1);
-        if (event.dwEventFlags == 0)
+
+
+        // because frame at the top and bottom, only handle mouse events when within the list rows
+        if (localcoord.Y >= 1 && localcoord.Y <= mHeight - 2)
         {
-            if (event.dwButtonState == FROM_LEFT_1ST_BUTTON_PRESSED)
+
+            if (event.dwEventFlags == 0)
+            {
+                if (event.dwButtonState == FROM_LEFT_1ST_BUTTON_PRESSED)
+                {
+                    mSelection = mTopVisibleRow + localcoord.Y;
+                    gConsole.Invalidate();
+                }
+            }
+            else if (event.dwEventFlags == DOUBLE_CLICK)
             {
                 mSelection = mTopVisibleRow + localcoord.Y;
-                gConsole.Invalidate();
+                return OnKey(VK_RETURN, 0);
             }
-        }
-        else if (event.dwEventFlags == DOUBLE_CLICK)
-        {
-            mSelection = mTopVisibleRow + localcoord.Y;
-            return OnKey(VK_RETURN, 0);
-        }
-        else if (event.dwEventFlags == MOUSE_WHEELED)
-        {
-            SHORT wheelDelta = HIWORD(event.dwButtonState);
-            if (wheelDelta < 0)
+            else if (event.dwEventFlags == MOUSE_WHEELED)
             {
-                return OnKey(VK_DOWN, 0);
-            }
-            else
-            {
-                return OnKey(VK_UP, 0);
+                SHORT wheelDelta = HIWORD(event.dwButtonState);
+                if (wheelDelta < 0)
+                {
+                    return OnKey(VK_DOWN, 0);
+                }
+                else
+                {
+                    return OnKey(VK_UP, 0);
+                }
             }
         }
 
@@ -1543,7 +1550,7 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
             usageBuf.Clear(kAttribTopInfoBG);
             usageBuf.SetArea(Rect(0, h - 5, w, h - 4));
 
-            rawCommandBuf.Clear(0xff444444);
+            rawCommandBuf.Clear(0xff000000ffffffff);
             rawCommandBuf.SetArea(Rect(0, h - 4, w, h));
 
             helpTableWin.Clear(kAttribHelpBG, true);
@@ -1813,10 +1820,16 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
 
 
 
+        // for longer and longer idles when the application has no activity
+        const uint64_t kIdleInc = 1000;
+        const uint64_t kIdleMin = 100;
+        const uint64_t kIdleMax = 250000; // 250ms
 
+        uint64_t idleSleep = kIdleMin;
 
         while (!rawCommandBuf.mbDone && !rawCommandBuf.mbCanceled)
         {
+
             UpdateFromConsoleSize();
             UpdateParams();
             if (gConsole.Invalid())
@@ -1824,10 +1837,11 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
                 UpdateUsageWin();
                 DrawToScreen();
                 gConsole.Render();
+                idleSleep = kIdleMin;
             }
             else
             {
-                std::this_thread::sleep_for(std::chrono::microseconds(10000));
+                idleSleep += kIdleInc;
             }
 
             // Check for hotkey events
@@ -1845,6 +1859,7 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
                     TranslateMessage(&msg);
                     DispatchMessage(&msg);
                 }
+                idleSleep = kIdleMin;    // reset
             }
 
             DWORD numEventsAvailable;
@@ -1870,7 +1885,16 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
                         }
                     }
                 }
+
+                idleSleep = kIdleMin;    // reset
             }
+
+            if (idleSleep < kIdleMin)
+                idleSleep = kIdleMin;
+            if (idleSleep > kIdleMax)
+                idleSleep = kIdleMax;
+
+            std::this_thread::sleep_for(std::chrono::microseconds(idleSleep));
         }
 
         UnregisterHotKey(nullptr, CTRL_V_HOTKEY);

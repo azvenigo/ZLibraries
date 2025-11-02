@@ -764,7 +764,7 @@ namespace CLP
         assert(mBackBuffer.size() == w * h);
 
         // Compatible regions
-        for (int y = 0; y < h; y++)
+/*        for (int y = 0; y < h; y++)
         {
             int x = 0;
             while (x < w)
@@ -784,10 +784,10 @@ namespace CLP
                 while (x < w && mBackBuffer[y * w + x] != mDrawStateBuffer[y * w + x] && CanUseWriteConsoleOutput(mBackBuffer[y * w + x]))
                 {
                     CHAR_INFO ci;
-                    char c = mBackBuffer[y * w + x].c;
-                    if (c < 32)
-                        c = ' ';
-                    ci.Char.AsciiChar = c;
+                    ZChar c = mBackBuffer[y * w + x];
+                    if (c.c < 32 && (c.attrib.a > 0 || c.attrib.ba > 0))
+                        c.c = ' ';
+                    ci.Char.AsciiChar = c.c;
                     ci.Attributes = ZAttribToConsoleAttributes(mBackBuffer[y * w + x].attrib);
                     chars.push_back(ci);
                     x++;
@@ -809,7 +809,7 @@ namespace CLP
                 }
             }
         }
-
+        */
 
         // ansi regions
         string ansiOut;
@@ -823,7 +823,10 @@ namespace CLP
             {
                 int idx = y * w + x;
                 ZChar c = mBackBuffer[idx];
-                if (mDrawStateBuffer[idx] == c || CanUseWriteConsoleOutput(c))
+                if (c.c == 0 && (c.attrib.a > 0 || c.attrib.ba > 0))
+                    c.c = ' ';
+
+                if (mDrawStateBuffer[idx] == c /*|| CanUseWriteConsoleOutput(c)*/)
                     continue;
                 
                 // ansi
@@ -853,6 +856,7 @@ namespace CLP
         SetCursorPosition(savePos, true);
         mDrawStateBuffer = mBackBuffer;
         mbScreenInvalid = false;
+
         return true;
     }
 
@@ -1410,7 +1414,7 @@ namespace CLP
         mbGradient = bGradient;
         for (size_t i = 0; i < mBuffer.size(); i++)
         {
-            mBuffer[i].c = 0;
+            mBuffer[i].c = ' ';
             mBuffer[i].attrib = mClearAttrib;
         }
     }
