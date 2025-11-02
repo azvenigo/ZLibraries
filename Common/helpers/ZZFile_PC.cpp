@@ -955,13 +955,6 @@ namespace ZFile
 
 #endif
 
-
-    inline int64_t GetUSSinceEpoch()
-    {
-        return std::chrono::system_clock::now().time_since_epoch() / std::chrono::microseconds(1);
-    }
-
-
     string Extension(const std::string& sURL)
     {
         size_t nPos = sURL.find_last_of('.');

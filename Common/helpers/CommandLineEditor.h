@@ -77,6 +77,8 @@ namespace CLP
         bool            Scan(std::string sPath, int64_t origin_l, int64_t origin_b);  // bottom left corner to auto size from
         std::string     FindClosestParentPath(std::string sPath);    // given some path with possibly non-existant elements, walk up the chain until finding an existing parent
         virtual bool    OnKey(int keycode, char c);
+        virtual bool    OnMouse(MOUSE_EVENT_RECORD event);
+
 
         void            UpdateCaptions();
         tStringList     mEntries;
@@ -109,7 +111,6 @@ namespace CLP
         std::string     GetMode();      // first positional entry
 
         bool UpdateFromConsoleSize(bool bForce = false);
-        void UpdateDisplay();
         void DrawToScreen();
         void ShowHelp();
 
@@ -118,15 +119,6 @@ namespace CLP
 
         void UpdateParams();        // parse mText and break into parameter fields
         std::string     mLastParsedText;
-
-        HANDLE mhInput;
-        HANDLE mhOutput;
-        std::vector<CHAR_INFO> originalConsoleBuf;
-        CONSOLE_SCREEN_BUFFER_INFO originalScreenInfo;
-
-
-        tConsoleBuffer backBuffer;      // for double buffering
-        tConsoleBuffer drawStateBuffer; // for rendering only delta
 
         std::string EnteredParamsToText();
         tEnteredParams ParamsFromText(const std::string& sText);

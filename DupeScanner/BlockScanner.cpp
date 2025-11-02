@@ -9,6 +9,7 @@
 #include "helpers/InlineFormatter.h"
 #include "helpers/ThreadPool.h"
 #include "helpers/LoggingHelpers.h"
+#include "helpers/CommandLineCommon.h"
 #include "helpers/sha256.h"
 #include <filesystem>
 
@@ -16,14 +17,6 @@ using namespace std;
 
 InlineFormatter gFormatter;
 const int64_t kQPrime = 961748941;  // prime number
-//const int64_t kQPrime = 18446744073709551557;
-//const int64_t kQPrime = 101;
-
-
-inline int64_t GetUSSinceEpoch()
-{
-    return std::chrono::system_clock::now().time_since_epoch() / std::chrono::microseconds(1);
-}
 
 
 BlockDescription::BlockDescription() : mRollingChecksum(0),mnOffset(0),  mnSize(0)
