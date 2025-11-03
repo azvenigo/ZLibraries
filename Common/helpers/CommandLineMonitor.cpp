@@ -216,6 +216,7 @@ namespace CLP
 #endif
 
             UpdateCaptions();
+            gConsole.Invalidate();
         }
 
         invalid = false;
@@ -592,8 +593,6 @@ namespace CLP
         if (mbVisible && mbLastVisibleState == false)
         {
             gConsole.Init();
-            if (!filterTextEntryWin.mbVisible && !saveLogFilenameEntryWin.mbVisible)
-                cout << "\033[?25l";    // hide cursor
         }
 
         if (!mbVisible && mbLastVisibleState == true)

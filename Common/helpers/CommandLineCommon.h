@@ -373,7 +373,6 @@ namespace CLP
         bool mbInitted = false;
         bool mbScreenInvalid = true;
         bool mbCursorVisible = true;
-        HANDLE mBufferHandle;
 
         tConsoleBuffer mBackBuffer;
         tConsoleBuffer mDrawStateBuffer;
@@ -507,6 +506,7 @@ namespace CLP
     class TableWin : public InfoWin
     {
     public:
+        virtual bool Init(const Rect& r);
         void Paint(tConsoleBuffer& backBuf);
         virtual void SetVisible(bool bVisible = true);
         Table mTable;

@@ -457,7 +457,7 @@ namespace CLP
             out += "\033[?25l";
 
         DWORD written;
-        WriteConsole(mBufferHandle, out.c_str(), (DWORD)out.length(), &written, NULL);
+        WriteConsole(mhOutput, out.c_str(), (DWORD)out.length(), &written, NULL);
     }
 
     void NativeConsole::SetCursorVisible(bool bVisible)
@@ -480,7 +480,7 @@ namespace CLP
     bool NativeConsole::ScreenChanged() const
     {
         CONSOLE_SCREEN_BUFFER_INFO newScreenInfo;
-        if (!GetConsoleScreenBufferInfo(mBufferHandle, &newScreenInfo))
+        if (!GetConsoleScreenBufferInfo(mhOutput, &newScreenInfo))
         {
             cerr << "Failed to get console info." << endl;
             return false;
@@ -494,7 +494,7 @@ namespace CLP
     {
         // TBD.....does this need thread safety?
         CONSOLE_SCREEN_BUFFER_INFO newScreenInfo;
-        if (!GetConsoleScreenBufferInfo(mBufferHandle, &newScreenInfo))
+        if (!GetConsoleScreenBufferInfo(mhOutput, &newScreenInfo))
         {
             cerr << "Failed to get console info." << endl;
             return false;
@@ -511,8 +511,8 @@ namespace CLP
 
         DWORD written;
         COORD origin = { 0, 0 };
-        FillConsoleOutputCharacter(mBufferHandle, ' ', newScreenInfo.dwSize.X * newScreenInfo.dwSize.Y, origin, &written);
-        FillConsoleOutputAttribute(mBufferHandle, 0x07, newScreenInfo.dwSize.X * newScreenInfo.dwSize.Y, origin, &written);
+        FillConsoleOutputCharacter(mhOutput, ' ', newScreenInfo.dwSize.X * newScreenInfo.dwSize.Y, origin, &written);
+        FillConsoleOutputAttribute(mhOutput, 0x07, newScreenInfo.dwSize.X * newScreenInfo.dwSize.Y, origin, &written);
 
 
         mbScreenInvalid = true;
@@ -698,15 +698,8 @@ namespace CLP
             return false;
         }
 
-        mBufferHandle = CreateConsoleScreenBuffer(GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, CONSOLE_TEXTMODE_BUFFER, NULL);
-        SetStdHandle(STD_OUTPUT_HANDLE, mBufferHandle);
-        SetConsoleActiveScreenBuffer(mBufferHandle);
-
-
-
-
-
-
+        screenInfo.dwSize.X = 0;
+        screenInfo.dwSize.Y = 0;
         UpdateScreenInfo();
 
         mbScreenInvalid = true;
@@ -753,7 +746,7 @@ namespace CLP
 
         std::string resetDecLine = "\033[?25l\033(B";  // Reset to ASCII mode and hide cursor
         DWORD written;
-        WriteConsole(mBufferHandle, resetDecLine.c_str(), (DWORD)resetDecLine.length(), &written, NULL);
+        WriteConsole(mhOutput, resetDecLine.c_str(), (DWORD)resetDecLine.length(), &written, NULL);
 
 
         COORD savePos = lastCursorPos;
@@ -850,7 +843,7 @@ namespace CLP
         if (!ansiOut.empty())
         {
             DWORD written;
-            WriteConsole(mBufferHandle, ansiOut.c_str(), (DWORD)ansiOut.length(), &written, NULL);
+            WriteConsole(mhOutput, ansiOut.c_str(), (DWORD)ansiOut.length(), &written, NULL);
         }
 
         SetCursorPosition(savePos, true);
@@ -1622,6 +1615,15 @@ namespace CLP
         mbVisible = bVisible; 
         mRenderedW = 0;
         mRenderedH = 0;
+    }
+
+    bool TableWin::Init(const Rect& r)
+    {
+        mRenderedW = 0;
+        mRenderedH = 0;
+        mTable.Clear();
+
+        return InfoWin::Init(r);
     }
 
 
