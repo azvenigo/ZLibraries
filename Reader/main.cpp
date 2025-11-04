@@ -183,6 +183,12 @@ tStringList ReaderWin::GetLines(const string& rawText) const
 
 void ReaderWin::UpdateFiltered()
 {
+    if (filterTextEntryWin.GetText() == sFilter)
+        return;
+
+    sFilter = filterTextEntryWin.GetText();
+    invalid = true;
+
     filteredRows.clear();
     if (sFilter.empty())
         filteredRows = rows;
@@ -306,6 +312,8 @@ bool ReaderWin::Execute()
 //    mbVisible = true;
 
     rows = GetLines(mText);
+    if (sFilter.empty())
+        filteredRows = rows;
     UpdateFiltered();
     Update();
 
@@ -465,11 +473,7 @@ void ReaderWin::HookCTRL_S(bool bHook)
 
 void ReaderWin::Update()
 {
-    if (filterTextEntryWin.GetText() != sFilter)
-    {
-        sFilter = filterTextEntryWin.GetText();
-        invalid = true;
-    }
+    UpdateFiltered();
 
     Rect drawArea;
     GetInnerArea(drawArea);
