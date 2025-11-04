@@ -48,6 +48,8 @@ protected:
     int64_t     CalculateWordsThatFitInWidth(int64_t nLineWidth, const uint8_t* pChars, int64_t nNumChars) const;
 
     void        DrawToScreen();
+
+    void        UpdateFiltered();
     int64_t     GetFilteredCount();
 
 
@@ -56,11 +58,13 @@ protected:
     std::string viewFilename;
     int64_t     viewTopLine = -1;
     bool        invalid = true;
+    bool        highlight = false;
     void        HookCTRL_S(bool bHook = true);
 
     std::string sFilename;
     std::string sFilter;
     tStringList rows;
+    tStringList filteredRows;
 };
 
 inline bool IsWhitespace(char c)
@@ -167,25 +171,36 @@ tStringList ReaderWin::GetLines(const string& rawText) const
             end = start + CalculateWordsThatFitInWidth(drawArea.w(), (uint8_t*)&rawText[start], rawText.length() - start);
             rows.push_back(rawText.substr(start, end - start));
             start = end;
+            if (start < rawText.length() && rawText[start] == '\r' || rawText[start] == '\n')
+                start++;
+
         } while (end < rawText.length());
     }
 
     return rows;
 }
 
-int64_t ReaderWin::GetFilteredCount()
+
+void ReaderWin::UpdateFiltered()
 {
+    filteredRows.clear();
     if (sFilter.empty())
-        return rows.size();
+        filteredRows = rows;
 
     int64_t count = 0;
     for (const auto& s : rows)
     {
         if (SH::Contains(s, sFilter, false))
-            count++;
+            filteredRows.push_back(s);
     }
+}
 
-    return count;
+int64_t ReaderWin::GetFilteredCount()
+{
+    if (invalid)
+        UpdateFiltered();
+
+    return filteredRows.size();
 }
 
 
@@ -291,9 +306,20 @@ bool ReaderWin::Execute()
 //    mbVisible = true;
 
     rows = GetLines(mText);
+    UpdateFiltered();
+    Update();
+
+    // for longer and longer idles when the application has no activity
+    const uint64_t kIdleInc = 5000;
+    const uint64_t kIdleMin = 100;
+    const uint64_t kIdleMax = 250000; // 250ms
+
+    uint64_t idleSleep = kIdleMin;
 
     while (!mbDone)
     {
+        gConsole.SetCursorVisible(filterTextEntryWin.mbVisible);
+
         bool bForeground = gConsole.ConsoleHasFocus();
         if (bForeground)
         {
@@ -310,16 +336,27 @@ bool ReaderWin::Execute()
         if (UpdateFromConsoleSize())
         {
             rows = GetLines(mText); // recompute rows
+            UpdateFiltered();
             UpdateCaptions();
         }
 
-        DrawToScreen();
-        Update();
+
+        if (gConsole.Invalid())
+        {
+            DrawToScreen();
+            Update();
+            idleSleep = kIdleMin;
+        }
+        else
+        {
+            idleSleep += kIdleInc;
+        }
 
         // Check for hotkey events
         MSG msg;
         if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
         {
+            idleSleep = kIdleMin;
             if (msg.message == WM_HOTKEY)
             {
                 if (msg.wParam == CTRL_V_HOTKEY || msg.wParam == SHIFT_INSERT_HOTKEY)
@@ -340,6 +377,8 @@ bool ReaderWin::Execute()
 
         if (PeekConsoleInput(gConsole.InputHandle(), inputRecord, 128, &numEventsRead) && numEventsRead > 0)
         {
+            idleSleep = kIdleMin;
+
             for (DWORD i = 0; i < numEventsRead; i++)
             {
                 if (!ReadConsoleInput(gConsole.InputHandle(), inputRecord, 1, &numEventsRead))
@@ -371,6 +410,14 @@ bool ReaderWin::Execute()
                 }
             }
         }
+
+        if (idleSleep < kIdleMin)
+            idleSleep = kIdleMin;
+        if (idleSleep > kIdleMax)
+            idleSleep = kIdleMax;
+
+        std::this_thread::sleep_for(std::chrono::microseconds(idleSleep));
+
     }
 
     //RestoreConsoleState();
@@ -466,6 +513,7 @@ void ReaderWin::UpdateCaptions()
 
     positionCaption[ConsoleWin::Position::LB] = "[CTRL-F:Filter]";
 
+    string sHighlightCaption;
     if (sFilter.empty())
     {
         if (filterTextEntryWin.mbVisible)
@@ -476,12 +524,13 @@ void ReaderWin::UpdateCaptions()
     {
         positionCaption[ConsoleWin::Position::LB] = "Filtering: " + sFilter + "";
         positionCaption[ConsoleWin::Position::RT] = "Filtered Lines (" + SH::FromInt(viewing) + "-" + SH::FromInt(bottom) + "/" + SH::FromInt(entryCount) + ")";
+
+        if (highlight)
+            sHighlightCaption = "[CTRL-H:Highlight ON]";
+        else
+            sHighlightCaption = "[CTRL-H:Highlight OFF]";
     }
-
-
-
-
-    positionCaption[ConsoleWin::Position::RB] = "[Wheel][Up/Down][PgUp/PgDown][Home/End]";
+    positionCaption[ConsoleWin::Position::RB] = sHighlightCaption + "[Wheel][Up/Down][PgUp/PgDown][Home/End]";
 }
 
 bool ReaderWin::OnMouse(MOUSE_EVENT_RECORD event)
@@ -501,13 +550,13 @@ bool ReaderWin::OnMouse(MOUSE_EVENT_RECORD event)
         if (wheelDelta < 0)
         {
             mTopVisibleRow += mHeight / 4;
-            invalid = true;
         }
         else
         {
             mTopVisibleRow -= mHeight / 4;
-            invalid = true;
         }
+        invalid = true;
+        gConsole.Invalidate();
 
         Update();
     }
@@ -522,7 +571,9 @@ bool ReaderWin::OnKey(int keycode, char c)
     GetInnerArea(drawArea);
 
     bool bCTRLHeld = GetKeyState(VK_CONTROL) & 0x800;
-    int64_t entryCount = rows.size();
+    int64_t entryCount = GetFilteredCount();
+
+    gConsole.Invalidate();
 
     if (filterTextEntryWin.mbVisible && !bHandled)
         bHandled = filterTextEntryWin.OnKey(keycode, c);
@@ -531,8 +582,6 @@ bool ReaderWin::OnKey(int keycode, char c)
 
     if (filterTextEntryWin.mbVisible)
     {
-        gConsole.Invalidate();
-
         if (filterTextEntryWin.mbCanceled)
             filterTextEntryWin.SetText("");
 
@@ -550,7 +599,6 @@ bool ReaderWin::OnKey(int keycode, char c)
         helpTableWin.SetVisible(false);
         helpTableWin.mbCanceled = false;
         helpTableWin.mbDone = false;
-        gConsole.Invalidate();
         invalid = true;
     }
 
@@ -606,11 +654,18 @@ bool ReaderWin::OnKey(int keycode, char c)
                 bHandled = true;
             }
         }
+        else if (keycode == 'h' || keycode == 'H')
+        {
+            if (bCTRLHeld)
+            {
+                highlight = !highlight;
+                invalid = true;
+            }
+        }
         else if (keycode == VK_ESCAPE)
         {
             mbDone = true;
             mbVisible = false;
-            gConsole.Invalidate();
             return true;
         }
         else if (keycode == VK_F1)
@@ -642,36 +697,35 @@ void ReaderWin::Paint(tConsoleBuffer& backBuf)
     ConsoleWin::BasePaint();
 
 
+    int64_t filteredCount = GetFilteredCount();
     int64_t firstDrawRow = mTopVisibleRow - 1;
 
     Rect drawArea;
     GetInnerArea(drawArea);
 
-    tStringList::iterator it = rows.begin();
+    tStringList::iterator it = filteredRows.begin();
     int64_t startrow = 0;
-    while (startrow < mTopVisibleRow && it != rows.end())
+    while (startrow < mTopVisibleRow && it != filteredRows.end())
     {
-        bool bInclude = sFilter.empty() || SH::Contains(*it, sFilter, false);  // either always include if filter is empty, or if s contains the filter text
-        if (bInclude)
-            startrow++;
+        startrow++;
         it++;
     }
 
 
     int64_t drawrow = drawArea.t;
     int64_t endrow = drawArea.b;
-    int64_t filteredCount = GetFilteredCount();
-    while (drawrow < endrow && it != rows.end())
+    while (drawrow < endrow && it != filteredRows.end())
     {
-        if (drawrow < mHeight - 1 && it != rows.end())
+        if (drawrow < mHeight - 1 && it != filteredRows.end())
         {
             string s = *it;
-            bool bInclude = sFilter.empty() || SH::Contains(s, sFilter, false);  // either always include if filter is empty, or if s contains the filter text
-            if (bInclude)
-            {
-                DrawClippedText(Rect(drawArea.l, drawrow, drawArea.r, drawrow + 1), s, WHITE_ON_BLACK, false, &drawArea);
-                drawrow++;
-            }
+
+            if (highlight && !sFilter.empty())
+                s = SH::replaceTokens(s, sFilter, COL_YELLOW + sFilter + COL_RESET, false);
+
+//            DrawClippedText(Rect(drawArea.l, drawrow, drawArea.r, drawrow + 1), s, WHITE_ON_BLACK, false, &drawArea);
+            DrawClippedAnsiText(Rect(drawArea.l, drawrow, drawArea.r, drawrow + 1), s, false, &drawArea);
+            drawrow++;
             it++;
         }
     }

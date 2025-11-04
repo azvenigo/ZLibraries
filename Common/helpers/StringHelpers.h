@@ -134,7 +134,7 @@ namespace SH
     void            SplitToken(std::string& sBefore, std::string& sAfter, const std::string& token);
 
 
-    std::string     replaceTokens(std::string input, const std::string& token, const std::string& value);
+    std::string     replaceTokens(std::string input, std::string token, const std::string& value, bool bCaseSensitive = true);
 
     size_t          FindMatching(const std::string& s, size_t i);   // given a character in s at i, find the accomanying closure. for example '"' -> '"' or '{' -> '}'  Different pairs (excluding the closure token for current) inside the enclosure are skipped
     bool            ContainsWhitespace(const std::string& s, bool bSkipQuotes = false);   // if bSkipQuotes, it ignores whitespaces in enslosures
