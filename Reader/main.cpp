@@ -238,32 +238,52 @@ bool ReaderWin::LoadFile(std::string filename)
 
 bool ReaderWin::ReadPipe()
 {
-    // 1) check if stdin is redirected
-    if (_isatty(_fileno(stdin))) {
-        // stdin is a console, not a pipe/file
+    if (_isatty(_fileno(stdin)))
+    {
         return false;
     }
 
-    // 2) use peek instead of in_avail()
+    HANDLE h = GetStdHandle(STD_INPUT_HANDLE);
+    DWORD type = GetFileType(h);
+
     std::stringstream buf;
     char tmp[4096];
 
-    // Peek to see if any bytes are there
-    HANDLE h = GetStdHandle(STD_INPUT_HANDLE);
-    DWORD bytesAvail = 0;
-    if (PeekNamedPipe(h, nullptr, 0, nullptr, &bytesAvail, nullptr) && bytesAvail > 0)
+    if (type == FILE_TYPE_PIPE)
     {
-        // there is data — now read it all
-        while (std::cin.read(tmp, sizeof(tmp)) || std::cin.gcount() > 0) {
-            buf.write(tmp, std::cin.gcount());
+        DWORD bytesAvail = 0;
+
+        int waits = 10;
+        int waitMS = 10;
+
+        while (waits > 0)
+        {
+            if (PeekNamedPipe(h, nullptr, 0, nullptr, &bytesAvail, nullptr) && bytesAvail > 0)
+                break;
+            std::this_thread::sleep_for(std::chrono::milliseconds(waitMS));
         }
-        mText = buf.str();
-        return true;
+
+        if (bytesAvail == 0)
+            return false;
+
+        // read until EOF
+        while (std::cin.read(tmp, sizeof(tmp)) || std::cin.gcount() > 0)
+            buf.write(tmp, std::cin.gcount());
+    }
+    else if (type == FILE_TYPE_DISK)
+    {
+        // redirected file input, just read it
+        while (std::cin.read(tmp, sizeof(tmp)) || std::cin.gcount() > 0)
+            buf.write(tmp, std::cin.gcount());
+    }
+    else
+    {
+        return false;
     }
 
-    return false;
+    mText = buf.str();
+    return !mText.empty();
 }
-
 
 
 void ReaderWin::DrawToScreen()
@@ -483,7 +503,7 @@ void ReaderWin::Update()
     if (mTopVisibleRow < 0)
         mTopVisibleRow = 0;
 
-
+    
     if (viewTopLine != mTopVisibleRow)
     {
         viewTopLine = mTopVisibleRow;
@@ -791,44 +811,38 @@ bool ReaderWin::UpdateFromConsoleSize(bool bForce)
 int main(int argc, char* argv[])
 {
     ReaderWin readerWin;
-
+    CommandLineParser parser;
     string sFilename;
     string sFilter;
     int64_t nStartLineNumber = 0;
 
-    CommandLineParser parser;
     parser.RegisterAppDescription("Reader application for scrolling through or searching text files or piped input.");
-
-    parser.RegisterParam(ParamDesc("PATH", &sFilename,  CLP::kOptional|CLP::kExistingPath, "Optional path to read from if no piped input."));
-
-    parser.RegisterParam(ParamDesc("FILTER", &sFilter, CLP::kNamed|CLP::kOptional, "Filter lines including this text."));
-
+    parser.RegisterParam(ParamDesc("PATH", &sFilename, CLP::kOptional | CLP::kExistingPath, "Optional path to read from if no piped input."));
+    parser.RegisterParam(ParamDesc("FILTER", &sFilter, CLP::kNamed | CLP::kOptional, "Filter lines including this text."));
     parser.RegisterParam(ParamDesc("start", &nStartLineNumber, CLP::kNamed | CLP::kOptional, "Starting line number"));
 
-
-    bool bParseSuccess = parser.Parse(argc, argv);
-    if (!bParseSuccess)
+    if (readerWin.ReadPipe())
     {
-        return -1;
-    }                
-
-    if (!sFilename.empty() && sFilename[0] != '<') // temporarily detect pipe in via commandline param for vs debugging
-    {
-        readerWin.LoadFile(sFilename);
+        readerWin.Execute();
     }
     else
     {
-        if (!readerWin.ReadPipe())
+        bool bParseSuccess = parser.Parse(argc, argv);
+        if (!bParseSuccess)
         {
-            parser.ShowHelp();
             return -1;
         }
+
+        if (!sFilename.empty() && sFilename[0] != '<') // temporarily detect pipe in via commandline param for vs debugging
+        {
+            readerWin.LoadFile(sFilename);
+        }
+
+        if (!sFilter.empty())
+            readerWin.SetFilter(sFilter);
+
+        readerWin.Execute();
     }
-
-    if (!sFilter.empty())
-        readerWin.SetFilter(sFilter);
-
-    readerWin.Execute();
 
     return 0;
 }
