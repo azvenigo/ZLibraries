@@ -4,6 +4,8 @@ cmake_minimum_required(VERSION 3.7.1)
 
 project(CLMonitorTest)
 
+include(${CMAKE_SOURCE_DIR}/../CMakeLists_Common.txt)
+
 ####################
 # CLMonitorTest
 set(SM_SOURCES 

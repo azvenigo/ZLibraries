@@ -7,14 +7,7 @@ cmake_minimum_required(VERSION 3.7.1)
 
 project(ZWinFile)
 
-####################
-# CHECK IS 64BIT BUILD
-
-if(CMAKE_SIZEOF_VOID_P EQUAL 8)
-else()
-	message(FATAL_ERROR "32bit Unsupported")
-endif()
-
+include(${CMAKE_SOURCE_DIR}/../CMakeLists_Common.txt)
 
 ####################
 # ZWinFile

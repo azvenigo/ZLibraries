@@ -1,7 +1,5 @@
 cmake_minimum_required(VERSION 3.7.1)
 
-project(ZTools)
-
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release)
 endif()
@@ -9,7 +7,9 @@ endif()
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
-set(CMN_SOURCE ${PROJECT_SOURCE_DIR}/Common)
+set(CMAKE_SUPPRESS_REGENERATION true)
+
+set(CMN_SOURCE ${PROJECT_SOURCE_DIR}/../Common)
 
 ####################
 # VISUAL C MT MD CONFIGURATION
@@ -35,7 +35,7 @@ endif()
 
 ####################
 # common source
-list(APPEND INCLUDE_DIRS ../Common)
+list(APPEND INCLUDE_DIRS ${CMN_SOURCE})
 
 list (APPEND COMMON_FILES 
     ${CMN_SOURCE}/helpers/CommandLineParser.h   ${CMN_SOURCE}/helpers/CommandLineParser.cpp    
@@ -52,12 +52,12 @@ list (APPEND COMMON_FILES
 ####################
 # PROJECTS
 
-add_subdirectory(FileGen)
-add_subdirectory(DupeScanner)
-add_subdirectory(BinTool)
-add_subdirectory(ZZip)
-add_subdirectory(ZPackager)
-add_subdirectory(CLMonitorTest)
-add_subdirectory(Reader)
+#add_subdirectory(FileGen)
+#add_subdirectory(DupeScanner)
+#add_subdirectory(BinTool)
+#add_subdirectory(ZZip)
+#add_subdirectory(ZPackager)
+#add_subdirectory(CLMonitorTest)
+#add_subdirectory(Reader)
 
 ################################################################################
