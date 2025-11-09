@@ -787,7 +787,7 @@ bool ReaderWin::UpdateFromConsoleSize(bool bForce)
 {
     if (bForce || gConsole.ScreenChanged())
     {
-        gConsole.UpdateScreenInfo();
+        gConsole.UpdateNativeConsole();
         invalid = true;
 
         int64_t w = gConsole.Width();
