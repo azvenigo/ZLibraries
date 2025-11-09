@@ -486,33 +486,51 @@ namespace CLP
             return false;
         }
 
-        bool bChanged = newScreenInfo.dwSize.X != screenInfo.dwSize.X || newScreenInfo.dwSize.Y != screenInfo.dwSize.Y;
+        bool bChanged = newScreenInfo.dwSize.X != screenInfo.w() || newScreenInfo.dwSize.Y != screenInfo.h();
         return bChanged;
     }
 
     bool NativeConsole::UpdateScreenInfo()
     {
-        // TBD.....does this need thread safety?
-        CONSOLE_SCREEN_BUFFER_INFO newScreenInfo;
-        if (!GetConsoleScreenBufferInfo(mhOutput, &newScreenInfo))
+        HANDLE hOutput = GetStdHandle(STD_OUTPUT_HANDLE);
+        if (hOutput == INVALID_HANDLE_VALUE)
+            return false;
+
+        CONSOLE_SCREEN_BUFFER_INFO si;
+        if (!GetConsoleScreenBufferInfo(hOutput, &si))
         {
             cerr << "Failed to get console info." << endl;
             return false;
         }
 
-        if (newScreenInfo.dwSize.X == screenInfo.dwSize.X && newScreenInfo.dwSize.Y == screenInfo.dwSize.Y)
+        if (si.dwSize.X == screenInfo.w() && si.dwSize.Y == screenInfo.h())
             return false;
 
-        screenInfo = newScreenInfo;
+        screenInfo.l = si.srWindow.Left;
+        screenInfo.t = si.srWindow.Top;
+        screenInfo.r = screenInfo.l + si.dwSize.X;
+        screenInfo.b = screenInfo.t + si.dwSize.Y;
+
+        assert(si.dwSize.X == screenInfo.w() && si.dwSize.Y == screenInfo.h());
+        return true;
+    }
+
+    bool NativeConsole::UpdateNativeConsole()
+    {
+        // TBD.....does this need thread safety?
+        if (!UpdateScreenInfo())    // no change
+            return false;
+
         mBackBuffer.clear();
         mDrawStateBuffer.clear();
-        mBackBuffer.resize(newScreenInfo.dwSize.X * newScreenInfo.dwSize.Y);
-        mDrawStateBuffer.resize(newScreenInfo.dwSize.X * newScreenInfo.dwSize.Y);
+        size_t screenchars = screenInfo.w() * screenInfo.h();
+        mBackBuffer.resize(screenchars);
+        mDrawStateBuffer.resize(screenchars);
 
         DWORD written;
         COORD origin = { 0, 0 };
-        FillConsoleOutputCharacter(mhOutput, ' ', newScreenInfo.dwSize.X * newScreenInfo.dwSize.Y, origin, &written);
-        FillConsoleOutputAttribute(mhOutput, 0x07, newScreenInfo.dwSize.X * newScreenInfo.dwSize.Y, origin, &written);
+        FillConsoleOutputCharacter(mhOutput, ' ', (DWORD)screenchars, origin, &written);
+        FillConsoleOutputAttribute(mhOutput, 0x07, (DWORD)screenchars, origin, &written);
 
 
         mbScreenInvalid = true;
@@ -698,9 +716,8 @@ namespace CLP
             return false;
         }
 
-        screenInfo.dwSize.X = 0;
-        screenInfo.dwSize.Y = 0;
-        UpdateScreenInfo();
+        screenInfo = { 0,0,0,0 };
+        UpdateNativeConsole();
 
         mbScreenInvalid = true;
         mbInitted = true;
@@ -725,17 +742,20 @@ namespace CLP
     }
 
 
-    int16_t NativeConsole::Width()
+    int64_t NativeConsole::Width()
     { 
-        Init();
+        if (screenInfo.w() < 1)
+            UpdateScreenInfo();
 
-        return screenInfo.srWindow.Right - screenInfo.srWindow.Left + 1;
+        return screenInfo.r - screenInfo.l;
     }
 
-    int16_t NativeConsole::Height()
+    int64_t NativeConsole::Height()
     { 
-        Init();
-        return screenInfo.srWindow.Bottom - screenInfo.srWindow.Top + 1;
+        if (screenInfo.h() < 1)
+            UpdateScreenInfo();
+
+        return screenInfo.b - screenInfo.t;
     }
 
     bool NativeConsole::Render()
@@ -750,8 +770,8 @@ namespace CLP
 
 
         COORD savePos = lastCursorPos;
-        int32_t w = Width();
-        int32_t h = Height();
+        int64_t w = Width();
+        int64_t h = Height();
 
         assert(mDrawStateBuffer.size() == w * h);
         assert(mBackBuffer.size() == w * h);
@@ -810,11 +830,11 @@ namespace CLP
         bool needAttribReset = true;  // Force first attribute write
 
 
-        for (int y = 0; y < h; y++)
+        for (int64_t y = 0; y < h; y++)
         {
-            for (int x = 0; x < w; x++)
+            for (int64_t x = 0; x < w; x++)
             {
-                int idx = y * w + x;
+                int64_t idx = y * w + x;
                 ZChar c = mBackBuffer[idx];
                 if (c.c == 0 && (c.attrib.a > 0 || c.attrib.ba > 0))
                     c.c = ' ';
@@ -2538,8 +2558,8 @@ namespace CLP
     {
         string sText;
 
-        SHORT w = gConsole.Width();
-        SHORT h = gConsole.Height();
+        int64_t w = gConsole.Width();
+        int64_t h = gConsole.Height();
 
         if (w < 1)
             w = 1;
@@ -2636,8 +2656,8 @@ namespace CLP
     {
         string sText;
 
-        SHORT w = gConsole.Width();
-        SHORT h = gConsole.Height();
+        int64_t w = gConsole.Width();
+        int64_t h = gConsole.Height();
 
         if (w < 1)
             w = 1;

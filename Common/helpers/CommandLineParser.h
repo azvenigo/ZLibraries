@@ -251,8 +251,8 @@ namespace CLP
         size_t  GetOptionalParameterCount();
         size_t  GetRequiredParameterCount();
 
-        bool    GetParamWasFound(const std::string& sKey);   // returns true if the parameter was found when parsing
-        bool    CheckAllRequirementsMet();      // true if all registered parameters that are required were handled
+        bool    GetParamWasFound(const std::string& sKey);  // returns true if the parameter was found when parsing
+        bool    CheckAllRequirementsMet();                  // true if all registered parameters that are required were handled
         size_t  GetNumPositionalParamsRegistered();
         size_t  GetNumPositionalParamsHandled();
 

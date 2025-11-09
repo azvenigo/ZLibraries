@@ -332,8 +332,8 @@ namespace CLP
 
         bool GetInitted() const { return mbInitted; }
 
-        int16_t Width();
-        int16_t Height();
+        int64_t Width();
+        int64_t Height();
         HANDLE InputHandle() const { return mhInput; }
 
 
@@ -342,9 +342,10 @@ namespace CLP
         bool ConsoleHasFocus();
         void SetCursorVisible(bool bVisible = true);
 
-        CONSOLE_SCREEN_BUFFER_INFO Screen() const { return screenInfo; }
+        Rect Screen() const { return screenInfo; }
         bool ScreenChanged() const;
         bool UpdateScreenInfo();
+        bool UpdateNativeConsole();
 
         inline tConsoleBuffer& BackBuffer()
         {
@@ -378,7 +379,9 @@ namespace CLP
         tConsoleBuffer mDrawStateBuffer;
 
         int64_t frontBufferIndex = 0;
-        CONSOLE_SCREEN_BUFFER_INFO screenInfo;
+        //CONSOLE_SCREEN_BUFFER_INFO screenInfo;
+        Rect screenInfo;
+
         CONSOLE_SCREEN_BUFFER_INFO originalScreenInfo;
         std::vector<CHAR_INFO> originalConsoleBuf;
 

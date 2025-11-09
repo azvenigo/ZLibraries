@@ -774,8 +774,8 @@ bool ReaderWin::UpdateFromConsoleSize(bool bForce)
         gConsole.UpdateScreenInfo();
         invalid = true;
 
-        SHORT w = gConsole.Width();
-        SHORT h = gConsole.Height();
+        int64_t w = gConsole.Width();
+        int64_t h = gConsole.Height();
 
 
         if (w < 1)

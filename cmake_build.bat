@@ -18,6 +18,8 @@ if "%~1"=="" (
 set "BATCH_FOLDER=%~dp0"
 set "BUILD_TYPE=Release"
 set "DO_BUILD=0"
+set "BUILD_ALL=0"
+set "DO_PACKAGE=0"
 
 
 :: Parse arguments: detect -build, -debug, and collect targets
@@ -26,13 +28,15 @@ for %%A in (%*) do (
         set "DO_BUILD=1"
     ) else if /I "%%~A"=="-debug" (
         set "BUILD_TYPE=Debug"
+    ) else if /I "%%~A"=="all" (
+    	  set "BUILD_ALL=1"
     ) else (
         set "TARGETS=!TARGETS! %%~A"
     )
 )
 
 :: If "all" is passed, build every subfolder that has a CMakeLists.txt
-if /I "%~1"=="all" (
+if "%BUILD_ALL%"=="1" (
     echo:
     echo Building ALL tools in %BATCH_FOLDER%...
     echo:
@@ -41,14 +45,16 @@ if /I "%~1"=="all" (
             call :buildOne "%%~nD"
         )
     )
-    goto done
+    goto doneBuild
 )
 
 :: Otherwise, build only those explicitly passed
 for %%i in (%*) do (
-    call :buildOne "%%~i"
+		if exist "%%~i\CMakeLists.txt" (
+    	 call :buildOne "%%~i"
+    )
 )
-goto done
+goto doneBuild
 
 :buildOne
 set "TARGET=%~1"
@@ -58,6 +64,8 @@ echo:
 echo =====================================================
 echo Building Solution for %TARGET%
 echo =====================================================
+echo ~1=%~1
+echo ~2=%~2
 
 cmake -S "%BATCH_FOLDER%\%TARGET%" -B "%BUILD_DIR%" -DCMAKE_BUILD_TYPE=%BUILD_TYPE%
 if errorlevel 1 (
@@ -74,13 +82,66 @@ if "%DO_BUILD%"=="1" (
         endlocal
         exit /b 1
     )
+		if "%BUILD_TYPE%"=="Release" (
+			echo BUILD_TYPE=!BUILD_TYPE!
+			echo BUILD_DIR=!BUILD_DIR!
+			echo TARGET=!TARGET!
+		
+		
+			echo:
+			echo =====================================================
+			echo Copying Release Build of %TARGET%
+			set "SRC_DIR=!BUILD_DIR!\Release"
+			set "DEST_DIR=!BATCH_FOLDER!build\ZLibraries_Release\!TARGET!\"
+			echo SRC_DIR=!SRC_DIR!
+			echo DEST_DIR=!DEST_DIR!
+			if not exist "!DEST_DIR!" mkdir "!DEST_DIR!"
+			xcopy "!SRC_DIR!" "!DEST_DIR!" /E /I /Y >nul
+		)
+    
 ) else (
     echo Opening folder: "%BUILD_DIR%"
     start "" "%BUILD_DIR%"
 )
+
 exit /b 0
 
-:done
+:doneBuild
+if "%BUILD_TYPE%"=="Release" if "%DO_BUILD%"=="1" (
+    echo:
+    echo =====================================================
+    echo Packaging
+		
+		for /f "tokens=2-4 delims=/ " %%a in ("%date%") do (
+		    set "MONTH=%%a"
+		    set "DAY=%%b"
+		    set "YEAR=%%c"
+		)
+		set "DATESTAMP=!YEAR!-!MONTH!-!DAY!"
+		
+		set "RELEASES=!BATCH_FOLDER!build\ZLibraries_Release"
+    set "ARCHIVE=!BATCH_FOLDER!build\ZLibraries_Release_(!DATESTAMP!).7z"
+    echo ARCHIVE=!ARCHIVE!
+    if exist "!ARCHIVE!" del "!ARCHIVE!"
+        if exist "%ProgramFiles%\7-Zip\7z.exe" (
+            echo Creating archive: !ARCHIVE!
+            "%ProgramFiles%\7-Zip\7z.exe" a -t7z "!ARCHIVE!" "!RELEASES!\*" >nul
+        ) else (
+            echo 7-Zip not found, skipping archive step.
+        )
+exit /b 0
+		
+		
+		
+		
+		
+		
+		
+		
+)
+
+
+
 echo:
 echo [32m*** ALL REQUESTED BUILDS COMPLETE ***[0m
 echo:

@@ -547,10 +547,10 @@ namespace CLP
 
     bool CommandLineMonitor::UpdateFromConsoleSize(bool bForce)
     {
-        if (bForce || gConsole.UpdateScreenInfo())
+        if (bForce || gConsole.UpdateNativeConsole())
         {
-            SHORT w = gConsole.Width();
-            SHORT h = gConsole.Height();
+            int64_t w = gConsole.Width();
+            int64_t h = gConsole.Height();
 
             if (w < 1)
                 w = 1;
@@ -710,8 +710,8 @@ namespace CLP
         INPUT_RECORD inputRecord[128];
         DWORD numEventsRead;
 
-        SHORT w = gConsole.Width();
-        SHORT h = gConsole.Height();
+        int64_t w = gConsole.Width();
+        int64_t h = gConsole.Height();
 
 
         std::vector<CHAR_INFO> blank(w * h);
@@ -720,7 +720,7 @@ namespace CLP
             blank[i].Char.AsciiChar = ' ';
             blank[i].Attributes = 0;
         }
-        SMALL_RECT smallrect(0, 0, w, h);
+        //SMALL_RECT smallrect(0, 0, w, h);
 
         ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
         // Clear the raw command buffer and param buffers
@@ -752,7 +752,7 @@ namespace CLP
             if (pCLM->mbVisible)
             {
                 pCLM->UpdateFromConsoleSize();  // force update if the screen changed
-                gConsole.UpdateScreenInfo();
+                gConsole.UpdateNativeConsole();
                 pCLM->UpdateDisplay();
                 logWin.Update();
             }

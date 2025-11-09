@@ -948,6 +948,15 @@ namespace CLP
             return kErrorShowEdit;
 #endif        
         bool bMultiMode = !mModeToCommandLineParser.empty();
+        if (bMultiMode)
+        {
+            if (params.empty())
+                return kShowHelp;
+
+            msMode = GetFirstPositionalArgument(params);
+            if (!IsRegisteredMode(msMode))
+                return kShowHelp;
+        }
 
         if (ContainsArgument("??", params))
             return kShowCommandLineHelp;
@@ -956,22 +965,8 @@ namespace CLP
             return kShowHelp;
 
 
-        string sMode = GetFirstPositionalArgument(params); // mode
-        if (bMultiMode)
-        {
-            if (params.empty())
-                return kShowHelp;
-
-            if (!IsRegisteredMode(sMode))
-            {
-                return kShowHelp;
-            }
-        }
-
-
 
         int nErrors = 0;
-
         if (params.size() > 0)
         {
             // Handle Command Line
@@ -989,7 +984,6 @@ namespace CLP
             if (bMultiMode)
             {
                 // Case 1
-                msMode = sMode;
                 for (uint32_t i = 1; i < params.size(); i++)
                 {
                     std::string sParam(params[i]);
@@ -1016,6 +1010,7 @@ namespace CLP
 
                 if (nErrors > 0)
                     return kErrorAbort;
+
 
                 if (nErrors > 0 || !mModeToCommandLineParser[msMode].CheckAllRequirementsMet() || !mGeneralCommandLineParser.CheckAllRequirementsMet())
                 {
@@ -1277,13 +1272,8 @@ namespace CLP
             mGeneralCommandLineParser.ShowFoundParameters();
 
             string sCommandLineExample;
-            Table usageTable;
-            usageTable.SetRenderWidth(gConsole.Width());
             GetCommandLineExample(msMode, sCommandLineExample);
-            usageTable.AddRow(CLP::SectionStyle, " Usage ");
-            usageTable.AddRow(CLP::ParamStyle, sCommandLineExample);
-            cout << usageTable;
-
+            cout << SectionStyle.color << "\nUsage: " << ParamStyle.color << sCommandLineExample << ResetStyle.color << "\n\n";
             return false;
         }
         else if (response == kShowCommandLineHelp)

@@ -1529,12 +1529,12 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
 
     bool CommandLineEditor::UpdateFromConsoleSize(bool bForce)
     {
-        if (bForce || gConsole.UpdateScreenInfo())
+        if (bForce || gConsole.UpdateNativeConsole())
         {
             gConsole.Invalidate();
 
-            SHORT w = gConsole.Width();
-            SHORT h = gConsole.Height();
+            int64_t w = gConsole.Width();
+            int64_t h = gConsole.Height();
 
             if (w < 1)
                 w = 1;
@@ -1773,8 +1773,8 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
         }
         ResetCols();
 
-        int16_t w = gConsole.Width();
-        int16_t h = gConsole.Height();
+        int64_t w = gConsole.Width();
+        int64_t h = gConsole.Height();
 
 
         // Main loop to read input events

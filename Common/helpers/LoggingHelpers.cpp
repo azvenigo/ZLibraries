@@ -893,16 +893,18 @@ tStringArray Table::Cell::GetLines(size_t width) const
                     i++;
 
             }
-            else if (sLine.length() == width)
-            {
-                rows.push_back(sLine);
-                sLine.clear();
-            }
             else
             {
                 sLine += s[i];
             }
-            i++;
+
+            if (sLine.length() == width)
+            {
+                rows.push_back(sLine);
+                sLine.clear();
+            }
+
+            i++; 
         } while (i < s.length());
 
         if (!sLine.empty())
