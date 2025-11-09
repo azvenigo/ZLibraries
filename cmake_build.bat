@@ -20,6 +20,8 @@ set "BUILD_TYPE=Release"
 set "DO_BUILD=0"
 set "BUILD_ALL=0"
 set "DO_PACKAGE=0"
+set "INSTALL_DIR=c:\tools\ZLibraries"
+
 
 
 :: Parse arguments: detect -build, -debug, and collect targets
@@ -90,13 +92,18 @@ if "%DO_BUILD%"=="1" (
 		
 			echo:
 			echo =====================================================
-			echo Copying Release Build of %TARGET%
+			echo Copying Release Build of %TARGET% to Packaging dir
 			set "SRC_DIR=!BUILD_DIR!\Release"
 			set "DEST_DIR=!BATCH_FOLDER!build\ZLibraries_Release\!TARGET!\"
 			echo SRC_DIR=!SRC_DIR!
 			echo DEST_DIR=!DEST_DIR!
 			if not exist "!DEST_DIR!" mkdir "!DEST_DIR!"
 			xcopy "!SRC_DIR!" "!DEST_DIR!" /E /I /Y >nul
+			
+			echo:
+			echo =====================================================
+			echo Copying Release Build of %TARGET% to Installation dir %INSTALL_DIR%
+			xcopy "!SRC_DIR!" "%INSTALL_DIR%" /E /I /Y >nul
 		)
     
 ) else (
@@ -130,12 +137,6 @@ if "%BUILD_TYPE%"=="Release" if "%DO_BUILD%"=="1" (
             echo 7-Zip not found, skipping archive step.
         )
 exit /b 0
-		
-		
-		
-		
-		
-		
 		
 		
 )

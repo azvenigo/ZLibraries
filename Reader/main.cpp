@@ -55,12 +55,12 @@ protected:
 
     bool bQuit = false;
     bool bLastVisibleState = false;
-    std::string viewFilename;
     int64_t     viewTopLine = -1;
     bool        invalid = true;
     bool        highlight = false;
     void        HookCTRL_S(bool bHook = true);
 
+    bool bPiped = false;
     std::string sFilename;
     std::string sFilter;
     tStringList rows;
@@ -281,6 +281,7 @@ bool ReaderWin::ReadPipe()
         return false;
     }
 
+    bPiped = true;
     mText = buf.str();
     return !mText.empty();
 }
@@ -451,6 +452,8 @@ bool ReaderWin::Execute()
     //RestoreConsoleState();
     gConsole.Shutdown();
 
+    if (bPiped)
+        cout << mText;
     return true;
 }
 
@@ -745,9 +748,22 @@ void ReaderWin::Paint(tConsoleBuffer& backBuf)
             string s = *it;
 
             if (highlight && !sFilter.empty())
-                s = SH::replaceTokens(s, sFilter, COL_YELLOW + sFilter + COL_RESET, false);
+            {
+                size_t i = 0;
+                size_t filtLen = sFilter.length();
+                size_t colLen = string(COL_YELLOW).length();
+                while (i < s.length())
+                {
+                    if (SH::Compare(s.substr(i, filtLen), sFilter, false))
+                    {
+                        s.insert(i + filtLen, COL_RESET);
+                        s.insert(i, COL_YELLOW);
+                        i += filtLen + colLen * 2;
+                    }
+                    i++;
+                }
+            }
 
-//            DrawClippedText(Rect(drawArea.l, drawrow, drawArea.r, drawrow + 1), s, WHITE_ON_BLACK, false, &drawArea);
             DrawClippedAnsiText(Rect(drawArea.l, drawrow, drawArea.r, drawrow + 1), s, false, &drawArea);
             drawrow++;
             it++;
