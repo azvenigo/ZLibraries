@@ -452,7 +452,8 @@ namespace CLP
         }
 
         if (mbCursorVisible)
-            out += "\033[?25h";
+            //out += "\033[?25h";
+            out += "\033[?25h\033[1 q";
         else
             out += "\033[?25l";
 
@@ -2119,7 +2120,11 @@ namespace CLP
 
         ConsoleWin::BasePaint();
 
-        COORD cursor((SHORT)0, (SHORT)-firstVisibleRow);
+        Rect drawArea;
+        GetInnerArea(drawArea);
+
+
+        COORD cursor((SHORT)drawArea.l, (SHORT)(drawArea.t-firstVisibleRow));
 
         std::vector<ZAttrib> attribs;
         attribs.resize(mText.size());
@@ -2396,7 +2401,10 @@ namespace CLP
 
     int64_t TextEditWin::CursorToTextIndex(COORD coord)
     {
-        int64_t i = (coord.Y + firstVisibleRow) * mWidth + coord.X;
+        Rect drawArea;
+        GetInnerArea(drawArea);
+
+        int64_t i = (coord.Y + firstVisibleRow - drawArea.t) * mWidth + coord.X - drawArea.l;
         return std::min<size_t>(i, mText.size());
     }
 
@@ -2407,9 +2415,12 @@ namespace CLP
 
         if (mWidth > 0)
         {
+            Rect drawArea;
+            GetInnerArea(drawArea);
+
             COORD c;
-            c.X = (SHORT)(i) % mWidth;
-            c.Y = (SHORT)((i / mWidth) - firstVisibleRow);
+            c.X = (SHORT)(drawArea.l + i % mWidth);
+            c.Y = (SHORT)(drawArea.t + (i / mWidth) - firstVisibleRow);
             return c;
         }
 

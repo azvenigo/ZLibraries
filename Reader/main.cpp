@@ -57,7 +57,7 @@ protected:
     bool bLastVisibleState = false;
     int64_t     viewTopLine = -1;
     bool        invalid = true;
-    bool        highlight = false;
+    bool        highlight = true;
     void        HookCTRL_S(bool bHook = true);
 
     bool bPiped = false;
@@ -517,8 +517,8 @@ void ReaderWin::Update()
         return;
 
 //    positionCaption[ConsoleWin::Position::LT] = "Reader";
-    if (sFilename.empty())
-        positionCaption[ConsoleWin::Position::LT] = "Reader";
+    if (bPiped)
+        positionCaption[ConsoleWin::Position::LT] = "Piped Text";
     else
         positionCaption[ConsoleWin::Position::LT] = "File: " + sFilename;
 
@@ -538,26 +538,33 @@ void ReaderWin::UpdateCaptions()
     if (entryCount < drawArea.h())
         bottom = entryCount;
 
-    positionCaption[ConsoleWin::Position::LB] = "[CTRL-F:Filter]";
 
     string sHighlightCaption;
     if (sFilter.empty())
     {
-        if (filterTextEntryWin.mbVisible)
-            positionCaption[ConsoleWin::Position::LB] = "Set Filter:";
-        positionCaption[ConsoleWin::Position::RT] = "Lines (" + SH::FromInt(viewing) + "-" + SH::FromInt(bottom) + "/" + SH::FromInt(entryCount) + ")";
+        positionCaption[ConsoleWin::Position::RT] = "Total Lines (" + SH::FromInt(viewing) + "-" + SH::FromInt(bottom) + "/" + SH::FromInt(entryCount) + ")";
     }
     else
     {
-        positionCaption[ConsoleWin::Position::LB] = "Filtering: " + sFilter + "";
-        positionCaption[ConsoleWin::Position::RT] = "Filtered Lines (" + SH::FromInt(viewing) + "-" + SH::FromInt(bottom) + "/" + SH::FromInt(entryCount) + ")";
-
         if (highlight)
             sHighlightCaption = "[CTRL-H:Highlight ON]";
         else
             sHighlightCaption = "[CTRL-H:Highlight OFF]";
+        positionCaption[ConsoleWin::Position::RT] = "Filtered: " + sFilter + " (" + SH::FromInt(viewing) + "-" + SH::FromInt(bottom) + "/" + SH::FromInt(entryCount) + ")";
     }
-    positionCaption[ConsoleWin::Position::RB] = sHighlightCaption + "[Wheel][Up/Down][PgUp/PgDown][Home/End]";
+
+    positionCaption[ConsoleWin::Position::LB] = "[CTRL-F:Filter]" + sHighlightCaption;
+    if (filterTextEntryWin.mbVisible)
+    {
+        filterTextEntryWin.positionCaption[ConsoleWin::Position::LT] = "Filter:";
+        filterTextEntryWin.positionCaption[ConsoleWin::Position::RB] = "[ESC-Clear Filter][ENTER-Set Filter]";
+        positionCaption[ConsoleWin::Position::LB].clear();
+        positionCaption[ConsoleWin::Position::RB].clear();
+    }
+
+
+    if (!filterTextEntryWin.mbVisible)
+        positionCaption[ConsoleWin::Position::RB] = "[Wheel][Up/Down][PgUp/PgDown][Home/End]";
 }
 
 bool ReaderWin::OnMouse(MOUSE_EVENT_RECORD event)
@@ -674,7 +681,8 @@ bool ReaderWin::OnKey(int keycode, char c)
                 if (!filterTextEntryWin.mbVisible)
                 {
                     filterTextEntryWin.Clear(ZAttrib(0xff666699ffffffff));
-                    filterTextEntryWin.SetArea(Rect(mX + 11, mY + mHeight - 1, mX + mWidth, mY + mHeight));
+                    filterTextEntryWin.SetArea(Rect(mX + 11, mY + mHeight - 3, mX + mWidth - 11, mY + mHeight));
+                    filterTextEntryWin.SetEnableFrame();
                     filterTextEntryWin.SetVisible();
                     invalid = true;
                 }
@@ -810,10 +818,7 @@ bool ReaderWin::UpdateFromConsoleSize(bool bForce)
 
 
         if (filterTextEntryWin.mbVisible)
-        {
-            viewRect.b--;
-            filterTextEntryWin.SetArea(Rect(viewRect.l, viewRect.b, viewRect.r, viewRect.b + 1));
-        }
+            filterTextEntryWin.SetArea(Rect(mX + 11, mY + mHeight - 3, mX + mWidth - 11, mY + mHeight));
 
         Update();
         return true;

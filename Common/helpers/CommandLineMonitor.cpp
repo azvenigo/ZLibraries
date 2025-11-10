@@ -244,34 +244,40 @@ namespace CLP
 
         sFeatures += "[F2:Env Vars] [F3:Launch Params]";
 
+        Rect drawArea;
+        GetInnerArea(drawArea);
+
         int64_t entryCount = LOG::gLogger.getEntryCount();
         int64_t viewing = mTopVisibleRow + 1;
-        if (viewing > entryCount)  
+        if (viewing > entryCount)
             viewing = entryCount;
+        int64_t bottom = mTopVisibleRow + drawArea.h();
+        if (entryCount < drawArea.h())
+            bottom = entryCount;
 
 
-        positionCaption[ConsoleWin::Position::LB] = "[CTRL-F:Filter] [CTRL-S:Save Log]";
-        if (saveLogFilenameEntryWin.mbVisible)
+        string sHighlightCaption;
+        if (sFilter.empty())
         {
-            positionCaption[ConsoleWin::Position::LB] = "Save filename:";
-        }
-        else if (sFilter.empty())
-        {
-            if (filterTextEntryWin.mbVisible)
-                positionCaption[ConsoleWin::Position::LB] = "Set Filter:";
-            positionCaption[ConsoleWin::Position::RT] = "Log lines (" + SH::FromInt(viewing) + "/" + SH::FromInt(entryCount) + ")";
+            positionCaption[ConsoleWin::Position::RT] = "Total Lines (" + SH::FromInt(viewing) + "-" + SH::FromInt(bottom) + "/" + SH::FromInt(entryCount) + ")";
         }
         else
         {
-            positionCaption[ConsoleWin::Position::LB] = "Filtering: \"" + sFilter + "\"";
-            positionCaption[ConsoleWin::Position::RT] = "Filtered lines (" + SH::FromInt(viewing) + "/" + SH::FromInt(entryCount) + ")";
+            positionCaption[ConsoleWin::Position::RT] = "Filtered: " + sFilter + " (" + SH::FromInt(viewing) + "-" + SH::FromInt(bottom) + "/" + SH::FromInt(entryCount) + ")";
         }
 
-        positionCaption[ConsoleWin::Position::LT] = sFeatures;
+        positionCaption[ConsoleWin::Position::LB] = "[CTRL-F:Filter]";
+        if (filterTextEntryWin.mbVisible)
+        {
+            filterTextEntryWin.positionCaption[ConsoleWin::Position::LT] = "Filter:";
+            filterTextEntryWin.positionCaption[ConsoleWin::Position::RB] = "[ESC-Clear Filter][ENTER-Set Filter]";
+            positionCaption[ConsoleWin::Position::LB].clear();
+            positionCaption[ConsoleWin::Position::RB].clear();
+        }
 
 
-
-        positionCaption[ConsoleWin::Position::RB] = "[Wheel][Up/Down][PgUp/PgDown][Home/End]";
+        if (!filterTextEntryWin.mbVisible)
+            positionCaption[ConsoleWin::Position::RB] = "[Wheel][Up/Down][PgUp/PgDown][Home/End]";
     }
 
     string LogWin::GetColorForThreadID(std::thread::id id)
@@ -492,7 +498,8 @@ namespace CLP
                 if (!filterTextEntryWin.mbVisible)
                 {
                     filterTextEntryWin.Clear(ZAttrib(0xff666699ffffffff));
-                    filterTextEntryWin.SetArea(Rect(mX+11, mY + mHeight-1, mX + mWidth, mY + mHeight));
+                    filterTextEntryWin.SetArea(Rect(mX + 11, mY + mHeight - 3, mX + mWidth - 11, mY + mHeight));
+                    filterTextEntryWin.SetEnableFrame();
                     filterTextEntryWin.SetVisible();
                     invalid = true;
                 }
@@ -561,6 +568,10 @@ namespace CLP
 
 
             Rect logWinRect(viewRect);
+
+            if (filterTextEntryWin.mbVisible)
+                filterTextEntryWin.SetArea(Rect(11, h - 3, w - 11, h));
+
             if (filterTextEntryWin.mbVisible)
             {
                 logWinRect.b--;
@@ -731,6 +742,8 @@ namespace CLP
             pCLM->mbVisible = helpTableWin.mbVisible || /*helpTextWin.mbVisible ||*/ logWin.mbVisible;
 
             pCLM->UpdateVisibility();
+
+            gConsole.SetCursorVisible(filterTextEntryWin.mbVisible);
 
 
             if (gConsole.ConsoleHasFocus())
