@@ -134,7 +134,7 @@ namespace CLP
     [[maybe_unused]] static void ResetCols()            // reset colored output
     {
         AppStyle        = Table::Style(COL_YELLOW);
-        SectionStyle    = Table::Style(COL_BLUE, Table::CENTER, 0.0f, Table::CHAR_WRAP, 0, '=');
+        SectionStyle    = Table::Style(COL_BLUE, false, Table::CENTER, Table::CHAR_WRAP, 0, '=');
         SubSectionStyle = Table::Style(COL_CYAN);
         ParamStyle      = Table::Style(COL_YELLOW);
         ErrorStyle      = Table::Style(COL_RED);

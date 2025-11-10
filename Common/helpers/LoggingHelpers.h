@@ -628,7 +628,14 @@ public:
         TL      = 5,
         TR      = 6,
         BL      = 7,
-        BR      = 8
+        BR      = 8,
+
+        // cross connections  (intersecting characters
+        XL      = 9,
+        XT      = 10,
+        XR      = 11,
+        XB      = 12,
+        XC      = 13
     };
 
     enum eWrapping : uint8_t
@@ -640,7 +647,7 @@ public:
 
     struct Style
     {
-        Style(std::string _color = COL_RESET, eSide _alignment = LEFT, float _space_allocation = 0.0, eWrapping _wrapping = CHAR_WRAP, uint8_t _padding = 1, char _padchar = ' ') : color(_color), alignment(_alignment), space_allocation(_space_allocation), wrapping(_wrapping), padding(_padding), padchar(_padchar)
+        Style(std::string _color = COL_RESET, bool _zebraRows = false, eSide _alignment = LEFT, eWrapping _wrapping = CHAR_WRAP, uint8_t _padding = 1, char _padchar = ' ') : color(_color), zebraRows(_zebraRows), alignment(_alignment), wrapping(_wrapping), padding(_padding), padchar(_padchar)
         {
             assert(alignment >= LEFT && alignment <= CENTER);
             assert(wrapping >= NO_WRAP && wrapping <= WORD_WRAP);
@@ -649,8 +656,8 @@ public:
         friend std::ostream& operator <<(std::ostream& os, Style& style);
 
         std::string color = COL_RESET;
+        bool        zebraRows = false;
         uint8_t     alignment = LEFT;
-        float       space_allocation = 0.0;
         uint8_t     wrapping = CHAR_WRAP;
         uint8_t     padding = 1;
         char        padchar = ' ';
@@ -669,7 +676,7 @@ public:
 
     struct Cell
     {
-        Cell(const std::string& _s = "", tOptionalStyle _style = std::nullopt);
+        Cell(const std::string& _s = "", tOptionalStyle _style = std::nullopt, bool _separator = false);
 
         tStringArray GetLines(size_t width) const;
         size_t RowCount(size_t width) const;
@@ -678,14 +685,14 @@ public:
 
         bool ExtractStyle(const std::string& s, std::string& ansi, std::string& rest);  // if a string starts with an ansi sequence split it out
 
-
+        bool            separator = false;  // Special flag indicating cell is placeholder for separator
         std::string     s;
         tOptionalStyle  style;
     };
     typedef std::vector<Cell> tCellArray;
 
 
-    std::string borders[9] =
+    std::string borders[14] =
     {
         "*",  // LEFT
         "*",  // TOP
@@ -696,7 +703,13 @@ public:
         "",   // TL
         "",   // TR
         "",   // BL
-        ""    // BR
+        "",   // BR
+
+        "",   // Cross-LEFT
+        "",   // Cross-TOP
+        "",   // Cross-RIGHT
+        "",   // Cross-BOTTOM
+        ""    // Cross-Center
     };
 
     typedef std::map<size_t, tOptionalStyleArray> tColCountToStyles;
@@ -711,7 +724,13 @@ public:
                     const std::string& _TL = "",
                     const std::string& _TR = "",
                     const std::string& _BL = "",
-                    const std::string& _BR = "");
+                    const std::string& _BR = "",
+                    const std::string & _XL = "",
+                    const std::string & _XT = "",
+                    const std::string & _XR = "",
+                    const std::string & _XB = "",
+                    const std::string & _XC = ""
+    );
 
     // Style is prioritized as follows
     // 1) cell style
@@ -721,11 +740,16 @@ public:
 
     bool SetColStyle(size_t col_count, size_t col_num, const Style& style);
     bool SetColStyles(tOptionalStyleArray styles);  // helper for easy setting styles
+    tOptionalStyle GetColStyle(size_t col_count, size_t col_num);
+
     bool SetRowStyle(size_t row, const Style& style);
+    bool GetRowStyle(size_t row, const Style& style);
+
     bool SetCellStyle(size_t col, size_t row, const Style& style);
 
-    tOptionalStyle GetColStyle(size_t col_count, size_t col_num);
-    Style GetStyle(size_t col, size_t row);
+    bool SetTableStyle(const Style& style);
+
+    Style ResolveStyle(size_t col, size_t row);
 
 
 
@@ -762,7 +786,7 @@ public:
     void AddRow(tCellArray& columns);
 
     void AddMultilineRow(std::string& sMultiLine);
-
+    void AddSeparator();
 
 
     // output functions
@@ -844,7 +868,7 @@ protected:
     tColCountToStyles   colCountToColStyles; // an array of column styles for each column count
     tRowToStyleMap      rowStyles;
     tColCountToColWidth colCountToColWidths;
-
+    Style               tableStyle;
     // Formatting
     size_t              renderWidth = 0; // if not set, table will output to minimum width for all cells to be visible and padded per style
 };

@@ -313,11 +313,10 @@ ostream& operator <<(std::ostream& os, Table::Style& style)
     return os;
 }
 
-Table::Style Table::kLeftAlignedStyle = Table::Style(COL_RESET, LEFT);
-Table::Style Table::kRightAlignedStyle = Table::Style(COL_RESET, RIGHT);
-Table::Style Table::kCenteredStyle = Table::Style(COL_RESET, CENTER);
-//Table::Style Table::kDefaultStyle = Table::Style(AnsiCol(0xFFFFFFFF), LEFT);
-Table::Style Table::kDefaultStyle = Table::Style(COL_RESET, LEFT);
+Table::Style Table::kLeftAlignedStyle = Table::Style(COL_RESET, false, LEFT);
+Table::Style Table::kRightAlignedStyle = Table::Style(COL_RESET, false, RIGHT);
+Table::Style Table::kCenteredStyle = Table::Style(COL_RESET, false, CENTER);
+Table::Style Table::kDefaultStyle = Table::Style(COL_RESET, false, LEFT);
 
 const size_t kMinCellWidth = 3;
 
@@ -325,15 +324,24 @@ void Table::SetDecLineBorders([[maybe_unused]] Table& t, [[maybe_unused]] const 
 {
 #ifdef ENABLE_ANSI_OUT
     // This requires ansi out....otherwise just use defaults
-    t.SetBorders(   _col + string(DEC_LINE_START "\x78" DEC_LINE_END),      // LEFT
-                    "\x71",                                                 // TOP
+    t.SetBorders(   
+        _col + string(DEC_LINE_START "\x78" DEC_LINE_END COL_RESET),        // LEFT
+        _col + string(DEC_LINE_START "\x71" DEC_LINE_END COL_RESET),        // TOP
         _col + string(DEC_LINE_START "\x78" DEC_LINE_END COL_RESET),        // RIGHT
-        "\x71",                                                             // BOTTOM
+        _col + string(DEC_LINE_START "\x71" DEC_LINE_END COL_RESET),        // BOTTOM
         _col + string(DEC_LINE_START "\x78" DEC_LINE_END COL_RESET),        // CENTER
-        _col + string(DEC_LINE_START "\x6c"),                               // TL
-        "\x6b" DEC_LINE_END COL_RESET,                                      // TR
-        _col + string(DEC_LINE_START "\x6d"),                               // BL
-        "\x6a" DEC_LINE_END COL_RESET);                                     // BR
+
+        _col + string(DEC_LINE_START "\x6c" DEC_LINE_END COL_RESET),        // TL
+        _col + string(DEC_LINE_START "\x6b" DEC_LINE_END COL_RESET),        // TR
+        _col + string(DEC_LINE_START "\x6d" DEC_LINE_END COL_RESET),        // BL
+        _col + string(DEC_LINE_START "\x6a" DEC_LINE_END COL_RESET),        // BR
+
+        _col + string(DEC_LINE_START "\x74" DEC_LINE_END COL_RESET),        // XL
+        _col + string(DEC_LINE_START "\x77" DEC_LINE_END COL_RESET),        // XT
+        _col + string(DEC_LINE_START "\x75" DEC_LINE_END COL_RESET),        // XR
+        _col + string(DEC_LINE_START "\x76" DEC_LINE_END COL_RESET),        // XB
+        _col + string(DEC_LINE_START "\x6e" DEC_LINE_END COL_RESET)         // XC
+    );                                     
 #else
 #endif
 }
@@ -342,9 +350,12 @@ void Table::SetDecLineBorders([[maybe_unused]] Table& t, [[maybe_unused]] const 
 
 Table::Table()
 {
+    tableStyle = kDefaultStyle;
 }
 
-void Table::SetBorders(const std::string& _L, const std::string& _T, const std::string& _R, const std::string& _B, const std::string& _C, const std::string& _TL, const std::string& _TR, const std::string& _BL, const std::string& _BR)
+void Table::SetBorders(const std::string& _L, const std::string& _T, const std::string& _R, const std::string& _B, const std::string& _C, 
+                       const std::string& _TL, const std::string& _TR, const std::string& _BL, const std::string& _BR,
+                       const std::string& _XL, const std::string& _XT, const std::string& _XR, const std::string& _XB, const std::string& _XC)
 {
     borders[LEFT] = _L;
     borders[TOP] = _T;
@@ -356,6 +367,12 @@ void Table::SetBorders(const std::string& _L, const std::string& _T, const std::
     borders[TR] = _TR;
     borders[BL] = _BL;
     borders[BR] = _BR;
+
+    borders[XL] = _XL;
+    borders[XT] = _XT;
+    borders[XR] = _XR;
+    borders[XB] = _XB;
+    borders[XC] = _XC;
 }
 
 bool Table::SetColStyles(tOptionalStyleArray styles)
@@ -418,51 +435,54 @@ bool Table::SetRowStyle(size_t row, const Style& style)
     return true;
 }
 
-Table::Style Table::GetStyle(size_t col, size_t row)
+Table::Style Table::ResolveStyle(size_t col, size_t row)
 {
     // bounds checks
-    if (row >= mRows.size())
-        return kDefaultStyle;
-
-    if (col >= mRows[row].size())
-        return kDefaultStyle;
-
-    // Style is prioritized as follows
-    // 1) cell style
-    // 2) row style
-    // 3) col style
-    // 4) default style
-
-    // cell
-    if (mRows[row][col].style != std::nullopt)
-        return mRows[row][col].style.value();
-
-    // row
-    tRowToStyleMap::iterator it = rowStyles.find(row);
-    if (it != rowStyles.end())
-        return (*it).second.value();
-
-    // col
-    size_t col_count = mRows[row].size();
-    if (colCountToColStyles[col_count].size() == col_count)
+    if (row < mRows.size() && col < mRows[row].size())
     {
-        if (colCountToColStyles[col_count][col] != nullopt)
-            return colCountToColStyles[col_count][col].value();
+
+        // Style is prioritized as follows
+        // 1) cell style
+        // 2) row style
+        // 3) col style
+        // 4) default style
+
+        // cell
+        if (mRows[row][col].style != std::nullopt)
+            return mRows[row][col].style.value();
+
+        // row
+        tRowToStyleMap::iterator it = rowStyles.find(row);
+        if (it != rowStyles.end())
+            return (*it).second.value();
+
+        // col
+        size_t col_count = mRows[row].size();
+        if (colCountToColStyles[col_count].size() == col_count)
+        {
+            if (colCountToColStyles[col_count][col] != nullopt)
+                return colCountToColStyles[col_count][col].value();
+        }
     }
 
-    return kDefaultStyle;
+    return tableStyle;
 }
 
 bool Table::SetCellStyle(size_t col, size_t row, const Style& style)
 {
     // bounds checks
-    if (row >= mRows.size())
+    if (row < mRows.size() && col < mRows[row].size())
+    {
+        mRows[row][col].style = style;
         return false;
+    }
 
-    if (col >= mRows[row].size())
-        return false;
+    return true;
+}
 
-    mRows[row][col].style = style;
+bool Table::SetTableStyle(const Style& style)
+{
+    tableStyle = style;
     return true;
 }
 
@@ -505,6 +525,12 @@ void Table::AddMultilineRow(string& sMultiLine)
         AddRow(s);
 }
 
+void Table::AddSeparator()
+{
+    mRows.push_back({ Cell("", std::nullopt, true) });
+}
+
+
 Table::Cell Table::GetCell(size_t col, size_t row)
 {
     if (row >= mRows.size())
@@ -516,7 +542,7 @@ Table::Cell Table::GetCell(size_t col, size_t row)
     tCellArray get5row = mRows[row];
     Table::Cell cell = mRows[row][col];
     if (!cell.style.has_value())
-        cell.style = GetStyle(col, row);
+        cell.style = ResolveStyle(col, row);
 
     return cell;
 }
@@ -799,34 +825,42 @@ plain_loop:
     return { leading, plain, trailing };
 }
 
-Table::Cell::Cell(const std::string& _s, tOptionalStyle _style)
+Table::Cell::Cell(const std::string& _s, tOptionalStyle _style, bool _separator)
 {
     style = _style;
 
-    std::string ansi;
-    std::string rest;
-    if (ExtractStyle(_s, ansi, rest))
+    if (_separator)
     {
-        s = rest;
-        if (style == nullopt)
-            style = Style();
-
-        style.value().color = ansi;
+        separator = true;
+        assert(_s.empty());
     }
     else
     {
-        s = _s;
-    }
+
+        std::string ansi;
+        std::string rest;
+        if (ExtractStyle(_s, ansi, rest))
+        {
+            s = rest;
+            if (style == nullopt)
+                style = Style();
+
+            style.value().color = ansi;
+        }
+        else
+        {
+            s = _s;
+        }
 
 #ifdef _DEBUG
-//    assert(!ContainsAnsiSequences(s));  // let's make it so cells can only have one style and not embedded in text
+        //    assert(!ContainsAnsiSequences(s));  // let's make it so cells can only have one style and not embedded in text
 
-    for (auto c : s)
-    {
-        assert(c != '\0');
-    }
+        for (auto c : s)
+        {
+            assert(c != '\0');
+        }
 #endif
-
+    }
 }
 
 size_t Table::Cell::RowCount(size_t width) const
@@ -1078,11 +1112,11 @@ bool Table::AutosizeColumns()
             for (size_t col_num = 0; col_num < cols; col_num++)
             {
                 tOptionalStyle optStyle = GetColStyle(cols, col_num);
-                if (optStyle.has_value() && optStyle.value().space_allocation > 0.0f)
+/*                if (optStyle.has_value() && optStyle.value().space_allocation > 0.0f)
                 {
                     size_t w = (size_t) ((float)(colWidthAvailable) * optStyle.value().space_allocation);
                     colCountToColWidths[cols][col_num] = w;
-                }
+                }*/
 
                 if (colCountToColWidths[cols][col_num] > (size_t)remainingWidth)
                 {
@@ -1212,58 +1246,76 @@ void Table::DrawRow(size_t row_num, ostream& os)
     const Table::tCellArray& row = mRows[row_num];
     size_t linecount = 0;
     size_t cols = row.size();
-    std::vector< tStringArray > cellColumns;
-    std::vector< Style > cellStyles;
-    for (size_t col = 0; col < cols; col++)
-    {
-        const auto& cell = row[col];
-        Style cellStyle = GetStyle(col, row_num);
-        size_t w = colCountToColWidths[cols][col] - cellStyle.padding * 2;
 
-        tStringArray lines = cell.GetLines(w);
-        linecount = std::max<size_t>(lines.size(), linecount);
-        cellColumns.push_back(std::move(lines));
-        cellStyles.push_back(cellStyle);
+    if (cols == 1 && row[0].separator)
+    {
+        // Special logic to draw a separator row
+        string xl = borders[Table::XL];
+        if (xl.empty())
+            xl = borders[Table::TOP];
+        string xr = borders[Table::XR];
+        if (xr.empty())
+            xr = borders[Table::XR];
+
+        os << xl;
+        os << RepeatString(borders[Table::TOP], renderWidth - 2);
+        os << xr << "\n";
     }
-
-    for (size_t line_num = 0; line_num < linecount; line_num++)
+    else
     {
-        size_t cursor = 0;
-        size_t nEndDraw = renderWidth - VisLength(borders[Table::RIGHT]);
-
-        string separator = borders[Table::CENTER];
-
-        // draw left border
-        os << Table::kDefaultStyle << borders[Table::LEFT] << COL_RESET;
-        cursor += VisLength(borders[Table::LEFT]);
-        
-
-        for (size_t col = 0; col < cellColumns.size(); col++)
+        std::vector< tStringArray > cellColumns;
+        std::vector< Style > cellStyles;
+        for (size_t col = 0; col < cols; col++)
         {
-            bool bLastColumnInRow = (col == cols - 1);
-            if (line_num < cellColumns[col].size()) // if this cell has text on this line
-            {
-                string unstyled = cellColumns[col][line_num];
-                string styled = StyledOut(unstyled, colCountToColWidths[cols][col], cellStyles[col]);
-                os << cellStyles[col] << styled << kDefaultStyle;
-                cursor += VisLength(styled);
-            }
-            else
-            {
-                os << PAD(colCountToColWidths[cols][col], kDefaultStyle.padchar);
-                cursor += colCountToColWidths[cols][col];
-            }
+            const auto& cell = row[col];
+            Style cellStyle = ResolveStyle(col, row_num);
+            size_t w = colCountToColWidths[cols][col] - cellStyle.padding * 2;
 
-            // Output a separator for all but last column
-            if (!bLastColumnInRow /*&& cursor < nEndDraw*/)
+            tStringArray lines = cell.GetLines(w);
+            linecount = std::max<size_t>(lines.size(), linecount);
+            cellColumns.push_back(std::move(lines));
+            cellStyles.push_back(cellStyle);
+        }
+
+        for (size_t line_num = 0; line_num < linecount; line_num++)
+        {
+            size_t cursor = 0;
+            size_t nEndDraw = renderWidth - VisLength(borders[Table::RIGHT]);
+
+            string separator = borders[Table::CENTER];
+
+            // draw left border
+            os << tableStyle  << borders[Table::LEFT] << COL_RESET;
+            cursor += VisLength(borders[Table::LEFT]);
+
+
+            for (size_t col = 0; col < cellColumns.size(); col++)
             {
-                os << separator << kDefaultStyle;
-                cursor += VisLength(separator);
-            }
-            else
-            {
-                if (cursor < nEndDraw)
-                    os << cellStyles[col] << PAD(nEndDraw - cursor, kDefaultStyle.padchar) << kDefaultStyle;
+                bool bLastColumnInRow = (col == cols - 1);
+                if (line_num < cellColumns[col].size()) // if this cell has text on this line
+                {
+                    string unstyled = cellColumns[col][line_num];
+                    string styled = StyledOut(unstyled, colCountToColWidths[cols][col], cellStyles[col]);
+                    os << cellStyles[col] << styled << tableStyle;
+                    cursor += VisLength(styled);
+                }
+                else
+                {
+                    os << PAD(colCountToColWidths[cols][col], tableStyle.padchar);
+                    cursor += colCountToColWidths[cols][col];
+                }
+
+                // Output a separator for all but last column
+                if (!bLastColumnInRow /*&& cursor < nEndDraw*/)
+                {
+                    os << separator << tableStyle;
+                    cursor += VisLength(separator);
+                }
+                else
+                {
+                    if (cursor < nEndDraw)
+                        os << cellStyles[col] << PAD(nEndDraw - cursor, tableStyle.padchar) << tableStyle;
+                }
             }
         }
 

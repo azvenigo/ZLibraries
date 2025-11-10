@@ -99,11 +99,12 @@ namespace CLP
     // decorations
     static Table::Style ResetStyle = Table::Style();
     static Table::Style AppStyle = Table::Style(COL_YELLOW);
-    static Table::Style SectionStyle = Table::Style(COL_CYAN, Table::CENTER, 0.0f, Table::CHAR_WRAP, 0, '=');
+    static Table::Style SectionStyle = Table::Style(COL_CYAN, false, Table::CENTER, Table::CHAR_WRAP, 0, '=');
     static Table::Style SubSectionStyle = Table::Style(COL_CYAN);
     static Table::Style ParamStyle = Table::Style(COL_YELLOW);
     static Table::Style WarningStyle = Table::Style(COL_ORANGE);
     static Table::Style ErrorStyle = Table::Style(COL_RED);
+    static Table::Style SeparatorStyle = Table::Style(COL_CYAN, false, Table::CENTER, Table::NO_WRAP, 0, '-');
 
 
     enum eResponse : uint32_t
@@ -650,7 +651,6 @@ namespace CLP
     typedef std::list<tKeyVal> tKeyValList;
     tKeyValList GetEnvVars();
     void ShowEnvVars();
-    void ShowLaunchParams();
 
     extern TableWin helpTableWin;
 

@@ -2577,36 +2577,25 @@ namespace CLP
         if (h < 8)
             h = 8;
 
-        helpTableWin.Init(Rect(0, 1, w, h));
-        helpTableWin.Clear(kAttribHelpBG, true);
-        helpTableWin.SetEnableFrame();
-        helpTableWin.bAutoScrollbar = true;
-        gConsole.Invalidate();
-
-
-
-        helpTableWin.positionCaption[ConsoleWin::Position::LT] = "Environment Variables";
-
-
-
         Rect drawArea;
         helpTableWin.GetInnerArea(drawArea);
         int64_t drawWidth = drawArea.r - drawArea.l - 2;
 
-
-        helpTableWin.mTable.Clear();
-//        helpTableWin.mTable.SetBorders("|", DEC_LINE_START "q" DEC_LINE_END, "|", DEC_LINE_START "q" DEC_LINE_END, "|");
-/*        helpTableWin.mTable.SetBorders(DEC_LINE_START "\x78" DEC_LINE_END,              // LEFT
-                                        "\x71",                                         // TOP
-                                        DEC_LINE_START "\x78" DEC_LINE_END,             // RIGHT
-                                        "\x71",                                         // BOTTOM
-                                        DEC_LINE_START "\x78" DEC_LINE_END,             // CENTER
-                                        DEC_LINE_START "\x6c",                          // TL
-                                        "\x6b" DEC_LINE_END,                            // TR
-                                        DEC_LINE_START "\x6d",                          // BL
-                                        "\x6a" DEC_LINE_END);                           // BR*/
         Table::SetDecLineBorders(helpTableWin.mTable, COL_BLUE);
+
+        helpTableWin.Init(Rect(0, 1, w, h));
+        helpTableWin.Clear(kAttribHelpBG, true);
+        helpTableWin.SetEnableFrame();
+        helpTableWin.bAutoScrollbar = true;
+        helpTableWin.mTopVisibleRow = 0;
+
+        helpTableWin.positionCaption[ConsoleWin::Position::LT] = "Environment";
+
+        helpTableWin.mTable.AddRow(SectionStyle, " Launch Arguments ");
+        helpTableWin.mTable.AddRow(GetCommandLineA());
+        helpTableWin.mTable.AddSeparator();
                                        
+        helpTableWin.mTable.AddRow(SectionStyle, " Environment Variables ");
         helpTableWin.mTable.AddRow(SubSectionStyle, "--var--", "--value--");
 
         Table::Style keyStyle(ParamStyle);
@@ -2660,35 +2649,8 @@ namespace CLP
 
         //helpWin.mText = (string)varTable;
         helpTableWin.UpdateCaptions();
-    }
-
-
-    void ShowLaunchParams()
-    {
-        string sText;
-
-        int64_t w = gConsole.Width();
-        int64_t h = gConsole.Height();
-
-        if (w < 1)
-            w = 1;
-        if (h < 8)
-            h = 8;
-
-        helpTableWin.Init(Rect(0, 1, w, h));
-        helpTableWin.Clear(kAttribHelpBG, true);
-        helpTableWin.SetEnableFrame();
-        helpTableWin.bAutoScrollbar = true;
-        helpTableWin.positionCaption[ConsoleWin::Position::LT] = "Launch Arguments";
-        helpTableWin.mTable.AddRow(SectionStyle, " Launch Arguments ");
-        helpTableWin.mTable.AddRow(GetCommandLineA());
-        helpTableWin.mTopVisibleRow = 0;
-        helpTableWin.UpdateCaptions();
         gConsole.Invalidate();
     }
-
-
-
 };  // namespace CLP
 
 

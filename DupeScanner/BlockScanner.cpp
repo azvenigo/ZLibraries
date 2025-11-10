@@ -723,7 +723,7 @@ void BlockScanner::DumpReport()
     list<sMatchResult> partialMatches;
     Table table;
     table.SetBorders("*", "*", "*", "*", ",");
-    Table::kDefaultStyle = Table::Style(COL_RESET, Table::LEFT, 0.0, Table::NO_WRAP, 10, ' ');
+    Table::kDefaultStyle = Table::Style(COL_RESET, false, Table::LEFT, Table::NO_WRAP, 10, ' ');
 
     if (mResults.size() > 0)
     {

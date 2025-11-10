@@ -147,7 +147,7 @@ namespace CLP
 
 
             // Table header
-            Table::Style headerStyle(COL_ORANGE + bg.ToAnsi(), Table::CENTER, 0.0, Table::NO_WRAP, 0, '-');
+            Table::Style headerStyle(COL_ORANGE + bg.ToAnsi(), false, Table::CENTER, Table::NO_WRAP, 0, '-');
 //            Table::Style headerStyleRight(COL_ORANGE, Table::RIGHT,0, '-');
             Table::tCellArray header;
             if (viewCountEnabled)
@@ -161,9 +161,9 @@ namespace CLP
 
 
 
-            Table::Style counterStyle(ZAttrib(MAKE_BG(0xFF222222)), Table::RIGHT);
+            Table::Style counterStyle(ZAttrib(MAKE_BG(0xFF222222)), false, Table::RIGHT, Table::NO_WRAP);
 
-            Table::Style timeStyle(ZAttrib(MAKE_BG(0xFF222222)), Table::RIGHT);
+            Table::Style timeStyle(ZAttrib(MAKE_BG(0xFF222222)), false, Table::RIGHT, Table::NO_WRAP);
 
             int64_t prevEntryTime = LOG::gLogger.gLogStartTime;
             for (const auto& e : entries)
@@ -226,23 +226,25 @@ namespace CLP
     {
         string sFeatures;
         if (viewCountEnabled)
-            sFeatures += "[1:COUNT] ";
+            sFeatures += "[1:Count  ON] ";
         else
-            sFeatures += "[1:count] ";
+            sFeatures += "[1:Count OFF] ";
 
         sFeatures += "[2:" + TimeLabel() + "] ";
 
         if (viewColoredThreads)
-            sFeatures += "[3:THREADS] ";
+            sFeatures += "[3:Threads  ON] ";
         else
-            sFeatures += "[3:threads] ";
+            sFeatures += "[3:Threads OFF] ";
 
         if (viewColorWarningsAndErrors)
-            sFeatures += "[4:WARN/ERROR] ";
+            sFeatures += "[4:Warn/Err  ON] ";
         else
-            sFeatures += "[4:warn/error] ";
+            sFeatures += "[4:Warn/Err OFF] ";
 
-        sFeatures += "[F2:Env Vars] [F3:Launch Params]";
+        sFeatures += "[F2:Environment]";
+
+        positionCaption[ConsoleWin::Position::LT] = sFeatures;
 
         Rect drawArea;
         GetInnerArea(drawArea);
@@ -683,11 +685,6 @@ namespace CLP
             else if (keycode == VK_F2)
             {
                 ShowEnvVars();
-                return true;
-            }
-            else if (keycode == VK_F3)
-            {
-                ShowLaunchParams();
                 return true;
             }
         }
