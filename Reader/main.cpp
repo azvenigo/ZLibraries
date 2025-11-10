@@ -713,11 +713,6 @@ bool ReaderWin::OnKey(int keycode, char c)
             ShowEnvVars();
             return true;
         }
-        else if (keycode == VK_F3)
-        {
-            ShowLaunchParams();
-            return true;
-        }
     }
 
     Update();

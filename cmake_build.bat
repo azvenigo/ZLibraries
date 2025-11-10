@@ -37,18 +37,36 @@ for %%A in (%*) do (
     )
 )
 
+set "DEST_DIR=%BATCH_FOLDER%build\ZLibraries_Release"
+if not exist "%DEST_DIR%" mkdir "%DEST_DIR%"
+
 :: If "all" is passed, build every subfolder that has a CMakeLists.txt
 if "%BUILD_ALL%"=="1" (
     echo:
     echo Building ALL tools in %BATCH_FOLDER%...
     echo:
-    for /d %%D in ("%BATCH_FOLDER%\*") do (
-        if exist "%%~fD\CMakeLists.txt" (
-            call :buildOne "%%~nD"
-        )
-    )
-    goto doneBuild
+    cmake -S %BATCH_FOLDER% -B %BATCH_FOLDER%\build -DCMAKE_BUILD_TYPE=%BUILD_TYPE%
+    
+    if "%DO_BUILD%"=="1" (
+	    :: Find MSBuild using vswhere
+	    for /f "usebackq tokens=*" %%i in (`"%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -requires Microsoft.Component.MSBuild -find MSBuild\**\Bin\MSBuild.exe`) do (
+	        set "MSBUILD=%%i"
+	    )
+	    
+	    "!MSBUILD!" "%BATCH_FOLDER%\build\ZLibraries.sln" /p:Configuration=%BUILD_TYPE% /m
+	    
+	    echo:
+	    echo Done Building ALL
+	    echo:
+    	goto copyBuilds
+  	) else (
+  		start "" "build"
+  		exit /b 0
+  	)
 )
+
+
+
 
 :: Otherwise, build only those explicitly passed
 for %%i in (%*) do (
@@ -56,6 +74,20 @@ for %%i in (%*) do (
     	 call :buildOne "%%~i"
     )
 )
+
+:copyBuilds
+if "%DO_BUILD%"=="1" (
+	echo Copying ALL Builds in %BATCH_FOLDER%
+	for /d %%i in ("%BATCH_FOLDER%*") do (
+			echo Checking: %%i
+    	if exist "%%i\CMakeLists.txt" (
+        	echo Found project: %%~nxi
+        	call :copyOne "%%~nxi"
+    	)
+	)
+	echo Done Copying ALL Builds
+) 
+
 goto doneBuild
 
 :buildOne
@@ -94,10 +126,6 @@ if "%DO_BUILD%"=="1" (
 			echo =====================================================
 			echo Copying Release Build of %TARGET% to Packaging dir
 			set "SRC_DIR=!BUILD_DIR!\Release"
-			set "DEST_DIR=!BATCH_FOLDER!build\ZLibraries_Release\!TARGET!\"
-			echo SRC_DIR=!SRC_DIR!
-			echo DEST_DIR=!DEST_DIR!
-			if not exist "!DEST_DIR!" mkdir "!DEST_DIR!"
 			xcopy "!SRC_DIR!" "!DEST_DIR!" /E /I /Y >nul
 			
 			echo:
@@ -112,6 +140,50 @@ if "%DO_BUILD%"=="1" (
 )
 
 exit /b 0
+
+
+
+
+
+
+:copyOne
+set "TARGET=%~1"
+set "BUILD_DIR=%BATCH_FOLDER%build\%TARGET%\"
+set "SRC_DIR=!BUILD_DIR!Release"
+set "DEST_DIR=!BATCH_FOLDER!build\ZLibraries_Release\"
+
+if "%DO_BUILD%"=="1" (
+		if "%BUILD_TYPE%"=="Release" (
+			echo:
+			echo =====================================================
+			echo Copying Release Build of %TARGET% to Packaging dir
+			echo SRC_DIR=!SRC_DIR!
+			echo DEST_DIR=!DEST_DIR!
+			if not exist "!DEST_DIR!" mkdir "!DEST_DIR!"
+			xcopy "!SRC_DIR!" "!DEST_DIR!" /E /I /Y >nul
+			
+			echo:
+			echo =====================================================
+			echo Copying Release Build of %TARGET% to Installation dir %INSTALL_DIR%
+			xcopy "!SRC_DIR!" "%INSTALL_DIR%" /E /I /Y >nul
+		)  
+)
+
+exit /b 0
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 :doneBuild
 if "%BUILD_TYPE%"=="Release" if "%DO_BUILD%"=="1" (
