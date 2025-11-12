@@ -2642,6 +2642,7 @@ namespace CLP
                 offset += sFitVal.length();
             }*/
             helpTableWin.mTable.AddRow(Table::Cell(sKey, keyStyle), Table::Cell(sVal, valueStyle));
+            helpTableWin.mTable.AddSeparator();
         }
 
 

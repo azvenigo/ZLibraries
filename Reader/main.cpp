@@ -826,6 +826,29 @@ bool ReaderWin::UpdateFromConsoleSize(bool bForce)
 
 int main(int argc, char* argv[])
 {
+/*    Table t;
+    Table::SetDecLineBorders(t);
+    t.AddRow("row 1", "row 2");
+    t.AddSeparator();
+    t.AddRow("one long row");
+    t.AddSeparator();
+    t.AddRow("row 1", "row 2", "row 3", "row 4444444444");
+    t.AddSeparator();
+    t.AddRow("one long row");
+    t.AddSeparator();
+    t.AddRow("row 1", "row 2");
+    t.AddSeparator();
+    t.AddRow("row 1", "row 2", "row 3");
+
+    t.SetRenderWidth(100);
+
+    cout << t;
+
+
+    return 0;
+    */
+
+
     ReaderWin readerWin;
     CommandLineParser parser;
     string sFilename;
@@ -852,12 +875,16 @@ int main(int argc, char* argv[])
         if (!sFilename.empty() && sFilename[0] != '<') // temporarily detect pipe in via commandline param for vs debugging
         {
             readerWin.LoadFile(sFilename);
+
+            if (!sFilter.empty())
+                readerWin.SetFilter(sFilter);
+
+            readerWin.Execute();
         }
-
-        if (!sFilter.empty())
-            readerWin.SetFilter(sFilter);
-
-        readerWin.Execute();
+        else
+        {
+            parser.ShowCommandLineHelp();
+        }
     }
 
     return 0;
