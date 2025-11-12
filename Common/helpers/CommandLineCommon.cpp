@@ -730,13 +730,27 @@ namespace CLP
         if (!mbInitted)
             return true;
 
-
-        // Restore console state
         cout << "\033[?25h" << COL_WHITE << COL_BG_BLACK << DEC_LINE_END << COL_RESET;    // show cursor, reset colors, ensure dec line mode is off
-        SMALL_RECT writeRegion = { 0, 0, originalScreenInfo.dwSize.X - 1, originalScreenInfo.dwSize.Y - 1 };
-        WriteConsoleOutput(mhOutput, &originalConsoleBuf[0], originalScreenInfo.dwSize, { 0, 0 }, &writeRegion);
-        SetConsoleCursorPosition(mhOutput, originalScreenInfo.dwCursorPosition);
-        SetConsoleTextAttribute(mhOutput, originalScreenInfo.wAttributes);
+
+        CONSOLE_SCREEN_BUFFER_INFO si;
+        if (GetConsoleScreenBufferInfo(mhOutput, &si))
+        {
+            if (si.dwSize.X == originalScreenInfo.dwSize.X && si.dwSize.Y == originalScreenInfo.dwSize.Y)
+            {
+                // Restore console state only if the dimmensions are the same as when captured
+                SMALL_RECT writeRegion = { 0, 0, originalScreenInfo.dwSize.X - 1, originalScreenInfo.dwSize.Y - 1 };
+                WriteConsoleOutput(mhOutput, &originalConsoleBuf[0], originalScreenInfo.dwSize, { 0, 0 }, &writeRegion);
+                SetConsoleCursorPosition(mhOutput, originalScreenInfo.dwCursorPosition);
+                SetConsoleTextAttribute(mhOutput, originalScreenInfo.wAttributes);
+            }
+            else
+            {
+                // Dimensions have changed, so just clear
+                DWORD count = si.dwSize.X * si.dwSize.Y;
+                FillConsoleOutputCharacter(mhOutput, (TCHAR)' ', count, { 0,0 }, &count);
+                FillConsoleOutputAttribute(mhOutput, si.wAttributes, count, { 0,0 }, &count);
+            }
+        }
 
         mbInitted = false;
         return true;
