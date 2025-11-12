@@ -964,6 +964,9 @@ tStringArray Table::Cell::GetLines(size_t width) const
 
 string Table::StyledOut(const string& s, size_t width, tOptionalStyle style)
 {
+    if (s.empty())
+        return PAD(width, ' ');
+
     if (style == nullopt)       // no style passed in and no member style
     {
         if (s.length() > width)
@@ -1235,6 +1238,141 @@ string RepeatString(const string& s, int64_t w)
 
 }*/
 
+void Table::DrawSeparatorRow(size_t row_num_including_top_bottom_borders, ostream& os)
+{
+    std::vector<char> aboveSeparators(renderWidth);
+    std::vector<char> belowSeparators(renderWidth);
+
+    string xl = borders[Table::XL];
+    if (row_num_including_top_bottom_borders == 0)
+        xl = borders[Table::TL];
+    else if (row_num_including_top_bottom_borders == mRows.size()+1)
+        xl = borders[Table::BL];
+    if (xl.empty())
+        xl = borders[Table::TOP];
+
+    string xr = borders[Table::XR];
+    if (row_num_including_top_bottom_borders == 0)
+        xr = borders[Table::TR];
+    else if (row_num_including_top_bottom_borders == mRows.size()+1)
+        xr = borders[Table::BR];
+    if (xr.empty())
+        xr = borders[Table::BOTTOM];
+
+    size_t startIndex = VisLength(xl);
+    size_t endIndex = renderWidth - VisLength(xr);
+    size_t sepLength = VisLength(borders[Table::CENTER]);
+
+    if (row_num_including_top_bottom_borders > 1)
+    {
+        Table::tCellArray& aboveRow = mRows[row_num_including_top_bottom_borders-2];
+           
+        size_t tally = 0;
+        for (size_t i = 0; i < aboveRow.size() - 1; i++)
+        {
+            tally += aboveRow[i].MinWidth() + sepLength;
+            aboveSeparators[tally] = '|';
+        }
+    }
+
+    if (row_num_including_top_bottom_borders < mRows.size())
+    {
+        Table::tCellArray& belowRow = mRows[row_num_including_top_bottom_borders];
+        size_t tally = 0;
+        for (size_t i = 0; i < belowRow.size() - 1; i++)
+        {
+            tally += belowRow[i].MinWidth() + sepLength;
+            belowSeparators[tally] = '|';
+        }
+    }
+
+
+
+
+    os << xl;
+    for (size_t x = startIndex; x < endIndex; x++)
+    {
+        bool bAboveSep = aboveSeparators[x] == '|';
+        bool bBelowSep = belowSeparators[x] == '|';
+        string drawSep;
+        if (bAboveSep && bBelowSep)
+            drawSep = borders[Table::XC];
+        else if (bAboveSep && !bBelowSep)
+            drawSep = borders[Table::XB];
+        else if (!bAboveSep && bBelowSep)
+            drawSep = borders[Table::XT];
+        else
+            drawSep = borders[Table::TOP];
+        os << drawSep;
+    }
+    os << xr << "\n";
+}
+
+/*
+void Table::DrawSeparatorRow(size_t row_num, ostream& os)
+{
+    std::vector<size_t> aboveWidths;
+    std::vector<size_t> belowWidths;
+
+    std::vector<char> aboveSeparators(renderWidth);
+    std::vector<char> belowSeparators(renderWidth);
+
+    string xl = borders[Table::XL];
+    if (xl.empty())
+        xl = borders[Table::TOP];
+    string xr = borders[Table::XR];
+    if (xr.empty())
+        xr = borders[Table::XR];
+
+    size_t startIndex = VisLength(xl);
+    size_t endIndex = renderWidth - VisLength(xr);
+    size_t sepLength = VisLength(borders[Table::CENTER]);
+
+    if (row_num > 0)
+    {
+        aboveWidths = colCountToColWidths[mRows[row_num - 1].size()];
+        size_t tally = startIndex;
+        for (size_t i = 0; i < aboveWidths.size() - 1; i++)
+        {
+            tally += aboveWidths[i] + sepLength;
+            aboveSeparators[tally] = '|';
+        }
+    }
+
+    if (row_num < mRows.size() - 1)
+    {
+        belowWidths = colCountToColWidths[mRows[row_num + 1].size()];
+        size_t tally = startIndex;
+        for (size_t i = 0; i < belowWidths.size() - 1; i++)
+        {
+            tally += belowWidths[i] + sepLength;
+            belowSeparators[tally] = '|';
+        }
+    }
+
+
+
+
+    os << xl;
+    for (size_t x = startIndex; x < endIndex; x++)
+    {
+        bool bAboveSep = aboveSeparators[x] == '|';
+        bool bBelowSep = belowSeparators[x] == '|';
+        string drawSep;
+        if (bAboveSep && bBelowSep)
+            drawSep = borders[Table::XC];
+        else if (bAboveSep && !bBelowSep)
+            drawSep = borders[Table::XB];
+        else if (!bAboveSep && bBelowSep)
+            drawSep = borders[Table::XT];
+        else
+            drawSep = borders[Table::TOP];
+        os << drawSep;
+    }
+    os << xr << "\n";
+}
+*/
+
 void Table::DrawRow(size_t row_num, ostream& os)
 {
     if (row_num > mRows.size())
@@ -1247,75 +1385,58 @@ void Table::DrawRow(size_t row_num, ostream& os)
     size_t linecount = 0;
     size_t cols = row.size();
 
-    if (cols == 1 && row[0].separator)
+    std::vector< tStringArray > cellColumns;
+    std::vector< Style > cellStyles;
+    for (size_t col = 0; col < cols; col++)
     {
-        // Special logic to draw a separator row
-        string xl = borders[Table::XL];
-        if (xl.empty())
-            xl = borders[Table::TOP];
-        string xr = borders[Table::XR];
-        if (xr.empty())
-            xr = borders[Table::XR];
+        const auto& cell = row[col];
+        Style cellStyle = ResolveStyle(col, row_num);
+        size_t w = colCountToColWidths[cols][col] - cellStyle.padding * 2;
 
-        os << xl;
-        os << RepeatString(borders[Table::TOP], renderWidth - 2);
-        os << xr << "\n";
+        tStringArray lines = cell.GetLines(w);
+        linecount = std::max<size_t>(lines.size(), linecount);
+        cellColumns.push_back(std::move(lines));
+        cellStyles.push_back(cellStyle);
     }
-    else
+
+    for (size_t line_num = 0; line_num < linecount; line_num++)
     {
-        std::vector< tStringArray > cellColumns;
-        std::vector< Style > cellStyles;
-        for (size_t col = 0; col < cols; col++)
+        size_t cursor = 0;
+        size_t nEndDraw = renderWidth - VisLength(borders[Table::RIGHT]);
+
+        string separator = borders[Table::CENTER];
+
+        // draw left border
+        os << tableStyle  << borders[Table::LEFT] << COL_RESET;
+        cursor += VisLength(borders[Table::LEFT]);
+
+
+        for (size_t col = 0; col < cellColumns.size(); col++)
         {
-            const auto& cell = row[col];
-            Style cellStyle = ResolveStyle(col, row_num);
-            size_t w = colCountToColWidths[cols][col] - cellStyle.padding * 2;
-
-            tStringArray lines = cell.GetLines(w);
-            linecount = std::max<size_t>(lines.size(), linecount);
-            cellColumns.push_back(std::move(lines));
-            cellStyles.push_back(cellStyle);
-        }
-
-        for (size_t line_num = 0; line_num < linecount; line_num++)
-        {
-            size_t cursor = 0;
-            size_t nEndDraw = renderWidth - VisLength(borders[Table::RIGHT]);
-
-            string separator = borders[Table::CENTER];
-
-            // draw left border
-            os << tableStyle  << borders[Table::LEFT] << COL_RESET;
-            cursor += VisLength(borders[Table::LEFT]);
-
-
-            for (size_t col = 0; col < cellColumns.size(); col++)
+            bool bLastColumnInRow = (col == cols - 1);
+            if (line_num < cellColumns[col].size()) // if this cell has text on this line
             {
-                bool bLastColumnInRow = (col == cols - 1);
-                if (line_num < cellColumns[col].size()) // if this cell has text on this line
-                {
-                    string unstyled = cellColumns[col][line_num];
-                    string styled = StyledOut(unstyled, colCountToColWidths[cols][col], cellStyles[col]);
-                    os << cellStyles[col] << styled << tableStyle;
-                    cursor += VisLength(styled);
-                }
-                else
-                {
-                    os << PAD(colCountToColWidths[cols][col], tableStyle.padchar);
-                    cursor += colCountToColWidths[cols][col];
-                }
+                string unstyled = cellColumns[col][line_num];
+                string styled = StyledOut(unstyled, colCountToColWidths[cols][col], cellStyles[col]);
+                os << cellStyles[col] << styled << tableStyle;
+                cursor += VisLength(styled);
+            }
+            else
+            {
+                os << PAD(colCountToColWidths[cols][col], tableStyle.padchar);
+                cursor += colCountToColWidths[cols][col];
+            }
 
-                // Output a separator for all but last column
-                if (!bLastColumnInRow /*&& cursor < nEndDraw*/)
-                {
-                    os << separator << tableStyle;
-                    cursor += VisLength(separator);
-                }
-                else
-                {
-                    if (cursor < nEndDraw)
-                        os << cellStyles[col] << PAD(nEndDraw - cursor, tableStyle.padchar) << tableStyle;
-                }
+            // Output a separator for all but last column
+            if (!bLastColumnInRow /*&& cursor < nEndDraw*/)
+            {
+                os << separator << tableStyle;
+                cursor += VisLength(separator);
+            }
+            else
+            {
+                if (cursor < nEndDraw)
+                    os << cellStyles[col] << PAD(nEndDraw - cursor, tableStyle.padchar) << tableStyle;
             }
         }
 
@@ -1342,7 +1463,7 @@ ostream& operator <<(ostream& os, Table& tableOut)
     size_t renderWidth = tableOut.renderWidth;
 
     // Draw top border, (with corners if specified);
-    if (!tableOut.borders[Table::TOP].empty())
+/*    if (!tableOut.borders[Table::TOP].empty())
     {
         string tl = tableOut.borders[Table::TL];
         if (tl.empty())
@@ -1354,15 +1475,23 @@ ostream& operator <<(ostream& os, Table& tableOut)
         os << tl;
         os << RepeatString(tableOut.borders[Table::TOP], renderWidth-2);
         os << tr + COL_RESET "\n";
-    }
+    }*/
+    tableOut.DrawSeparatorRow(0, os);
 
     for (size_t row_num = 0; row_num < tableOut.mRows.size(); row_num++)
     {
-        tableOut.DrawRow(row_num, os);
+        // check if row is separator
+        const Table::tCellArray& row = tableOut.mRows[row_num];
+        if (row.size() == 1 && row[0].separator)
+            tableOut.DrawSeparatorRow(row_num+1, os);
+        else
+            tableOut.DrawRow(row_num, os);
     }
 
+    tableOut.DrawSeparatorRow(tableOut.mRows.size()+1, os);
+
     // Draw bottom border, (with corners if specified);
-    if (!tableOut.borders[Table::BOTTOM].empty())
+/*    if (!tableOut.borders[Table::BOTTOM].empty())
     {
         string bl = tableOut.borders[Table::BL];
         if (bl.empty())
@@ -1374,7 +1503,7 @@ ostream& operator <<(ostream& os, Table& tableOut)
         os << bl;
         os << RepeatString(tableOut.borders[Table::BOTTOM], renderWidth - 2);
         os << br + COL_RESET "\n";
-    }
+    }*/
 
     return os;
 }

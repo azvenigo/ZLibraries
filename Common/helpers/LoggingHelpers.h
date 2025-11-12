@@ -828,6 +828,8 @@ protected:
     std::string StyledOut(const std::string& s, size_t width, tOptionalStyle style = std::nullopt);
 
     void DrawRow(size_t row_num, std::ostream& os);
+    void DrawSeparatorRow(size_t row_num, std::ostream& os);
+
 
     size_t CellWidth(size_t row, size_t col);
     bool bLayoutNeedsUpdating = true;
