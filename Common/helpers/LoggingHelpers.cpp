@@ -1266,11 +1266,12 @@ void Table::DrawSeparatorRow(size_t row_num_including_top_bottom_borders, ostrea
     if (row_num_including_top_bottom_borders > 1)
     {
         Table::tCellArray& aboveRow = mRows[row_num_including_top_bottom_borders-2];
+        std::vector<size_t> aboveWidths = colCountToColWidths[aboveRow.size()];
            
         size_t tally = 0;
-        for (size_t i = 0; i < aboveRow.size() - 1; i++)
+        for (size_t i = 0; i < aboveWidths.size() - 1; i++)
         {
-            tally += aboveRow[i].MinWidth() + sepLength;
+            tally += aboveWidths[i] + sepLength;
             aboveSeparators[tally] = '|';
         }
     }
@@ -1278,10 +1279,12 @@ void Table::DrawSeparatorRow(size_t row_num_including_top_bottom_borders, ostrea
     if (row_num_including_top_bottom_borders < mRows.size())
     {
         Table::tCellArray& belowRow = mRows[row_num_including_top_bottom_borders];
+        std::vector<size_t> belowWidths = colCountToColWidths[belowRow.size()];
+
         size_t tally = 0;
-        for (size_t i = 0; i < belowRow.size() - 1; i++)
+        for (size_t i = 0; i < belowWidths.size() - 1; i++)
         {
-            tally += belowRow[i].MinWidth() + sepLength;
+            tally += belowWidths[i] + sepLength;
             belowSeparators[tally] = '|';
         }
     }
