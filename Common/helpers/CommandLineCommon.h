@@ -378,9 +378,9 @@ namespace CLP
 
         tConsoleBuffer mBackBuffer;
         tConsoleBuffer mDrawStateBuffer;
+        std::string    msAnsiOut;
 
         int64_t frontBufferIndex = 0;
-        //CONSOLE_SCREEN_BUFFER_INFO screenInfo;
         Rect screenInfo;
 
         CONSOLE_SCREEN_BUFFER_INFO originalScreenInfo;

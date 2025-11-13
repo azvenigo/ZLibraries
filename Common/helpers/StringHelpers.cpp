@@ -24,6 +24,17 @@ using namespace std;
 #pragma warning(disable : 4244)
 #endif
 
+
+inline unsigned char toUpperASCII(unsigned char c)
+{
+    return (c >= 'a' && c <= 'z') ? (c & 0xDF) : c;
+}
+
+inline unsigned char toLowerASCII(unsigned char c)
+{
+    return (c >= 'A' && c <= 'Z') ? (c | 0x20) : c;
+}
+
 string	SH::wstring2string(const wstring& sVal)
 {
     return string(sVal.begin(), sVal.end());
@@ -202,7 +213,7 @@ bool SH::Compare(const string& a, const string& b, bool bCaseSensitive)
     if (bCaseSensitive)
         return a.compare(b) == 0;
 
-    return ((a.size() == b.size()) && equal(a.begin(), a.end(), b.begin(), [](auto char1, auto char2) { return toupper(char1) == toupper(char2); }));
+    return ((a.size() == b.size()) && equal(a.begin(), a.end(), b.begin(), [](auto char1, auto char2) { return toUpperASCII(char1) == toUpperASCII(char2); }));
 }
 
 bool SH::StartsWith(const std::string& a, const std::string& prefix, bool bCaseSensitive)
@@ -214,7 +225,7 @@ bool SH::StartsWith(const std::string& a, const std::string& prefix, bool bCaseS
     if (bCaseSensitive)
         return prefix.compare(a.substr(0, len)) == 0;
 
-    return (equal(a.begin(), a.begin() + len, prefix.begin(), [](auto char1, auto char2) { return toupper(char1) == toupper(char2); }));
+    return (equal(a.begin(), a.begin() + len, prefix.begin(), [](auto char1, auto char2) { return toUpperASCII(char1) == toUpperASCII(char2); }));
 }
 
 bool SH::EndsWith(const std::string& a, const std::string& suffix, bool bCaseSensitive)
@@ -227,22 +238,21 @@ bool SH::EndsWith(const std::string& a, const std::string& suffix, bool bCaseSen
     if (bCaseSensitive)
         return suffix.compare(a.substr(offset)) == 0;
 
-    return (equal(a.begin() + offset, a.end(), suffix.begin(), [](auto char1, auto char2) { return toupper(char1) == toupper(char2); }));
+    return (equal(a.begin() + offset, a.end(), suffix.begin(), [](auto char1, auto char2) { return toUpperASCII(char1) == toUpperASCII(char2); }));
 }
+
+
+
+
 
 bool SH::Contains(const string& a, const string& sub, bool bCaseSensitive)
 {
     if (bCaseSensitive)
         return a.find(sub) != string::npos;
 
-    string a2(a);
-    string sub2(sub);
-
-    makeupper(a2);
-    makeupper(sub2);
-    return a2.find(sub2) != string::npos;
+    auto it = std::search(a.begin(), a.end(), sub.begin(), sub.end(), [](unsigned char ch1, unsigned char ch2) { return toUpperASCII(ch1) == toUpperASCII(ch2); });
+    return it != a.end();
 }
-
 
 // Converts user readable numbers into ints
 // Supports hex (0x12345)

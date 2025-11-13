@@ -528,6 +528,9 @@ namespace CLP
         mBackBuffer.resize(screenchars);
         mDrawStateBuffer.resize(screenchars);
 
+        msAnsiOut.reserve((size_t)(screenchars * 8)); // rough estimate
+
+
         DWORD written;
         COORD origin = { 0, 0 };
         FillConsoleOutputCharacter(mhOutput, ' ', (DWORD)screenchars, origin, &written);
@@ -840,7 +843,8 @@ namespace CLP
         */
 
         // ansi regions
-        string ansiOut;
+        msAnsiOut.clear();
+
         ZAttrib currentAttrib;
         bool needAttribReset = true;  // Force first attribute write
 
@@ -858,27 +862,27 @@ namespace CLP
                     continue;
                 
                 // ansi
-                ansiOut += "\033[" + std::to_string(y + 1) + ";" + std::to_string(x + 1) + "H";
+                msAnsiOut += "\033[" + std::to_string(y + 1) + ";" + std::to_string(x + 1) + "H";
 
                 if (needAttribReset || c.attrib != currentAttrib)
                 {
-                    ansiOut += c.attrib.ToAnsi();
+                    msAnsiOut += c.attrib.ToAnsi();
                     currentAttrib = c.attrib;
                     needAttribReset = false;
                 }
 
                 // Write character (handle control chars and a==0 like before)
                 if (c.c < 32)
-                    ansiOut += ' ';
+                    msAnsiOut += ' ';
                 else
-                    ansiOut += (char)c.c;
+                    msAnsiOut += (char)c.c;
             }
         }
 
-        if (!ansiOut.empty())
+        if (!msAnsiOut.empty())
         {
             DWORD written;
-            WriteConsole(mhOutput, ansiOut.c_str(), (DWORD)ansiOut.length(), &written, NULL);
+            WriteConsole(mhOutput, msAnsiOut.c_str(), (DWORD)msAnsiOut.length(), &written, NULL);
         }
 
         SetCursorPosition(savePos, true);
