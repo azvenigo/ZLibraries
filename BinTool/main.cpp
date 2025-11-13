@@ -7,7 +7,6 @@
 #include "helpers/LoggingHelpers.h"
 #include "helpers/Crc32Fast.h"
 #include "helpers/sha256.h"
-#include <filesystem>
 #include <fstream>
 //#include <Windows.h>
 
@@ -49,7 +48,8 @@ bool Overwrite(const std::string& sSourcePath, const std::string& sDestPath, int
     dstFile.seekp(nDestOffset, std::ios::beg);
 
 
-    char* pBytesToCopy = new char[(uint32_t)nBytes];
+    vector<char> bytesToCopy(nBytes);
+    char* pBytesToCopy = &bytesToCopy[0];
     if (!pBytesToCopy)
     {
         cerr << "Failed to allocate:" << nBytes << "\n";
@@ -64,15 +64,12 @@ bool Overwrite(const std::string& sSourcePath, const std::string& sDestPath, int
     }
 
     dstFile.write(pBytesToCopy, nBytes);
-    if (srcFile.fail())
     {
         cerr << "Failed write to dest\n";
         return false;
     }
 
     dstFile.seekp(0, std::ios::end);
-
-    delete[] pBytesToCopy;
 
     return true;
 }
@@ -126,7 +123,7 @@ bool Extract(const std::string& sSourcePath, const std::string& sDestPath, int64
 
     int64_t nSourceSize = std::filesystem::file_size(sSourcePath);
 
-    if (nSourceOffset + nBytes >= nSourceSize)
+    if (nSourceOffset + nBytes > nSourceSize)
     {
         cerr << "Source range outside of source file bytes.\n";
         return false;

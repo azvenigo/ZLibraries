@@ -92,7 +92,7 @@ int64_t ReaderWin::CalculateWordsThatFitInWidth(int64_t nLineWidth, const uint8_
             pFind++;    // skip
 
             // If nextchar is combo \r \n skip it too
-            if (pFind < pEnd+1 && (*(pFind+1) == '\r' || *(pFind + 1) == '\n'))
+            if (pFind +1 <= pEnd && (*(pFind+1) == '\r' || *(pFind + 1) == '\n'))
                 pFind++;
 
             return pFind - pChars;
@@ -171,7 +171,7 @@ tStringList ReaderWin::GetLines(const string& rawText) const
             end = start + CalculateWordsThatFitInWidth(drawArea.w(), (uint8_t*)&rawText[start], rawText.length() - start);
             rows.push_back(rawText.substr(start, end - start));
             start = end;
-            if (start < rawText.length() && rawText[start] == '\r' || rawText[start] == '\n')
+            if (start < rawText.length() && (rawText[start] == '\r' || rawText[start] == '\n'))
                 start++;
 
         } while (end < rawText.length());
@@ -191,9 +191,11 @@ void ReaderWin::UpdateFiltered()
 
     filteredRows.clear();
     if (sFilter.empty())
+    {
         filteredRows = rows;
+        return;
+    }
 
-    int64_t count = 0;
     for (const auto& s : rows)
     {
         if (SH::Contains(s, sFilter, false))
@@ -853,12 +855,10 @@ int main(int argc, char* argv[])
     CommandLineParser parser;
     string sFilename;
     string sFilter;
-    int64_t nStartLineNumber = 0;
 
     parser.RegisterAppDescription("Reader application for scrolling through or searching text files or piped input.");
     parser.RegisterParam(ParamDesc("PATH", &sFilename, CLP::kOptional | CLP::kExistingPath, "Optional path to read from if no piped input."));
     parser.RegisterParam(ParamDesc("FILTER", &sFilter, CLP::kNamed | CLP::kOptional, "Filter lines including this text."));
-    parser.RegisterParam(ParamDesc("start", &nStartLineNumber, CLP::kNamed | CLP::kOptional, "Starting line number"));
 
     if (readerWin.ReadPipe())
     {

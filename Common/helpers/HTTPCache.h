@@ -12,6 +12,7 @@
 #include <map>
 #include <mutex>
 #include <memory>
+#include <chrono>
 
 const uint32_t kHTTPCacheLineSize = 64 * 1024;
 const uint32_t kMaxCacheLines = 64;
