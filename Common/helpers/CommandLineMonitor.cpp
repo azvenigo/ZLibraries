@@ -32,7 +32,7 @@ namespace CLP
     {
         if (mbVisible != bVisible)
         {
-            invalid = true;
+            mbWindowInvalid = true;
 
             // if log window is visible, hook CTRL-S for saving (otherwise it is a suspend command to a console app)
             HookCTRL_S(bVisible);
@@ -71,23 +71,23 @@ namespace CLP
         if (lastReportedLogCount != LOG::gLogger.getEntryCount())
         {
             lastReportedLogCount = LOG::gLogger.getEntryCount();
-            invalid = true;
+            mbWindowInvalid = true;
         }
 
         if (filterTextEntryWin.GetText() != sFilter)
         {
             sFilter = filterTextEntryWin.GetText();
             LOG::gLogger.setFilter(sFilter);
-            invalid = true;
+            mbWindowInvalid = true;
         }
 
         if (saveLogFilenameEntryWin.GetText() != sLogFilename)
         {
             sLogFilename = saveLogFilenameEntryWin.GetText();
-            invalid = true;
+            mbWindowInvalid = true;
         }
 
-        if (invalid)
+        if (mbWindowInvalid)
         {
             Rect drawArea;
             GetInnerArea(drawArea);
@@ -219,7 +219,7 @@ namespace CLP
             gConsole.Invalidate();
         }
 
-        invalid = false;
+        mbWindowInvalid = false;
     }
 
     void LogWin::UpdateCaptions()
@@ -411,7 +411,7 @@ namespace CLP
             saveLogFilenameEntryWin.Clear(ZAttrib(0xff666699ffffffff));
             saveLogFilenameEntryWin.SetArea(Rect(logWin.mX + 15, mY + mHeight - 1, mX + mWidth, mY + mHeight));
             saveLogFilenameEntryWin.SetVisible();
-            invalid = true;
+            mbWindowInvalid = true;
         }
     }
 
@@ -436,61 +436,61 @@ namespace CLP
         if (keycode == VK_UP)
         {
             mTopVisibleRow--;
-            invalid = true;
+            mbWindowInvalid = true;
             bHandled = true;
         }
         else if (keycode == VK_DOWN)
         {
             mTopVisibleRow++;
-            invalid = true;
+            mbWindowInvalid = true;
             bHandled = true;
         }
         else if (keycode == VK_HOME)
         {
             mTopVisibleRow = 0;
-            invalid = true;
+            mbWindowInvalid = true;
             bHandled = true;
         }
         else if (keycode == VK_PRIOR)
         {
             mTopVisibleRow -= mHeight;
-            invalid = true;
+            mbWindowInvalid = true;
             bHandled = true;
         }
         else if (keycode == VK_NEXT)
         {
             mTopVisibleRow += mHeight;
-            invalid = true;
+            mbWindowInvalid = true;
             bHandled = true;
         }
         else if (keycode == VK_END)
         {
             mTopVisibleRow = entryCount - mHeight;
-            invalid = true;
+            mbWindowInvalid = true;
             bHandled = true;
         }
         else if (keycode == '1')
         {
             viewCountEnabled = !viewCountEnabled;
-            invalid = true;
+            mbWindowInvalid = true;
             bHandled = true;
         }
         else if (keycode == '2')
         {
             viewDateTime = (viewDateTime + 1) % 6;  // rotate over possible options
-            invalid = true;
+            mbWindowInvalid = true;
             bHandled = true;
         }
         else if (keycode == '3')
         {
             viewColoredThreads = !viewColoredThreads;
-            invalid = true;
+            mbWindowInvalid = true;
             bHandled = true;
         }
         else if (keycode == '4')
         {
             viewColorWarningsAndErrors = !viewColorWarningsAndErrors;
-            invalid = true;
+            mbWindowInvalid = true;
             bHandled = true;
         }
         else if (keycode == 'f' || keycode == 'F')
@@ -503,7 +503,7 @@ namespace CLP
                     filterTextEntryWin.SetArea(Rect(mX + 11, mY + mHeight - 3, mX + mWidth - 11, mY + mHeight));
                     filterTextEntryWin.SetEnableFrame();
                     filterTextEntryWin.SetVisible();
-                    invalid = true;
+                    mbWindowInvalid = true;
                 }
                 bHandled = true;
             }

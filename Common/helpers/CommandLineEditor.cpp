@@ -234,15 +234,15 @@ namespace CLP
                 if (mLocalCursorPos.Y + firstVisibleRow == 0 && !commandHistory.empty())
                 {
                     // select everything
-                    selectionstart = 0;
-                    selectionend = mText.size();
+                    mSelection.start = 0;
+                    mSelection.end = mText.size();
 
                     // show history window
                     historyWin.SetVisible(true);
                     historyWin.positionCaption[Position::CT] = "History";
                     historyWin.positionCaption[Position::RB] = "[ESC-Cancel] [ENTER-Select] [DEL-Delete Entry]";
                     historyWin.mMinWidth = gConsole.Width();
-                    historyWin.SetEntries(commandHistory, mText, selectionstart, mY);
+                    historyWin.SetEntries(commandHistory, mText, mSelection.start, mY);
                     bHandled = true;
                 }
             }
@@ -283,8 +283,8 @@ namespace CLP
             string sText;
             GetParameterUnderIndex(cursorIndex, start, end, sText);
 
-            selectionstart = start;
-            selectionend = end;
+            mSelection.start = (int64_t)start;
+            mSelection.end = (int64_t)end;
             gConsole.Invalidate();
             return true;
         }
@@ -308,7 +308,7 @@ namespace CLP
 
         // scroll if selection is not on screen
         if (mSelection < mTopVisibleRow+1)
-            mTopVisibleRow = mSelection-1;
+            mTopVisibleRow = mSelection;
         else if (mSelection > mTopVisibleRow+visibleRows)
             mTopVisibleRow = (mSelection-visibleRows);
 
@@ -459,7 +459,7 @@ namespace CLP
             bHandled = true;
             break;
         case VK_NEXT:
-            mSelection+=mHeight;
+            mSelection +=mHeight;
             if (mSelection >= (int64_t)mEntries.size()-1)
                 mSelection = (int64_t)mEntries.size() - 1;
             bHandled = true;
@@ -567,7 +567,7 @@ namespace CLP
 
     void ListboxWin::UpdateCaptions()
     {
-        positionCaption[ConsoleWin::Position::RT] = "(" + SH::FromInt(mSelection+1) + "/" + SH::FromInt(mEntries.size()) + ")";
+        positionCaption[ConsoleWin::Position::RT] = "(" + SH::FromInt(mSelection +1) + "/" + SH::FromInt(mEntries.size()) + ")";
     }
 
 
@@ -1160,12 +1160,12 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
         int64_t cursorIndex = CursorToTextIndex(mLocalCursorPos);
         GetParameterUnderIndex(cursorIndex, start, end, sText);
 
-        selectionstart = start;
-        selectionend = end;
+        mSelection.start = (int64_t) start;
+        mSelection.end = (int64_t) end;
 
         // Find set of auto complete for param
 
-        COORD anchor = TextIndexToCursor(selectionstart);
+        COORD anchor = TextIndexToCursor(mSelection.start);
         anchor.Y += (SHORT)mY;
 
 
@@ -1268,7 +1268,7 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
 
         for (size_t textindex = 0; textindex < mText.length(); textindex++)
         {
-            if (IsIndexInSelection(textindex))
+            if (mSelection.IsInside(textindex))
                 attribs[textindex] = kSelectedText;
         }
 
@@ -1542,10 +1542,10 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
                 h = 8;
 
             topInfoBuf.Clear(kAttribTopInfoBG);
-            topInfoBuf.SetArea(Rect(0, 1, w, 2));
+            topInfoBuf.SetArea(Rect(0, 0, w, 2));
 
             paramListBuf.Clear(kAttribParamListBG);
-            paramListBuf.SetArea(Rect(0, 2, w, h - 5));
+            paramListBuf.SetArea(Rect(0, 1, w, h - 5));
 
             usageBuf.Clear(kAttribTopInfoBG);
             usageBuf.SetArea(Rect(0, h - 5, w, h - 4));
@@ -1554,7 +1554,7 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
             rawCommandBuf.SetArea(Rect(0, h - 4, w, h));
 
             helpTableWin.Clear(kAttribHelpBG, true);
-            helpTableWin.SetArea(Rect(0, 1, w, h));
+            helpTableWin.SetArea(Rect(0, 0, w, h));
             helpTableWin.SetEnableFrame();
             helpTableWin.UpdateCaptions();
 
@@ -1578,7 +1578,7 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
 
     void CommandLineEditor::ShowHelp()
     {
-        helpTableWin.Init(Rect(0, 1, gConsole.Width(), gConsole.Height()));
+        helpTableWin.Init(Rect(0, 0, gConsole.Width(), gConsole.Height()));
         helpTableWin.Clear(kAttribHelpBG, true);
         gConsole.Invalidate();
 
@@ -1876,7 +1876,7 @@ void ParamListWin::Paint(tConsoleBuffer& backBuf)
                         if (inputRecord[i].EventType == MOUSE_EVENT)
                         {
                             MOUSE_EVENT_RECORD event = inputRecord[i].Event.MouseEvent;
-                            event.dwMousePosition.Y++;  // adjust for our coords
+                            //event.dwMousePosition.Y++;  // adjust for our coords
                             OnMouse(event);
                         }
                         else if (inputRecord[i].EventType == KEY_EVENT && inputRecord[i].Event.KeyEvent.bKeyDown)

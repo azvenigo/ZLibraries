@@ -55,7 +55,6 @@ namespace CLP
         bool        viewAtEnd = true;
         size_t      lastReportedLogCount;
 
-        bool        invalid = true;
         bool        viewCountEnabled = true;
         uint8_t     viewDateTime = kTimeElapsed;
         bool        viewColoredThreads = false;

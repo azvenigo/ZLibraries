@@ -89,9 +89,19 @@ inline int64_t GetUSSinceEpoch()
     return std::chrono::system_clock::now().time_since_epoch() / std::chrono::microseconds(1);
 }
 
-
 namespace CLP
 {
+    inline bool IsWhitespace(char c)
+    {
+        return  c == ' ' || c == '\n' || c == '\r' || c == '\t' || c == '\f' || c == '\v';
+    }
+
+    inline bool IsBreakingChar(char c)
+    {
+        return c == ';' || c == '.' || IsWhitespace(c);
+    }
+
+
     const int CTRL_V_HOTKEY = 1;
     const int SHIFT_INSERT_HOTKEY = 2;
     const int CTRL_S_HOTKEY = 3;
@@ -270,7 +280,7 @@ namespace CLP
 
     // Styles
     extern ZAttrib kAttribAppName;
-    extern ZAttrib kAttribCaption;
+    extern ZAttrib kAttribFrame;
     extern ZAttrib kAttribSection;
     extern ZAttrib kAttribFolderListBG;
     extern ZAttrib kAttribListBoxBG;
@@ -289,9 +299,15 @@ namespace CLP
     extern ZAttrib kAttribScrollbarBG;
     extern ZAttrib kAttribScrollbarThumb;
 
+
+    typedef std::vector<ZAttrib> tAttribArray;
+    typedef std::vector<ZChar> tConsoleBuffer;
+
+
+#define UNDEF -1
     struct Rect
     {
-        Rect(int64_t _l = 0, int64_t _t = 0, int64_t _r = 0, int64_t _b = 0)
+        Rect(int64_t _l = UNDEF, int64_t _t = UNDEF, int64_t _r = UNDEF, int64_t _b = UNDEF)
         {
             l = _l;
             t = _t;
@@ -299,8 +315,50 @@ namespace CLP
             b = _b;
         };
 
+        void Clear()
+        {
+            l = UNDEF;
+            t = UNDEF;
+            r = UNDEF;
+            b = UNDEF;
+        };
+
+        bool Valid() const
+        {
+            return l != UNDEF && t != UNDEF && r != UNDEF && b != UNDEF;
+        }
+
+        void Normalize()
+        {
+            if (l > r)
+                std::swap(l, r);
+            if (t > b)
+                std::swap(t, b);
+        }
+
+        bool ClipTo(const Rect& clipping)
+        {
+            if (l < clipping.l)
+                l = clipping.l;
+            if (r > clipping.r)
+                r = clipping.r;
+            if (t < clipping.t)
+                t = clipping.t;
+            if (b > clipping.b)
+                b = clipping.b;
+
+            return r > l && b > t;  // true if clipped has area
+        }
+
+        bool IsInside(int64_t x, int64_t y) const
+        {
+            return (x > l && x <= r && y > t && y <= b);
+        };
+
+
         int64_t w() const { return r - l; }
         int64_t h() const { return b - t; }
+
         void offset(int64_t dx, int64_t dy)
         {
             l += dx;
@@ -315,9 +373,109 @@ namespace CLP
         int64_t b;
     };
 
-    typedef std::vector<ZAttrib> tAttribArray;
-    typedef std::vector<ZChar> tConsoleBuffer;
+    struct Point
+    {
+        Point(int64_t _x = UNDEF, int64_t _y = UNDEF) : x(_x), y(_y) {}
+        Point(const Point& rhs) : x(rhs.x), y(rhs.y) {}
+        bool Valid() const
+        {
+            return x != UNDEF && y != UNDEF;
+        }
 
+        void Clear()
+        {
+            x = UNDEF;
+            y = UNDEF;
+        }
+
+        int64_t x;
+        int64_t y;
+    };
+
+    class IndexSelection
+    {
+    public:
+        IndexSelection(int64_t _start = UNDEF, int64_t _end = UNDEF) : start(_start), end(_end) {}
+        void Clear() 
+        { 
+            start = UNDEF; 
+            end = UNDEF; 
+        }
+
+        bool Valid() const
+        {
+            return start != UNDEF && end != UNDEF;
+        }
+
+        void Normalize()
+        {
+            if (start > end)
+                std::swap(start, end);
+        }
+
+        bool IsInside(int64_t index) const
+        {
+            return (index >= start && index < end);
+        };
+
+        int64_t start;
+        int64_t end;
+    };
+
+    class RowColSelection
+    {
+    public:
+        RowColSelection(int64_t _startX = UNDEF, int64_t _startY = UNDEF, int64_t _endX = UNDEF, int64_t _endY = UNDEF) : start(_startX, _startY), end(_endX, _endY) {}
+        RowColSelection(const Point& _start, const Point& _end)
+        {
+            start = _start;
+            end = _end;
+        }
+
+        void Clear()
+        {
+            start.Clear(); 
+            end.Clear(); 
+        }
+
+        bool Valid() const
+        {
+            return start.Valid() && end.Valid();
+        };
+
+        void Normalize()
+        {
+            if (start.y > end.y)
+            {
+                std::swap(start.y, end.y);
+            }
+            else if (start.y == end.y)
+            {
+                if (start.x > end.x)
+                    std::swap(start.x, end.x);
+            }
+        }
+
+        bool IsInside(int64_t x, int64_t y)
+        {
+            if (y < start.y || y > end.y)
+                return false;
+
+
+            if (y == start.y)           // top line, anything after and including start.x
+                return x >= start.x;
+
+            if (y == end.y)
+                return x <= end.x;       // last line, anything before end.x
+
+            // otherwise it's an inclusive row
+            return true;
+        };
+
+        Point start;
+        Point end;
+
+    };
 
 
     class NativeConsole
@@ -427,6 +585,7 @@ namespace CLP
 
         virtual bool Init(const Rect& r);
         void SetEnableFrame(bool _l = 1, bool _t = 1, bool _r = 1, bool _b = 1);
+        void SetEnableSelection(bool bEnable = true);
         void Clear(ZAttrib attrib = 0, bool bGradient = false);
 
 
@@ -456,7 +615,7 @@ namespace CLP
         virtual void SetArea(const Rect& r);
         bool IsOver(int64_t x, int64_t y) { return mbVisible && x >= mX && x <= mX + mWidth && y >= mY && y <= mY + mHeight; }
         void GetArea(Rect& r);
-        void GetInnerArea(Rect& r) const;  // adjusted for frame
+        virtual void GetInnerArea(Rect& r) const;  // adjusted for frame
 
 
 
@@ -474,15 +633,30 @@ namespace CLP
 
     protected:
         void DrawScrollbar(const Rect& r, int64_t min, int64_t max, int64_t cur, ZAttrib bg, ZAttrib thumb);
+        void ClearSelection();
+        std::string GetSelectedText();
 
         ZAttrib mClearAttrib = 0;
-        bool mbGradient = false;
+        bool    mbGradient = false;
+        bool    mbWindowInvalid = true;
 
         int64_t mWidth = 0;
         int64_t mHeight = 0;
 
         int64_t mX = 0;
         int64_t mY = 0;
+
+        bool    mbMouseCapturing = false;
+        bool    mbSelectionEnabled = false;
+        bool    mbRectangularSelection = false;
+
+        RowColSelection mRowColSelection;
+        Rect            mRectSelection;
+
+/*        int64_t mSelectionStartX = 0;
+        int64_t mSelectionStartY = 0;
+        int64_t mSelectionEndX = 0;
+        int64_t mSelectionEndY = 0;*/
     };
 
 
@@ -496,7 +670,7 @@ namespace CLP
         void Paint(tConsoleBuffer& backBuf);
         bool OnKey(int keycode, char c);
         virtual bool OnMouse(MOUSE_EVENT_RECORD event);
-        void GetInnerArea(Rect& r) const;  // adjusted for scrollbar when needed
+        virtual void GetInnerArea(Rect& r) const;  // adjusted for scrollbar when needed
 
         virtual void UpdateCaptions();
 
@@ -561,13 +735,12 @@ namespace CLP
     {
         struct undoEntry
         {
-            undoEntry(const std::string& _text = "", int64_t _cursorindex = -1, int64_t _selectionstart = -1, int64_t _selectionend = -1) :
-                text(_text), cursorindex(_cursorindex), selectionstart(_selectionstart), selectionend(_selectionend) {}
+            undoEntry(const std::string& _text = "", int64_t _cursorindex = -1, IndexSelection _selection = {}) :
+                text(_text), cursorindex(_cursorindex), selection(_selection) {}
 
-            std::string text;
-            int64_t     cursorindex = -1;
-            int64_t     selectionstart = -1;
-            int64_t     selectionend = -1;
+            std::string     text;
+            int64_t         cursorindex = -1;
+            IndexSelection  selection;
         };
         typedef std::list<undoEntry> tUndoEntryList;
 
@@ -590,8 +763,8 @@ namespace CLP
         void UpdateFirstVisibleRow();
 
 
-        bool IsIndexInSelection(int64_t i);
-        bool IsTextSelected() { return selectionstart >= 0 && selectionend >= 0 && selectionstart != selectionend; }
+        //bool IsIndexInSelection(int64_t i);
+        bool IsTextSelected() { return mRowColSelection.Valid(); }
 
         void SetArea(const Rect& r);
 
@@ -623,13 +796,12 @@ namespace CLP
 
 
         std::string     mText;
+//        int64_t         mSelectionStartIndex;
+//        int64_t         mSelectionEndIndex;
+        IndexSelection mSelection;
 
         COORD mLocalCursorPos;
         int64_t firstVisibleRow = 0;
-        int64_t selectionstart = -1;
-        int64_t selectionend = -1;
-        bool bMouseCapturing = false;
-
 #ifdef _WIN64
         bool    bHotkeyHooked = false;
 #endif

@@ -400,7 +400,8 @@ namespace CLP
 {
     // Styles
     ZAttrib kAttribAppName(GOLD);
-    ZAttrib kAttribCaption(BLACK | MAKE_BG(GOLD));
+    ZAttrib kAttribFrame(BLACK | MAKE_BG(GOLD));
+    ZAttrib kAttribCaption(WHITE);
     ZAttrib kAttribSection(CYAN);
 
     ZAttrib kAttribFolderListBG(MAKE_BG(0xff000044));
@@ -423,9 +424,10 @@ namespace CLP
     ZAttrib kAttribError(RED);
     ZAttrib kAttribWarning(ORANGE);
 
-    ZAttrib kAttribScrollbarBG(BLACK|MAKE_BG(0xFF888888));
-    ZAttrib kAttribScrollbarThumb(WHITE|MAKE_BG(0xFFBBBBBB));
-
+//    ZAttrib kAttribScrollbarBG(BLACK | MAKE_BG(0xFF888888));
+//    ZAttrib kAttribScrollbarThumb(WHITE | MAKE_BG(0xFFBBBBBB));
+    ZAttrib kAttribScrollbarBG(BLACK | MAKE_BG(GOLD));
+    ZAttrib kAttribScrollbarThumb(WHITE | MAKE_BG(GOLD));
 
 
 /*    HANDLE mhInput;
@@ -1111,9 +1113,208 @@ namespace CLP
         }
     }
 
+    std::string ConsoleWin::GetSelectedText()
+    {
+        Rect inner;
+        GetInnerArea(inner);
+        string sSelected;
+        if (mRowColSelection.Valid())
+        {
+            mRowColSelection.Normalize();
+
+            for (int64_t y = mRowColSelection.start.y; y <= mRowColSelection.end.y; y++)
+            {
+                for (int64_t x = inner.l; x < inner.r; x++)
+                {
+                    int64_t index = y * mWidth + x;
+                    if (mRowColSelection.IsInside(x, y))
+                    {
+                        if (mBuffer[index].attrib.dec_line) // change dec_line drawing 
+                            sSelected.push_back('*');
+                        else
+                            sSelected.push_back(mBuffer[index].c);
+                    }
+                }
+
+
+                int64_t i = sSelected.length()-1;
+                while (i > 0 && sSelected[i] == ' ')
+                    i--;
+                sSelected = sSelected.substr(0, i+1);
+                sSelected += "\n";
+            }
+        }
+        else if (mRectSelection.Valid())
+        {
+            Rect clipped(mRectSelection);
+            clipped.Normalize();
+            clipped.ClipTo(inner);
+
+            for (int64_t y = clipped.t; y < clipped.b; y++)
+            {
+                for (int64_t x = clipped.l; x < clipped.r; x++)
+                {
+                    int64_t index = y * mWidth + x;
+                    if (mBuffer[index].attrib.dec_line) // change dec_line drawing 
+                        sSelected.push_back('*');
+                    else
+                        sSelected.push_back(mBuffer[index].c);
+                }
+
+                int64_t i = sSelected.length() - 1;
+                while (i > 0 && sSelected[i] == ' ')
+                    i--;
+                sSelected = sSelected.substr(0, i + 1);
+                sSelected += "\n";
+            }
+        }
+
+        return sSelected;
+    }
+
+
     bool ConsoleWin::OnMouse(MOUSE_EVENT_RECORD event)
     {
+        if (mbSelectionEnabled)
+        {
+
+            bool bALTHeld = GetKeyState(VK_MENU) & 0x800;
+
+            Rect inner;
+            GetInnerArea(inner);
+
+            Point local(event.dwMousePosition.X, event.dwMousePosition.Y);
+            if (local.x < inner.l)
+                local.x = inner.l;
+            else if (local.x > inner.r)
+                local.x = inner.r;
+            if (local.y < inner.t)
+                local.y = inner.t;
+            else if (local.y > inner.b)
+                local.y = inner.b;
+
+//            local.x += mX;
+//            local.y += mY;
+
+
+            //        cout << "over:" << localcoord.X << "," << localcoord.Y << " ";
+
+            if (event.dwEventFlags == 0)
+            {
+                if (event.dwButtonState == FROM_LEFT_1ST_BUTTON_PRESSED)
+                {
+                    mbRectangularSelection = bALTHeld;
+                    if (mbRectangularSelection)
+                    {
+                        mRowColSelection.Clear();
+                        mRectSelection.l = local.x;
+                        mRectSelection.t = local.y;
+                    }
+                    else
+                    {
+                        mRectSelection.Clear();
+                        mRowColSelection.start = local;
+                        mRowColSelection.end = local;
+                    }
+
+                    mbWindowInvalid = true;
+                    gConsole.Invalidate();
+                    mbMouseCapturing = true;
+                    return true;
+                }
+                else if (event.dwButtonState == RIGHTMOST_BUTTON_PRESSED)
+                {
+                    if (mRowColSelection.Valid() || mRectSelection.Valid())
+                        CopyTextToClipboard(GetSelectedText());
+                    gConsole.Invalidate();
+                }
+                else if (event.dwButtonState == 0 && mbMouseCapturing)
+                {
+                    // left button up
+                    if (mbRectangularSelection)
+                    {
+                        mRectSelection.r = local.x;
+                        mRectSelection.b = local.y;
+                        mRectSelection.Normalize();
+                        mRectSelection.ClipTo(inner);
+                        if (mRectSelection.l == mRectSelection.r && mRectSelection.t == mRectSelection.b)
+                            ClearSelection();
+                    }
+                    else
+                    {
+                        mRowColSelection.end = local;
+                        if (mRowColSelection.start.x == mRowColSelection.end.x && mRowColSelection.start.y == mRowColSelection.end.y)
+                            ClearSelection();
+                    }
+
+
+                    mbWindowInvalid = true;
+                    gConsole.Invalidate();
+                    mbMouseCapturing = false;
+                    return true;
+                }
+
+            }
+            else if (event.dwEventFlags == DOUBLE_CLICK)
+            {
+                mRowColSelection.start = local;
+                mRowColSelection.end = local;
+
+                int64_t sindex = (mRowColSelection.start.y * mWidth) + mRowColSelection.start.x;
+                int64_t eindex = sindex;
+                while (mRowColSelection.start.x-1 > inner.l && !IsBreakingChar(mBuffer[sindex-1].c))
+                {
+                    mRowColSelection.start.x--;
+                    sindex--;
+                }
+                while (mRowColSelection.end.x+1 < inner.r && !IsBreakingChar(mBuffer[eindex+1].c))
+                {
+                    mRowColSelection.end.x++;
+                    eindex++;
+                }
+
+                //mbMouseCapturing = true;
+                mbWindowInvalid = true;
+                gConsole.Invalidate();
+                return true;
+            }
+            else if (event.dwEventFlags == MOUSE_MOVED)
+            {
+                // mouse moved
+                if (mbMouseCapturing)
+                {
+                    if (mbRectangularSelection)
+                    {
+                        mRectSelection.r = local.x;
+                        mRectSelection.b = local.y;
+                    }
+                    else
+                    {
+                        mRowColSelection.end = local;
+                    }
+                    mbWindowInvalid = true;
+                    gConsole.Invalidate();
+                }
+/*                else
+                {
+                    mRowColSelection.start.x = local.x;
+                    mRowColSelection.start.y = local.y;
+                    mRowColSelection.end.x = local.x;
+                    mRowColSelection.end.y = local.y;
+                    mbWindowInvalid = true;
+                    gConsole.Invalidate();
+                }*/
+            }
+        }
+
         return false;
+    }
+
+    void ConsoleWin::ClearSelection()
+    {
+        mRowColSelection.Clear();
+        mRectSelection.Clear();
+        gConsole.Invalidate();
     }
 
 
@@ -1131,6 +1332,10 @@ namespace CLP
         r.t = 0;
         r.r = mWidth;
         r.b = mHeight;
+/*        r.l = 0;
+        r.t = 0;
+        r.r = 23;
+        r.b = 22;*/
 
         if (enableFrame[Side::L])
             r.l++;
@@ -1272,7 +1477,7 @@ namespace CLP
 
     Rect ConsoleWin::GetTextOuputRect(std::string text)
     {
-        Rect area;
+        Rect area(0, 0, 0, 0);
         int64_t x = 0;
         int64_t y = 0;
         ZAttrib attrib;
@@ -1384,20 +1589,29 @@ namespace CLP
 
         Clear(mClearAttrib, mbGradient);
 
+        ZAttrib bottomColor = kAttribFrame;
+        if (mbGradient)
+        {
+            double factor = pow(0.96, mHeight);
+            bottomColor.br = (uint64_t)(bottomColor.br * factor);
+            bottomColor.bg = (uint64_t)(bottomColor.bg * factor);
+            bottomColor.bb = (uint64_t)(bottomColor.bb * factor);
+        }
+
         // Fill 
         Fill(Rect(0, 0, mWidth, mHeight), mClearAttrib, mbGradient);
 
         if (enableFrame[Side::T])
-            Fill(Rect(0, 0, mWidth, 1), kAttribCaption, mbGradient);   // top
+            Fill(Rect(0, 0, mWidth, 1), kAttribFrame, mbGradient);   // top
 
         if (enableFrame[Side::L])
-            Fill(Rect(0, 0, 1, mHeight), kAttribCaption, mbGradient);   // left
+            Fill(Rect(0, 0, 1, mHeight), kAttribFrame, mbGradient);   // left
 
         if (enableFrame[Side::B])
-            Fill(Rect(0, mHeight - 1, mWidth, mHeight), kAttribCaption, mbGradient);    // bottom
+            Fill(Rect(0, mHeight - 1, mWidth, mHeight), bottomColor);    // bottom
 
         if (enableFrame[Side::R])
-            Fill(Rect(mWidth - 1, 0, mWidth, mHeight), kAttribCaption, mbGradient);    // right  
+            Fill(Rect(mWidth - 1, 0, mWidth, mHeight), kAttribFrame, mbGradient);    // right  
 
         // draw all captions
         for (uint8_t pos = 0; pos < Position::MAX_POSITIONS; pos++)
@@ -1419,6 +1633,68 @@ namespace CLP
         int64_t dr = gConsole.Width();
         int64_t db = gConsole.Height();
 
+        if (mbSelectionEnabled)
+        {
+            Rect inner;
+            GetInnerArea(inner);
+
+            if (mRowColSelection.Valid())
+            {
+                int64_t startX = mRowColSelection.start.x;
+                int64_t startY = mRowColSelection.start.y;
+                int64_t endX = mRowColSelection.end.x;
+                int64_t endY = mRowColSelection.end.y;
+
+                // clip
+                if (startY < inner.t)
+                    startY = inner.t;
+                if (endY > inner.b)
+                    endY = inner.b;
+                if (startX < inner.l)
+                    startX = inner.l;
+                if (endX > inner.r)
+                    endX = inner.r;
+
+                int64_t startIndex = (startY * mWidth) + startX;
+                int64_t endIndex = (endY * mWidth) + endX;
+                if (startIndex > endIndex)
+                    std::swap(startIndex, endIndex);
+
+                for (int64_t index = startIndex; index <= endIndex; index++)
+                {
+                    int64_t dy = (index / mWidth);
+                    int64_t dx = index % mWidth;
+                    if (dx >= inner.l && dx < inner.r && dy >= inner.t && dy < inner.b)
+                    {
+                        bool bDecLine = mBuffer[index].attrib.dec_line; // preserve declin setting
+                        mBuffer[index].attrib = kSelectedText;
+                        mBuffer[index].attrib.dec_line = bDecLine;
+                    }
+                }
+            }
+            else if (mRectSelection.Valid())
+            {
+                Rect clipped(mRectSelection);
+                clipped.Normalize();
+                clipped.ClipTo(inner);
+
+                for (int64_t y = clipped.t; y < clipped.b; y++)
+                {
+                    for (int64_t x = clipped.l; x < clipped.r; x++)
+                    {
+                        int64_t index = (y * mWidth) + x;
+                        bool bDecLine = mBuffer[index].attrib.dec_line; // preserve declin setting
+                        mBuffer[index].attrib = kSelectedText;
+                        mBuffer[index].attrib.dec_line = bDecLine; 
+                    }
+                }
+            }
+        }
+
+
+
+
+
         for (int64_t sy = 0; sy < mHeight; sy++)
         {
             int64_t dy = sy + mY;
@@ -1435,8 +1711,10 @@ namespace CLP
                     }
                 }
             }
-
         }
+
+
+        mbWindowInvalid = false;
     }
 
 
@@ -1457,6 +1735,11 @@ namespace CLP
         enableFrame[Side::T] = _t;
         enableFrame[Side::R] = _r;
         enableFrame[Side::B] = _b;
+    }
+
+    void ConsoleWin::SetEnableSelection(bool bEnable)
+    {
+        mbSelectionEnabled = bEnable;
     }
 
 
@@ -1619,13 +1902,13 @@ namespace CLP
 
         ConsoleWin::BasePaint();
 
-        int64_t firstDrawRow = mTopVisibleRow - 1;
+        int64_t firstDrawRow = mTopVisibleRow;
 
         Rect drawArea;
         GetInnerArea(drawArea);
         Rect textArea = GetTextOuputRect(mText);
-        int64_t shiftX = 1;// drawArea.l;
-        int64_t shiftY = /*drawArea.t*/ - firstDrawRow;     // shift the text output so that the in-view text starts with the firstdrawrow
+        int64_t shiftX = drawArea.l;
+        int64_t shiftY = drawArea.t - firstDrawRow;     // shift the text output so that the in-view text starts with the firstdrawrow
 
         textArea.l += shiftX;
         textArea.r += shiftX;
@@ -1634,14 +1917,16 @@ namespace CLP
 
 
         bool bDrawScrollbar = false;
+
         if (bAutoScrollbar)
         {
 //            int64_t nRows = GetTextOutputRows(mText, drawArea.w());
             int64_t nRows = textArea.h();
-            Rect sb(drawArea.r, drawArea.t, drawArea.r+1, drawArea.b);
+            Rect sb(drawArea.r, drawArea.t, drawArea.r + 1, drawArea.b);    // drawArea is reduced by 1 for scrollbar
             bDrawScrollbar = nRows > drawArea.h();
             DrawScrollbar(sb, 0, nRows - drawArea.h() - 1, mTopVisibleRow, kAttribScrollbarBG, kAttribScrollbarThumb);
-            drawArea.r--;   // adjust draw area for text if scrollbar is visible
+
+//            drawArea.r--;   // adjust draw area for text if scrollbar is visible
         }
 
         DrawClippedAnsiText(textArea, mText, true, &drawArea);
@@ -1678,7 +1963,7 @@ namespace CLP
 
             Rect drawArea;
             GetInnerArea(drawArea);
-            drawArea.r--;   // allow for scrollbar
+//            drawArea.r--;   // allow for scrollbar
             mTable.SetRenderWidth(drawArea.w());
             mText = mTable;
         }
@@ -1800,8 +2085,8 @@ namespace CLP
     void InfoWin::GetInnerArea(Rect& r) const
     {
         ConsoleWin::GetInnerArea(r);
-        if (bAutoScrollbar)
-            r.r--;
+//        if (bAutoScrollbar)
+//            r.r--;
     }
 
 
@@ -1881,33 +2166,33 @@ namespace CLP
                 // left button down
                 UpdateCursorPos(localcoord);
 
-                selectionstart = (int)CursorToTextIndex(localcoord);
-                selectionend = selectionstart;
+                mSelection.start = CursorToTextIndex(localcoord);
+                mSelection.end = mSelection.start;
                 gConsole.Invalidate();
-                bMouseCapturing = true;
+                mbMouseCapturing = true;
                 return true;
             }
-            else if (event.dwButtonState == 0 && bMouseCapturing)
+            else if (event.dwButtonState == 0 && mbMouseCapturing)
             {
                 // left button up
-                selectionend = (int)CursorToTextIndex(localcoord);
+                mSelection.end = CursorToTextIndex(localcoord);
 
-                if (selectionstart == selectionend)
+                if (mSelection.start == mSelection.end)
                 {
                     ClearSelection();
                 }
 
                 gConsole.Invalidate();
-                bMouseCapturing = false;
+                mbMouseCapturing = false;
                 return true;
             }
         }
         else if (event.dwEventFlags == MOUSE_MOVED)
         {
             // mouse moved
-            if (bMouseCapturing)
+            if (mbMouseCapturing)
             {
-                selectionend = (int)CursorToTextIndex(localcoord);
+                mSelection.end = CursorToTextIndex(localcoord);
                 gConsole.Invalidate();
             }
         }
@@ -2011,38 +2296,31 @@ namespace CLP
         UpdateCursorPos(TextIndexToCursor(index));
     }
 
-    bool TextEditWin::IsIndexInSelection(int64_t i)
+/*    bool TextEditWin::IsIndexInSelection(int64_t i)
     {
-        int64_t normalizedStart = selectionstart;
-        int64_t normalizedEnd = selectionend;
+        int64_t normalizedStart = mSelectionStartIndex;
+        int64_t normalizedEnd = mSelectionEndIndex;
         if (normalizedEnd < normalizedStart)
         {
-            normalizedStart = selectionend;
-            normalizedEnd = selectionstart;
+            normalizedStart = mSelectionEndIndex;
+            normalizedEnd = mSelectionStartIndex;
         }
 
         return (i >= normalizedStart && i < normalizedEnd);
-    }
+    }*/
 
     string TextEditWin::GetSelectedText()
     {
         if (!IsTextSelected())
             return "";
 
-        int64_t normalizedStart = selectionstart;
-        int64_t normalizedEnd = selectionend;
-        if (normalizedEnd < normalizedStart)
-        {
-            normalizedStart = selectionend;
-            normalizedEnd = selectionstart;
-        }
-
-        return mText.substr(normalizedStart, normalizedEnd - normalizedStart);
+        mSelection.Normalize();
+        return mText.substr(mSelection.start, mSelection.end- mSelection.start);
     }
 
     void TextEditWin::AddUndoEntry()
     {
-        undoEntry entry(mText, CursorToTextIndex(mLocalCursorPos), selectionstart, selectionend);
+        undoEntry entry(mText, CursorToTextIndex(mLocalCursorPos), mSelection);
         mUndoEntryList.emplace_back(std::move(entry));
     }
 
@@ -2055,8 +2333,7 @@ namespace CLP
         mUndoEntryList.pop_back();
 
         mText = entry.text;
-        selectionstart = entry.selectionstart;
-        selectionend = entry.selectionend;
+        mSelection = entry.selection;
         UpdateCursorPos(TextIndexToCursor(entry.cursorindex));
     }
 
@@ -2155,7 +2432,7 @@ namespace CLP
 
         for (size_t textindex = 0; textindex < mText.length(); textindex++)
         {
-            if (IsIndexInSelection(textindex))
+            if (mSelection.IsInside(textindex))
                 attribs[textindex] = kSelectedText;
         }
 
@@ -2360,8 +2637,8 @@ namespace CLP
             {
                 if (bCTRLHeld)  // CTRL-A
                 {
-                    selectionstart = 0;
-                    selectionend = mText.length();
+                    mSelection.start = 0;
+                    mSelection.end = mText.length();
                     bHandled = true;
                     break;
                 }
@@ -2464,21 +2741,14 @@ namespace CLP
         if (!IsTextSelected())
             return;
 
-        int64_t normalizedStart = selectionstart;
-        int64_t normalizedEnd = selectionend;
-        if (normalizedEnd < normalizedStart)
-        {
-            normalizedStart = selectionend;
-            normalizedEnd = selectionstart;
-        }
+        mSelection.Normalize();
+        int64_t selectedChars = mSelection.end - mSelection.start;
 
-        int64_t selectedChars = normalizedEnd - normalizedStart;
-
-        mText.erase(normalizedStart, selectedChars);
+        mText.erase(mSelection.start, selectedChars);
 
         int curindex = (int)CursorToTextIndex(mLocalCursorPos);
-        if (curindex > normalizedStart)
-            curindex -= (int)(curindex - normalizedStart);
+        if (curindex > mSelection.start)
+            curindex -= (int)(curindex - mSelection.start);
         UpdateCursorPos(TextIndexToCursor(curindex));
 
         ClearSelection();
@@ -2486,8 +2756,7 @@ namespace CLP
 
     void TextEditWin::ClearSelection()
     {
-        selectionstart = -1;
-        selectionend = -1;
+        mSelection.Clear();
         UpdateCursorPos(mLocalCursorPos);
     }
 
@@ -2499,11 +2768,9 @@ namespace CLP
         }
         else
         {
-            if (selectionstart == -1)
-            {
-                selectionstart = CursorToTextIndex(mLocalCursorPos);
-            }
-            selectionend = CursorToTextIndex(mLocalCursorPos);
+            if (!mSelection.Valid())
+                mSelection.start = CursorToTextIndex(mLocalCursorPos);
+            mSelection.end = mSelection.start;
         }
     }
 
@@ -2601,9 +2868,10 @@ namespace CLP
 
         Table::SetDecLineBorders(helpTableWin.mTable, COL_BLUE);
 
-        helpTableWin.Init(Rect(0, 1, w, h));
+        helpTableWin.Init(Rect(0, 0, w, h));
         helpTableWin.Clear(kAttribHelpBG, true);
         helpTableWin.SetEnableFrame();
+        helpTableWin.SetEnableSelection();
         helpTableWin.bAutoScrollbar = true;
         helpTableWin.mTopVisibleRow = 0;
 
@@ -2632,6 +2900,8 @@ namespace CLP
         }*/
 
 //        size_t valueColW = drawWidth - longestKey - 6;
+        size_t paircount = keyVals.size();
+        size_t count = 0;
         for (const auto& kv : keyVals)
         {
             string sKey(kv.first);
@@ -2647,20 +2917,11 @@ namespace CLP
                 assert(c != '\0');
             }
 
-
-
-/*            size_t offset = 0;
-            while (offset < sVal.length())
-            {
-                string sFitVal = sVal.substr(offset, valueColW);
-                if (offset == 0) // first row
-                    varTable.AddRow(sKey, sFitVal);
-                else
-                    varTable.AddRow("", sFitVal);
-                offset += sFitVal.length();
-            }*/
             helpTableWin.mTable.AddRow(Table::Cell(sKey, keyStyle), Table::Cell(sVal, valueStyle));
-            helpTableWin.mTable.AddSeparator();
+
+            if (count+1 < paircount)
+                helpTableWin.mTable.AddSeparator();
+            count++;
         }
 
 

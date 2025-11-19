@@ -37,7 +37,7 @@ public:
     void Paint(tConsoleBuffer& backBuf);
 
     bool LoadFile(std::string filename);
-    void SetFilter(std::string filter) { sFilter = filter; invalid = true; }
+    void SetFilter(std::string filter) { sFilter = filter; mbWindowInvalid = true; }
     bool ReadPipe();
 
 protected:
@@ -56,7 +56,7 @@ protected:
     bool bQuit = false;
     bool bLastVisibleState = false;
     int64_t     viewTopLine = -1;
-    bool        invalid = true;
+    //bool        invalid = true;
     bool        highlight = true;
     void        HookCTRL_S(bool bHook = true);
 
@@ -66,17 +66,6 @@ protected:
     tStringList rows;
     tStringList filteredRows;
 };
-
-inline bool IsWhitespace(char c)
-{
-    return  c == ' ' || c == '\n' || c == '\r' || c == '\t' || c == '\f' || c == '\v';
-}
-
-inline bool IsBreakingChar(char c)
-{
-    return c == ';' || c == '.' || IsWhitespace(c);
-}
-
 
 int64_t ReaderWin::CalculateWordsThatFitInWidth(int64_t nLineWidth, const uint8_t* pChars, int64_t nNumChars) const
 {
@@ -187,7 +176,7 @@ void ReaderWin::UpdateFiltered()
         return;
 
     sFilter = filterTextEntryWin.GetText();
-    invalid = true;
+    mbWindowInvalid = true;
 
     filteredRows.clear();
     if (sFilter.empty())
@@ -205,7 +194,7 @@ void ReaderWin::UpdateFiltered()
 
 int64_t ReaderWin::GetFilteredCount()
 {
-    if (invalid)
+    if (mbWindowInvalid)
         UpdateFiltered();
 
     return filteredRows.size();
@@ -305,6 +294,7 @@ void ReaderWin::DrawToScreen()
 
 bool ReaderWin::Execute()
 {
+    mbSelectionEnabled = true;
     if (!gConsole.Init())
     {
         cout << "Failed to initialize.....aborting\n";
@@ -324,7 +314,9 @@ bool ReaderWin::Execute()
     filterTextEntryWin.SetText(sFilter);
 
 
-    Init(Rect(0, 1, gConsole.Width(), gConsole.Height()));
+    Init(Rect(0, 0, gConsole.Width(), gConsole.Height()));
+
+    UpdateFromConsoleSize(true);
 
     ZAttrib kReaderBG(0xFF000000FFff00ff);
 
@@ -429,7 +421,7 @@ bool ReaderWin::Execute()
                 if (inputRecord[i].EventType == MOUSE_EVENT)
                 {
                     MOUSE_EVENT_RECORD event = inputRecord[i].Event.MouseEvent;
-                    event.dwMousePosition.Y--;  // adjust for our coords
+                    //event.dwMousePosition.Y--;  // adjust for our coords
 
                     OnMouse(event);
                 }
@@ -465,7 +457,7 @@ void ReaderWin::SetVisible(bool bVisible)
 {
     if (mbVisible != bVisible)
     {
-        invalid = true;
+        mbWindowInvalid = true;
 
         // if log window is visible, hook CTRL-S for saving (otherwise it is a suspend command to a console app)
         HookCTRL_S(bVisible);
@@ -512,10 +504,10 @@ void ReaderWin::Update()
     if (viewTopLine != mTopVisibleRow)
     {
         viewTopLine = mTopVisibleRow;
-        invalid = true;
+        mbWindowInvalid = true;
     }
 
-    if (!mbVisible || !invalid)
+    if (!mbVisible || !mbWindowInvalid)
         return;
 
 //    positionCaption[ConsoleWin::Position::LT] = "Reader";
@@ -591,7 +583,7 @@ bool ReaderWin::OnMouse(MOUSE_EVENT_RECORD event)
         {
             mTopVisibleRow -= mHeight / 4;
         }
-        invalid = true;
+        mbWindowInvalid = true;
         gConsole.Invalidate();
 
         Update();
@@ -626,7 +618,7 @@ bool ReaderWin::OnKey(int keycode, char c)
             filterTextEntryWin.SetVisible(false);
             filterTextEntryWin.mbCanceled = false;
             filterTextEntryWin.mbDone = false;
-            invalid = true;
+            mbWindowInvalid = true;
         }
     }
 
@@ -635,7 +627,7 @@ bool ReaderWin::OnKey(int keycode, char c)
         helpTableWin.SetVisible(false);
         helpTableWin.mbCanceled = false;
         helpTableWin.mbDone = false;
-        invalid = true;
+        mbWindowInvalid = true;
     }
 
     if (!bHandled)
@@ -643,37 +635,37 @@ bool ReaderWin::OnKey(int keycode, char c)
         if (keycode == VK_UP)
         {
             mTopVisibleRow--;
-            invalid = true;
+            mbWindowInvalid = true;
             bHandled = true;
         }
         else if (keycode == VK_DOWN)
         {
             mTopVisibleRow++;
-            invalid = true;
+            mbWindowInvalid = true;
             bHandled = true;
         }
         else if (keycode == VK_HOME)
         {
             mTopVisibleRow = 0;
-            invalid = true;
+            mbWindowInvalid = true;
             bHandled = true;
         }
         else if (keycode == VK_PRIOR)
         {
             mTopVisibleRow -= drawArea.h();
-            invalid = true;
+            mbWindowInvalid = true;
             bHandled = true;
         }
         else if (keycode == VK_NEXT)
         {
             mTopVisibleRow += drawArea.h();
-            invalid = true;
+            mbWindowInvalid = true;
             bHandled = true;
         }
         else if (keycode == VK_END)
         {
             mTopVisibleRow = entryCount - drawArea.h();
-            invalid = true;
+            mbWindowInvalid = true;
             bHandled = true;
         }
         else if (keycode == 'f' || keycode == 'F')
@@ -686,7 +678,7 @@ bool ReaderWin::OnKey(int keycode, char c)
                     filterTextEntryWin.SetArea(Rect(mX + 11, mY + mHeight - 3, mX + mWidth - 11, mY + mHeight));
                     filterTextEntryWin.SetEnableFrame();
                     filterTextEntryWin.SetVisible();
-                    invalid = true;
+                    mbWindowInvalid = true;
                 }
                 bHandled = true;
             }
@@ -696,7 +688,7 @@ bool ReaderWin::OnKey(int keycode, char c)
             if (bCTRLHeld)
             {
                 highlight = !highlight;
-                invalid = true;
+                mbWindowInvalid = true;
             }
         }
         else if (keycode == VK_ESCAPE)
@@ -723,7 +715,7 @@ bool ReaderWin::OnKey(int keycode, char c)
 
 void ReaderWin::Paint(tConsoleBuffer& backBuf)
 {
-    if (!mbVisible || !invalid)
+    if (!mbVisible || !mbWindowInvalid)
         return;
 
     ConsoleWin::BasePaint();
@@ -778,13 +770,13 @@ void ReaderWin::Paint(tConsoleBuffer& backBuf)
     if (filteredCount > drawArea.h())
     {
         Rect sb(drawArea.r, drawArea.t, drawArea.r+1, drawArea.b);    // drawArea is reduced by 1 for scrollbar
+//        Rect sb(drawArea.l, drawArea.t, drawArea.l + 1, drawArea.b);
         DrawScrollbar(sb, 0, filteredCount - drawArea.h(), mTopVisibleRow, kAttribScrollbarBG, kAttribScrollbarThumb);
-        drawArea.r--;
     }
 
     ConsoleWin::RenderToBackBuf(backBuf);
     gConsole.Invalidate();
-    invalid = false;
+    mbWindowInvalid = false;
 }
 
 
@@ -793,7 +785,7 @@ bool ReaderWin::UpdateFromConsoleSize(bool bForce)
     if (bForce || gConsole.ScreenChanged())
     {
         gConsole.UpdateNativeConsole();
-        invalid = true;
+        mbWindowInvalid = true;
 
         int64_t w = gConsole.Width();
         int64_t h = gConsole.Height();
